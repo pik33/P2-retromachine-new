@@ -56,7 +56,7 @@ class TWindow
   
   dim d,x,y,da,db
 
-  d=5-4*r :x=0 : y=r :da=(-2*r+5)*4 :db:=3*4
+  d=5-4*r : x=0 : y=r :da=(-2*r+5)*4 :db:=3*4
   do while (x<=y) 
     fastline(x0-x,x0+x,y0-y,c)
     fastline(x0-x,x0+x,y0+y,c)
@@ -69,34 +69,23 @@ class TWindow
 
 '-- A circle ------------------------------------------------------------ 
  
-pub circle(x0,y0,r,c) | d,x,y,da,db
+  sub circle(x0,y0,r,c) 
+  
+  dim d,x,y,da,db
 
- 
-d:=5-4*r
-x:=0
-y:=r
-da:=(-2*r+5)*4
-db:=3*4
-repeat while (x<=y) 
-  putpixel(x0-x,y0-y,c)
-  putpixel(x0-x,y0+y,c)
-  putpixel(x0+x,y0-y,c)
-  putpixel(x0+x,y0+y,c)
-  putpixel(x0-y,y0-x,c)
-  putpixel(x0-y,y0+x,c)
-  putpixel(x0+y,y0-x,c)
-  putpixel(x0+y,y0+x,c)
-  if d>0 
-    d+=da
-    y-=1
-    x+=1
-    da+=4*4
-    db+=2*4
-  else
-    d+=db
-    x+=1
-    da+=2*4
-    db+=2*4
+  d=5-4*r : x=0 : y=r :da=(-2*r+5)*4 : db=3*4
+  do while (x<=y) 
+    putpixel(x0-x,y0-y,c)
+    putpixel(x0-x,y0+y,c)
+    putpixel(x0+x,y0-y,c)
+    putpixel(x0+x,y0+y,c)
+    putpixel(x0-y,y0-x,c)
+    putpixel(x0-y,y0+x,c)
+    putpixel(x0+y,y0-x,c)
+    putpixel(x0+y,y0+x,c)
+  if d>0 then d+=da : y-=1 :  x+=1 : da+=4*4 : db+=2*4 else d+=db : x+=1 : da+=2*4 : db+=2*4
+  loop 
+  end sub
     
     
  /'      
