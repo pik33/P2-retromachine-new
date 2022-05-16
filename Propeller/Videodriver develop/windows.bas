@@ -6,109 +6,67 @@ class TWindow
   dim vcx,vcy as ulong
   dim canvas as ulong
   dim needclose,selected,visible, handle as ubyte
+   
+''---------- putpixel - put a pixel on the screen - a mother of all graphic functions ---------------------------
+
+  sub putpixel(x,y,c)
+
+  if ((x>=0) andalso (x<l) andalso (y>=0) andalso (y<h)) then psram.fill(canvas+(l*y+x),c,1,0,1)
+  end sub
   
+'----------- A line drawing family ------------------------------------------------------------------------------
+
+  sub fastline(x1,x2,y,c)					         	' a fast 8bpp horizontal line
+
+  if y<0 then return
+  if x1>x2 then x1,x2=x2,x1
+  psram.fill(canvas+(l*y+x1),c,1+x2-x1,0,1)
+  end sub
+
+  sub draw(x1,y1,x2,y2,c) 
   
- /' 
+  dim d,dx,dy,ai,bi,xi,yi,x,y as integer					
+
+  if (y1=y2) then
+    fastline(x1,x2,y1,c)
+  else  
+    x=x1: y=y1
+    if (x1<x2) then xi=1 : dx=x2-x1  else xi=-1 : dx:=x1-x2
+    if (y1<y2) then yi=1 : dy=y2-y1  else yi=-1 : dy:=y1-y2
+    putpixel(x,y,c)
+    if (dx>dy) then 
+      ai=(dy-dx)*2 : bi=dy*2 : d:= bi-dx
+      do while (x<>x2) 
+        if (d>=0) then x+=xi : y+=yi : d+=ai else d+=bi : x+=xi
+        putpixel(x,y,c)
+      loop
+    else
+      ai:=(dx-dy)*2 : bi:=dx*2 : d:=bi-dy
+      do while (y<>y2)
+        if (d>=0) then x+=xi : y+=yi : d+=ai else d+=bi : y+=yi
+        putpixel(x, y,c)
+    endif
+  endif
+  end sub
   
-  ''---------- putpixel - put a pixel on the screen - a mother of all graphic functions ---------------------------
-
-
-pub putpixel(x,y,c)
-
-if ((x>=0) & (x<4*s_cpl) & (y>=0) & (y<s_lines))
-  ram.fill(s_buf_ptr+(4*s_cpl1*y+x),c,1,0,1)
-
-'----------- A line drawing family. BASIC doesn't like the name, so it is named "draw" and aliased  -----------------------------
-
-pub fastline(x1,x2,y,c)									' a fast 8bpp horizontal line
-
-if y<0
-  return
-if x1>x2 
-  x1,x2:=x2,x1
-ram.fill(s_buf_ptr+(4*s_cpl1*y+x1),c,1+x2-x1,0,1)
-
- 
-pub line(x1,y1,x2,y2,c)  								' this is a "draw" alias
-draw(x1,y1,x2,y2,c)
-
-pub draw(x1,y1,x2,y2,c) | d,dx,dy,ai,bi,xi,yi,x,y					' I had to rename the function for BASIC	
-
-if (y1==y2)
-  fastline(x1,x2,y1,c)
-else  
-  x:=x1
-  y:=y1
-
-  if (x1<x2) 
-    xi:=1
-    dx:=x2-x1
-  else
-    xi:=-1
-    dx:=x1-x2
-  
-  if (y1<y2) 
-    yi:=1
-    dy:=y2-y1
-  else
-    yi:=-1
-    dy:=y1-y2
-
-  putpixel(x,y,c)
-
-  if (dx>dy)
-    ai:=(dy-dx)*2
-    bi:=dy*2
-    d:= bi-dx
-    repeat while (x<>x2) 
-      if (d>=0) 
-        x+=xi
-        y+=yi
-        d+=ai
-      else
-        d+=bi
-        x+=xi
-      putpixel(x,y,c)
-  else
-    ai:=(dx-dy)*2
-    bi:=dx*2
-    d:=bi-dy
-    repeat while (y<>y2)
-      if (d>=0)
-        x+=xi
-        y+=yi
-        d+=ai
-      else
-        d+=bi
-        y+=yi
-      putpixel(x, y,c)
 
 '-- A filled circle -----------------------------------------------------
 
-pub fcircle(x0,y0,r,c) | d,x,y,da,db
+  sub fcircle(x0,y0,r,c) 
+  
+  dim d,x,y,da,db
 
-d:=5-4*r
-x:=0
-y:=r
-da:=(-2*r+5)*4
-db:=3*4
-repeat while (x<=y) 
-  fastline(x0-x,x0+x,y0-y,c)
-  fastline(x0-x,x0+x,y0+y,c)
-  fastline(x0-y,x0+y,y0-x,c)
-  fastline(x0-y,x0+y,y0+x,c)
-  if d>0 
-    d+=da
-    y-=1
-    x+=1
-    da+=4*4
-    db+=2*4
-  else
-    d+=db
-    x+=1
-    da+=2*4
-    db+=2*4
+  d=5-4*r :x=0 : y=r :da=(-2*r+5)*4 :db:=3*4
+  do while (x<=y) 
+    fastline(x0-x,x0+x,y0-y,c)
+    fastline(x0-x,x0+x,y0+y,c)
+    fastline(x0-y,x0+y,y0-x,c)
+    fastline(x0-y,x0+y,y0+x,c)
+    if d>0 then d+=da : y-=1 : x+=1 : da+=4*4 : db+=2*4 else d+=db : x+=1 : da+=2*4 : db+=2*4
+  loop
+  end sub 
  
+
 '-- A circle ------------------------------------------------------------ 
  
 pub circle(x0,y0,r,c) | d,x,y,da,db
@@ -140,6 +98,8 @@ repeat while (x<=y)
     da+=2*4
     db+=2*4
     
+    
+ /'      
 '-- A frame (an empty rectangle) ---------------------------------------
 
 pub frame(x1,y1,x2,y2,c)
