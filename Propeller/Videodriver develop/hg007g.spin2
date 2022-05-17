@@ -1114,7 +1114,7 @@ ataripalette   file "ataripalettep2.def"
 '**********************************************************************************
 
 '                      bf.hs, hs,  bf.vis  visible, up p., vsync, down p.,  cpl, total lines, clock,       hubset                                scanlines  ud bord mode reserved
-timings         long   16,    80,  12,      1024,   6,     8,     6,        128, 576,         336956522,   %1_101101__11_0000_0110__1111_1011,   576,        0,     192, 0, 0
+timings         long   14,    80,  14,      1024,   8,     8,     4,        128, 576,         336956522,   %1_101101__11_0000_0110__1111_1011,   576,        0,     192, 0, 0
 vgacolors       byte   0, 117, 199, 151, 39, 71, 246, 10, 5, 121, 203, 155, 43, 75, 234, 15
 
 

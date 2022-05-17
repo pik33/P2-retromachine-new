@@ -140,6 +140,7 @@ dim atitle,author,copyright as string
 dim mouse1 as ulong
 declare mouse2 alias mouse1 as ubyte(3)
 dim mousex,mousey,mousek,mousewheel,mouseclick
+
 '' ----------------------------Main program start ------------------------------------
 
 channelvol(0)=1 : channelvol(1)=1 : channelvol(2)=1 : channelvol(3)=1    

@@ -5,7 +5,15 @@ class TWindow
   dim vcl,vch as ulong                   
   dim vcx,vcy as ulong
   dim canvas as ulong
+  dim i,j as integer
+  dim font_ptr,font_family as ulong
+  dim blitbuf(1023) as ubyte
+  dim cursor_x,cursor_y as ubyte
+  dim write_color,write_background as ubyte
+  dim ccc(1) as ulong
+  dim mailbox as ulong
   dim needclose,selected,visible, handle as ubyte
+  
    
 ''---------- putpixel - put a pixel on the screen - a mother of all graphic functions ---------------------------
 
@@ -23,7 +31,7 @@ class TWindow
   psram.fill(canvas+(l*y+x1),c,1+x2-x1,0,1)
   end sub
 
-  sub draw(x1,y1,x2,y2,c) 
+  sub draw(x1,y1,x2,y2,c) 							' normal line
   
   dim d,dx,dy,ai,bi,xi,yi,x,y as integer					
 
@@ -87,23 +95,26 @@ class TWindow
   loop 
   end sub
     
-    
- /'      
+        
 '-- A frame (an empty rectangle) ---------------------------------------
 
-pub frame(x1,y1,x2,y2,c)
+  sub frame(x1,y1,x2,y2,c)
 
-fastline(x1,x2,y1,c)
-fastline(x1,x2,y2,c)
-line(x1,y1,x1,y2,c)
-line(x2,y1,x2,y2,c)
+  fastline(x1,x2,y1,c)
+  fastline(x1,x2,y2,c)
+  line(x1,y1,x1,y2,c)
+  line(x2,y1,x2,y2,c)
+  end sub
 
 '-- A box (a filled rectangle) ----------------------------------------
 
-pub box(x1,y1,x2,y2,c) |yy
+  sub box(x1,y1,x2,y2,c) 
 
-repeat yy from y1 to y2
-  fastline(x1,x2,yy,c)
+  for yy=y1 to y2
+    fastline(x1,x2,yy,c)
+  next yy
+  end sub
+ 
     
 '****************************************************************************************************************
 '                                                                       		 			*
@@ -113,69 +124,78 @@ repeat yy from y1 to y2
 
 ' ------  Transparent character
 
-pub putcharxycf(x,y,achar,f) |xx, yy, bb
+  sub putcharxycf(x,y,achar,f)  
+  
+  dim bb as ubyte
 
-repeat yy from 0 to 15
-  bb:=byte[@vga_font+font_family<<10+achar<<4+yy]
-  repeat xx from 0 to 7
-    if (bb&(1<<xx))<>0
-      putpixel(xx+x,yy+y,f)
+  for yy=0 to 15
+    bb=peek(font_ptr+(font_family shl 10) + (achar shl 4) + yy)
+    for xx from 0 to 7
+      if (bb and (1 shl xx))<>0 then putpixel(xx+x,yy+y,f)
+    next xx
+  next yy
+  end sub    
       
 ' ------  Opaque character      
 
-pub putcharxycg(x,y,achar,f,b) |xx, yy,bb
-
-repeat yy from 0 to 15
-  bb:=byte[@vga_font+font_family<<10+achar<<4+yy]
-  repeat xx from 0 to 7
-    if (bb&(1<<xx))<>0
-      putpixel(xx+x,yy+y,f)
-    else
-      putpixel(xx+x,yy+y,b)
-      
-pub putcharxycgf(x,y,achar,f,b) |xx, yy,bb,c1,c2
-
- 
-repeat yy from 0 to 15
-
-  bb:=byte[@vga_font+font_family<<10+achar<<4+yy]
-  asm
-  testb bb,#0 wz
-  if_z setbyte c1,f,#0
-  if_nz setbyte c1,b,#0
-  testb bb,#1 wz
-  if_z setbyte c1,f,#1
-  if_nz setbyte c1,b,#1
-  testb bb,#2 wz
-  if_z setbyte c1,f,#2
-  if_nz setbyte c1,b,#2
-  testb bb,#3 wz
-  if_z setbyte c1,f,#3
-  if_nz setbyte c1,b,#3
-  testb bb,#4 wz
-  if_z setbyte c2,f,#0
-  if_nz setbyte c2,b,#0
-  testb bb,#5 wz
-  if_z setbyte c2,f,#1
-  if_nz setbyte c2,b,#1
-  testb bb,#6 wz
-  if_z setbyte c2,f,#2
-  if_nz setbyte c2,b,#2
-  testb bb,#7 wz
-  if_z setbyte c2,f,#3
-  if_nz setbyte c2,b,#3
-
-   
-  endasm  
+  sub putcharxycg(x,y,achar,f,b) 
   
-  ccc[0]:=c1
-  ccc[1]:=c2 
-  long[mailbox0][2]:=8
-  long[mailbox0][1]:=@ccc
-  long[mailbox0]:= s_buf_ptr+((y+yy)<<10+x<<2)+$f0000000   
-  repeat
-  while long[mailbox0] < 0 
- 
+  dim bb as ubyte
+  
+  for yy=0 to 15
+    bb=peek(font_ptr+(font_family shl 10)+ (achar shl 4) +yy)
+    for xx from 0 to 7
+      if (bb and (1 shl xx))<>0 then putpixel(xx+x,yy+y,f) else putpixel(xx+x,yy+y,b)
+    next xx
+  next yy
+  end sub    
+      
+' ------  Opaque character fast, x unit=4 pixels         
+      
+  sub putcharxycgf(x,y,achar,f,b) 
+  
+  dim bb as ubyte
+  dim c1,c2 as ulong
+
+  for yy=0 to 15
+    bb=peek(font_ptr+(font_family shl 10)+ (achar shl 4) +yy)
+
+    	asm
+  
+  		testb bb,#0 wz
+  	if_z 	setbyte c1,f,#0
+  	if_nz setbyte c1,b,#0
+ 		testb bb,#1 wz
+  	if_z 	setbyte c1,f,#1
+  	if_nz setbyte c1,b,#1
+  		testb bb,#2 wz
+  	if_z 	setbyte c1,f,#2
+  	if_nz setbyte c1,b,#2
+  		testb bb,#3 wz
+  	if_z 	setbyte c1,f,#3
+  	if_nz setbyte c1,b,#3
+  		testb bb,#4 wz
+  	if_z 	setbyte c2,f,#0
+  	if_nz setbyte c2,b,#0
+  		testb bb,#5 wz
+  	if_z 	setbyte c2,f,#1
+  	if_nz setbyte c2,b,#1
+  		testb bb,#6 wz
+  	if_z 	setbyte c2,f,#2
+  	if_nz setbyte c2,b,#2
+  		testb bb,#7 wz
+  	if_z 	setbyte c2,f,#3
+  	if_nz setbyte c2,b,#3
+
+ 	end asm  
+  
+  ccc(0)=c1
+  ccc(1)=c2 
+  lpoke mailbox+8,8
+  lpoke mailbox+4,addr(ccc(0))
+  lpoke mailbox,canvas+((y+yy) shl 10)+(x shl 2)+$f0000000   
+  do: loop until (lpeek(mailbox) and $F0000000)=0 
+  end sub
  
       
 ' ------  Opaque  8x8 character      
@@ -262,25 +282,7 @@ if num==3
 
 ''--------- Redefine a character
 
-pub defchar(fn,ch,b0,b1,b2,b3,b4,b5,b6,b7,b8,b9,b10,b11,b12,b13,b14,b15) :s
 
-s:=@st_font+fn+ch*16
-byte[s+00]:=b0
-byte[s+01]:=b1
-byte[s+02]:=b2
-byte[s+03]:=b3
-byte[s+04]:=b4
-byte[s+05]:=b5
-byte[s+06]:=b6
-byte[s+07]:=b7
-byte[s+08]:=b8
-byte[s+09]:=b9
-byte[s+10]:=b10
-byte[s+11]:=b11
-byte[s+12]:=b12
-byte[s+13]:=b13
-byte[s+14]:=b14
-byte[s+15]:=b15
 
 '*************************************************************************
 '                                                                        *
@@ -297,61 +299,18 @@ cursor_x:=x
 cursor_y:=y
 
 
-'*************************************************************************
-'                                                                        *
-'  VBlank functions                                                      *
-'                                                                        *
-'*************************************************************************
+''---------- Wait for vblank. Amount=delay in frames
 
-pub waitvbl(amount) | i
-
-''---------- Wait for start of vblank. Amount=delay in frames
-
-repeat i from 1 to amount
-  repeat until vblank==0
-    waitus(100)
-  repeat until vblank==1
-    waitus(100)
+sub waitvbl(amount=1) 
 
 
-pub waitvblend(amount) | i
-
-''---------- Wait for end of vblank. Amount=delay in frames
-
-repeat i from 1 to amount
+for i from 1 to amount
   repeat until vblank==1
     waitus(100)
   repeat until vblank==0
     waitus(100)
 
-'*************************************************************************
-'                                                                        *
-'  Color functions                                                       *
-'                                                                        *
-'*************************************************************************
 
-''---------- Get a VGA color code
-
-pub getvgacolor(color):r
-
-return colors[color]
-
-pub getpalettecolor(color):r
-
-return long[palette_ptr+4*color]
-
-
-
-''---------- Set the border color
-
-pub setbordercolor(r,g,b) | color
-
-color:=r<<24+g<<16+b<<8
-bordercolor:=color
-
-pub setbordercolor2(color) 
-
-bordercolor:=color
 
 
 ''---------- Set colors for putchar, write and writeln
@@ -360,14 +319,6 @@ pub setwritecolors(ff,bb)
 
 write_color:=ff
 write_background:=bb
-
-''---------- Set color #c in palette to r,g,b
-
-pub setcolor(c,r,g,b)  |cc
-
-cc:=r<<24+g<<16+b<<8
-long[palette_ptr+4*c]:=cc
-
 
 '*************************************************************************
 '                                                                        *
@@ -407,85 +358,71 @@ if cursor_x>=256
     
 ''---------- Output a char at the cursor position, move the cursor, don't react for tab or lf 
 
-pub putchar2(achar) | c,x,y,l,newcpl
+  sub putchar2(achar) 
 
-putcharxycgf(cursor_x,16*cursor_y,achar,write_color,write_background)
-cursor_x+=2
-if cursor_x>=256
-  cursor_x:=0
-  cursor_y+=1
-  if cursor_y>st_lines-1
-    scrollup()
-    cursor_y:=st_lines-1
+  putcharxycgf(cursor_x,16*cursor_y,achar,write_color,write_background)
+  cursor_x+=2 								   ' position granularity is char/2 which makes real centered text possible
+  if cursor_x>=2*l then
+    cursor_x:=0
+    cursor_y+=1
+    if cursor_y>=(h/16) then scrollup() : cursor_y=(h/16)-1
+  end sub  
 
 ''--------- Output a string at the cursor position, move the cursor  
 
-pub write(text) | iii,c,ncx,ncy
+  sub write(byref text$ as string) 
 
-repeat iii from 0 to strsize(text)-1
-  putchar2(byte[text+iii])
+  for i=0 to len(text$)-1 : putchar2(peek(lpeek(addr(text$))+iii)) : next i
+  end sub
 
-'--------- Output a string at the cursor position x,y, move the cursor to the next line -
+''--------- Output a string at the cursor position x,y, move the cursor to the next line -
 
-pub writeln(text)
+  sub writeln(byref text$ as string)
 
-write(text)
-cursor_x:=0
-cursor_y+=1
-if (cursor_y>st_lines-1)
-  scrollup()
-  cursor_y:=st_lines-1
+  write(text$)
+  cursor_x=0
+  cursor_y+=1
+  if (cursor_y>st_lines-1) then scrollup : cursor_y=st_lines-1
+  end sub
+  
+''-----------  Scroll the window one text line up
 
-''-----------  Scroll the screen one line up
-
-pub scrollup() | i
+  sub scrollup
 	
-repeat i from 0 to 559 
-  ram.read1($80000-4096-1024-s_debug, s_buf_ptr+(i+16)*4*s_cpl1, 4*s_cpl1)
-  ram.write($80000-4096-1024-s_debug, s_buf_ptr+i*4*s_cpl1, 4*s_cpl1)
-
-repeat i from 560 to 575
-   fastline(0,1023,i,write_background)   
+  for i=0 to 16*(h/16)-17
+    ram.read1(addr(blitbuf),canvas+(i+16)*l,l)
+    ram.write(addr(blitbuf),canvas+i*l,l)
+  next i
+  for i=560 to 575 : fastline(0,1023,i,write_background) : next i
+  end sub
  
-''----------- Scroll the screen one line down 
+''----------- Scroll the window one line down 
 
-pub scrolldown() | i
+  sub scrolldown 
 
-repeat i from 559 to 0
-  ram.read1($80000-4096-1024-s_debug, s_buf_ptr+i*4*s_cpl1, 4*s_cpl1)
-  ram.write($80000-4096-1024-s_debug, s_buf_ptr+(i+16)*4*s_cpl1, 4*s_cpl1)
-
-repeat i from 0 to 15
-   fastline(0,1023,i,write_background)      
+  for i=16*(h/16)-17 to 0 step -1
+    ram.read1(addr(blitbuf), canvas+i*l, l)
+    ram.write(addr(blitbuf), canvas+(i+16)*l, l) 
+  next i
+  for i=0 to 15 : fastline(0,l,i,write_background) : next i   
+  end sub
 
 ''----------- Set cursor at the first character in a new line, scroll if needed 
 
-pub crlf()
+  sub crlf
 
-cursor_x:=0
-cursor_y+=1
-if cursor_y>st_lines-1
-  scrollup()
-  cursor_y:=st_lines-1
+  cursor_x=0
+  cursor_y+=1
+  if cursor_y>st_lines-1 then scrollup : cursor_y=st_lines-1
+  end sub
 
 ''---------- Backspace. Move the cursor back, clear a character
 
-pub bksp()
+  sub bksp
 
-cursor_x-=1
-if cursor_x==255
-  cursor_x:=s_cpl-1
-  cursor_y-=1
-  if cursor_y==255
-    cursor_y:=0
-    scrollup()
-
-outtextxycg(cursor_x,cursor_y,string(" "),write_color,write_background)
-
-
-  
-  
-'/  
-  
+  cursor_x-=1 : if cursor_x=255 then cursor_x=(l/8)-1
+  cursor_y-=1 : if cursor_y=255 then cursor_y=0 : scrollup
+  outtextxycg(cursor_x,cursor_y," ",write_color,write_background)
+  end sub
   
 end class
