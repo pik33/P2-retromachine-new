@@ -200,15 +200,17 @@ class TWindow
       
 ' ------  Opaque  8x8 character      
  
-pub putcharxycg8(x,y,achar,f,b) |xx, yy,bb
+  sub putcharxycg8(x,y,achar,f,b) |xx, yy,bb
 
-repeat yy from 0 to 7
-  bb:=byte[@vga_font+font_family<<10+achar<<3+yy]
-  repeat xx from 0 to 7
-    if (bb&(1<<xx))<>0
-      putpixel(xx+x,yy+y,f)
-    else
-      putpixel(xx+x,yy+y,b)      
+  dim bb as ubyte
+  
+  for yy=0 to 7
+    bb=peek(font_ptr+(font_family shl 10)+ (achar shl 4) +yy)
+    for xx=0 to 7
+      if (bb and (1 shl xx))<>0 then putpixel(xx+x,yy+y,f) else putpixel(xx+x,yy+y,b)      
+    next xx
+  next yy
+  end sub  
 
 '' ------  Opaque zoomed 8x16 character       
 
