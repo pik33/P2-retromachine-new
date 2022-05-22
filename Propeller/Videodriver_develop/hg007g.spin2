@@ -1114,7 +1114,7 @@ ataripalette   file "ataripalettep2.def"
 '**********************************************************************************
 
 '                      bf.hs, hs,  bf.vis  visible, up p., vsync, down p.,  cpl, total lines, clock,       hubset                                scanlines  ud bord mode reserved
-timings         long   14,    80,  14,      1024,   8,     8,     4,        128, 576,         336956522,   %1_101101__11_0000_0110__1111_1011,   576,        0,     192, 0, 0
+timings         long   14,    80,  14,      1024,   6,     8,     6,        128, 576,         336956522,   %1_101101__11_0000_0110__1111_1011,   576,        0,     192, 0, 0
 vgacolors       byte   0, 117, 199, 151, 39, 71, 246, 10, 5, 121, 203, 155, 43, 75, 234, 15
 
 
@@ -1233,19 +1233,21 @@ dli             cmp     rcnt,#0 wz			   ' check the DL repeat counter
                 incmod  rcnt2a,rcnt2 wcz                   ' address update counter
     if_c        add     dl,roffset                         ' if it rollovers, add the offset to the data address
                 mov     rdl,dl                             ' save the result
-               
+
+		cmp 	dl,#0
+    if_z        jmp     #p308               
 p307            mov     framebuf2,dl wcz                   ' move this to framebuf2. If normal DL entry, the frame buffer start will be extracted from this
                 getnib  t1,dl,#0
                 cmp     t1,#%0010 wz			   ' 0010 - display a normal graphics line, preload it from the PSRAM
-    if_z        call    #preload
-    if_z        ret
+    if_z        jmp     #preload
+    		cmp     t1,#%0000 wz			   ' 0000 - display a line from a PSRAM list
+    if_z        jmp     #preload2
                 cmp     t1,#%0001 wz			   ' 0001 - repeat
     if_z        jmp     #p390
                 cmp     t1,#%0011 wz			   ' 0011 - palette reload
     if_z        jmp     #p391  
-    		cmp     t1,#%0000 wz			   ' 0000 - display a line from a PSRAM list
-    if_z        call    #preload2
-                ret
+
+p308            ret
    
 p390            rdlong  rdl,dlptr2                         ' read the next DL entry to repeat
                 getword rcnt,framebuf2,#1                  ' read the repeat count

@@ -1,3 +1,4 @@
+
 class TWindow
           
   dim x,y as integer
@@ -5,6 +6,7 @@ class TWindow
   dim vcl,vch as ulong                   
   dim vcx,vcy as ulong
   dim canvas as ulong
+  dim deco as ulong
   dim i,j as integer
   dim font_ptr,font_family as ulong
   dim blitbuf(1023) as ubyte
@@ -12,12 +14,18 @@ class TWindow
   dim write_color,write_background as ubyte
   dim ccc(1) as ulong
   dim mailbox as ulong
-  dim needclose,selected,visible, handle as ubyte
+  dim needclose,selected,visible,num as ubyte
   
-   
+  dim psram as class using "/home/pik33/Programowanie/P2-retromachine/Propeller/Videodriver_develop/psram4.spin2"
+  
+  
+  'sub create(ah,al,ah,ac)
+  
+  
+  
 ''---------- putpixel - put a pixel on the screen - a mother of all graphic functions ---------------------------
 
-  sub putpixel(x,y,c)
+  sub putpixel(x,y as ulong,c as ubyte)
 
   if ((x>=0) andalso (x<l) andalso (y>=0) andalso (y<h)) then psram.fill(canvas+(l*y+x),c,1,0,1)
   end sub
@@ -39,20 +47,21 @@ class TWindow
     fastline(x1,x2,y1,c)
   else  
     x=x1: y=y1
-    if (x1<x2) then xi=1 : dx=x2-x1  else xi=-1 : dx:=x1-x2
-    if (y1<y2) then yi=1 : dy=y2-y1  else yi=-1 : dy:=y1-y2
+    if (x1<x2) then xi=1 : dx=x2-x1  else xi=-1 : dx=x1-x2
+    if (y1<y2) then yi=1 : dy=y2-y1  else yi=-1 : dy=y1-y2
     putpixel(x,y,c)
     if (dx>dy) then 
-      ai=(dy-dx)*2 : bi=dy*2 : d:= bi-dx
+      ai=(dy-dx)*2 : bi=dy*2 : d= bi-dx
       do while (x<>x2) 
         if (d>=0) then x+=xi : y+=yi : d+=ai else d+=bi : x+=xi
         putpixel(x,y,c)
       loop
     else
-      ai:=(dx-dy)*2 : bi:=dx*2 : d:=bi-dy
+      ai=(dx-dy)*2 : bi=dx*2 : d=bi-dy
       do while (y<>y2)
         if (d>=0) then x+=xi : y+=yi : d+=ai else d+=bi : y+=yi
-        putpixel(x, y,c)
+        putpixel(x,y,c)
+      loop  
     endif
   endif
   end sub
@@ -64,7 +73,7 @@ class TWindow
   
   dim d,x,y,da,db
 
-  d=5-4*r : x=0 : y=r :da=(-2*r+5)*4 :db:=3*4
+  d=5-4*r : x=0 : y=r :da=(-2*r+5)*4 :db=3*4
   do while (x<=y) 
     fastline(x0-x,x0+x,y0-y,c)
     fastline(x0-x,x0+x,y0+y,c)
@@ -102,8 +111,8 @@ class TWindow
 
   fastline(x1,x2,y1,c)
   fastline(x1,x2,y2,c)
-  line(x1,y1,x1,y2,c)
-  line(x2,y1,x2,y2,c)
+  draw(x1,y1,x1,y2,c)
+  draw(x2,y1,x2,y2,c)
   end sub
 
 '-- A box (a filled rectangle) ----------------------------------------
@@ -130,7 +139,7 @@ class TWindow
 
   for yy=0 to 15
     bb=peek(font_ptr+(font_family shl 10) + (achar shl 4) + yy)
-    for xx from 0 to 7
+    for xx=0 to 7
       if (bb and (1 shl xx))<>0 then putpixel(xx+x,yy+y,f)
     next xx
   next yy
@@ -144,7 +153,7 @@ class TWindow
   
   for yy=0 to 15
     bb=peek(font_ptr+(font_family shl 10)+ (achar shl 4) +yy)
-    for xx from 0 to 7
+    for xx=0 to 7
       if (bb and (1 shl xx))<>0 then putpixel(xx+x,yy+y,f) else putpixel(xx+x,yy+y,b)
     next xx
   next yy
@@ -189,18 +198,19 @@ class TWindow
 
  	end asm  
   
-  ccc(0)=c1
-  ccc(1)=c2 
-  lpoke mailbox+8,8
-  lpoke mailbox+4,addr(ccc(0))
-  lpoke mailbox,canvas+((y+yy) shl 10)+(x shl 2)+$f0000000   
-  do: loop until (lpeek(mailbox) and $F0000000)=0 
+    ccc(0)=c1
+    ccc(1)=c2 
+    lpoke mailbox+8,8
+    lpoke mailbox+4,addr(ccc(0))
+    lpoke mailbox,canvas+((y+yy) shl 10)+(x shl 2)+$f0000000   
+    do: loop until (lpeek(mailbox) and $F0000000)=0 
+    next yy
   end sub
  
       
 ' ------  Opaque  8x8 character      
  
-  sub putcharxycg8(x,y,achar,f,b) |xx, yy,bb
+  sub putcharxycg8(x,y,achar,f,b)  
 
   dim bb as ubyte
   
@@ -214,76 +224,51 @@ class TWindow
 
 '' ------  Opaque zoomed 8x16 character       
 
-pub putcharxycz(x,y,achar,f,b,xz,yz) |xx,xxx,yy,yyy,bb
+  sub putcharxycz(x,y,achar,f,b,xz,yz)  
+  
+  dim bb as ubyte
 
-repeat yy from 0 to 15
-  bb:=byte[@vga_font+font_family<<10+achar<<4+yy]
-  repeat xx from 0 to 7
-    if (bb&(1<<xx))<>0
-      repeat yyy from 0 to yz-1
-        repeat xxx from 0 to xz-1
-          putpixel(xz*xx+xxx+x,yz*yy+yyy+y,f)
-    else
-      repeat yyy from 0 to yz-1
-        repeat xxx from 0 to xz-1
-          putpixel(xz*xx+xxx+x,yz*yy+yyy+y,b)
+  for yy=0 to 15
+    bb=peek(font_ptr+(font_family shl 10)+ (achar shl 4) +yy)
+    for xx=0 to 7
+      if (bb and (1 shl xx))<>0 then 
+        for yyy=0 to yz-1
+          for xxx=0 to xz-1
+            putpixel(xz*xx+xxx+x,yz*yy+yyy+y,f)
+          next xxx
+        next yyy      
+      else
+        for yyy=0 to yz-1
+          for xxx=0 to xz-1
+            putpixel(xz*xx+xxx+x,yz*yy+yyy+y,b)
+          next xxx
+        next yyy 
+      endif
+    next xx
+  next yy
+  end sub      
           
 '' ----- String output using above          
 
-pub outtextxycg(x,y,text,f,b) | iii,c
+  sub outtextxycg(x,y,text,f,b)  
 
-repeat iii from 0 to strsize(text)-1
-  putcharxycg(x+8*iii,y,byte[text+iii],f,b)
+  for i=0 to len(text$)-1 : putcharxycg(x+8*i,y,peek(lpeek(addr(text$))+i),f,b) : next i
+  end sub
 
-pub outtextxycg8(x,y,text,f,b) | iii,c
+  sub outtextxycg8(x,y,text,f,b)  
 
-repeat iii from 0 to strsize(text)-1
-  putcharxycg8(x+8*iii,y,byte[text+iii],f,b)
+  for i=0 to len(text$)-1 : putcharxycg8(x+8*i,y,peek(lpeek(addr(text$))+i),f,b) : next i
+  end sub
   
-pub outtextxycf(x,y,text,f) | iii,c
+  sub outtextxycf(x,y,text,f) 
 
-repeat iii from 0 to strsize(text)-1
-  putcharxycf(x+8*iii,y,byte[text+iii],f)
+  for i=0 to len(text$)-1 : putcharxycf(x+8*i,y,peek(lpeek(addr(text$))+i),f) : next i
+  end sub
 
-pub outtextxycz(x,y,text,f,b,xz,yz) | iii,c
+  sub outtextxycz(x,y,text,f,b,xz,yz) 
 
-repeat iii from 0 to strsize(text)-1
-  putcharxycz(x+8*xz*iii,y,byte[text+iii],f,b,xz,yz)
-
-
-'**********************************************************************r***
-'                                                                        *
-' Font related functions                                                 *
-'                                                                        *
-'*************************************************************************
-
-''--------- Set a font offset. TODO: remove, use byte#1 instead
-
-pub setfontfamily(afontnum)
-
-font_family:=afontnum
-'if afontnum==8
-'  font_ptr:=@amiga_font
-
-if afontnum==4
-  font_ptr:=@st_font
-if afontnum==0
-  font_ptr:=@vga_font
-  
-
-''--------- Get a pointer to a font definition
-
-pub getfontaddr(num)
-
-if num==1
-  return @vga_font
-if num==2
-  return @st_font
-if num==3
-  return @a8_font  
-
-''--------- Redefine a character
-
+  for i=0 to len(text$)-1 : putcharxycz(x+8*xz*iii,y,peek(lpeek(addr(text$))+i),f,b,xz,yz) :next i
+  end sub
 
 
 '*************************************************************************
@@ -292,35 +277,31 @@ if num==3
 '                                                                        *
 '*************************************************************************
 
-
-pub setcursorpos(x,y)
+ sub setcursorpos(x,y)
 
 ''---------- Set the (x,y) position of cursor
 
-cursor_x:=x
-cursor_y:=y
-
+  cursor_x=x
+  cursor_y=y
+  end sub
 
 ''---------- Wait for vblank. Amount=delay in frames
 
-sub waitvbl(amount=1) 
+  sub waitvbl(amount=1) 
 
-
-for i from 1 to amount
-  repeat until vblank==1
-    waitus(100)
-  repeat until vblank==0
-    waitus(100)
-
-
-
+  for i=1 to amount
+    do : waitus (10) : loop until v.vblank=1
+    do : waitus (10) : loop until v.vblank=0
+  next i
+  end sub
 
 ''---------- Set colors for putchar, write and writeln
 
-pub setwritecolors(ff,bb)
+  sub setwritecolors(ff,bb)
 
-write_color:=ff
-write_background:=bb
+  write_color=ff
+  write_background=bb
+  end sub
 
 '*************************************************************************
 '                                                                        *
@@ -330,33 +311,29 @@ write_background:=bb
 
 ''---------- Clear the screen, set its foreground/background color  
 
-pub cls(fc,bc)   :c,i
+  sub cls(fc=154,bc=147)  
 
-c:=bc
-ram.fill(s_buf_ptr,c,4*buflen,0,1)  
-setwritecolors(fc,bc)
-cursor_x:=0
-cursor_y:=0
+  psram.fill(canvas,bc,l*h,0,1)  
+  setwritecolors(fc,bc)
+  cursor_x=0
+  cursor_y=0
+  end sub
 
 ''---------- Output a char at the cursor position, move the cursor 
 
-pub putchar(achar) | c,x,y,l,newcpl
+  sub putchar(achar) 
 
-if achar==10
-  crlf()
-if achar==9
-  cursor_x:=(cursor_x& %11110000)+16
-  
-if (achar<>9) && (achar<>10) 
+  if achar=10 then crlf : goto 360
+  if achar=9  then cursor_x=(cursor_x and  %11110000)+16 : goto 360
+    
   putcharxycgf(cursor_x,16*cursor_y,achar,write_color,write_background)
   cursor_x+=2
-
-if cursor_x>=256
-  cursor_x:=0
-  cursor_y+=1
-  if cursor_y>st_lines-1
-    scrollup()
-    cursor_y:=st_lines-1
+  if cursor_x>=2*l then
+    cursor_x=0
+    cursor_y+=1
+    if cursor_y>=(h/16) then scrollup() : cursor_y=(h/16)-1
+  endif 
+360 end sub  
     
 ''---------- Output a char at the cursor position, move the cursor, don't react for tab or lf 
 
@@ -365,9 +342,10 @@ if cursor_x>=256
   putcharxycgf(cursor_x,16*cursor_y,achar,write_color,write_background)
   cursor_x+=2 								   ' position granularity is char/2 which makes real centered text possible
   if cursor_x>=2*l then
-    cursor_x:=0
+    cursor_x=0
     cursor_y+=1
     if cursor_y>=(h/16) then scrollup() : cursor_y=(h/16)-1
+  endif  
   end sub  
 
 ''--------- Output a string at the cursor position, move the cursor  
@@ -392,8 +370,8 @@ if cursor_x>=256
   sub scrollup
 	
   for i=0 to 16*(h/16)-17
-    ram.read1(addr(blitbuf),canvas+(i+16)*l,l)
-    ram.write(addr(blitbuf),canvas+i*l,l)
+    psram.read1(addr(blitbuf),canvas+(i+16)*l,l)
+    psram.write(addr(blitbuf),canvas+i*l,l)
   next i
   for i=560 to 575 : fastline(0,1023,i,write_background) : next i
   end sub
@@ -403,8 +381,8 @@ if cursor_x>=256
   sub scrolldown 
 
   for i=16*(h/16)-17 to 0 step -1
-    ram.read1(addr(blitbuf), canvas+i*l, l)
-    ram.write(addr(blitbuf), canvas+(i+16)*l, l) 
+    psram.read1(addr(blitbuf), canvas+i*l, l)
+    psram.write(addr(blitbuf), canvas+(i+16)*l, l) 
   next i
   for i=0 to 15 : fastline(0,l,i,write_background) : next i   
   end sub
@@ -424,7 +402,51 @@ if cursor_x>=256
 
   cursor_x-=1 : if cursor_x=255 then cursor_x=(l/8)-1
   cursor_y-=1 : if cursor_y=255 then cursor_y=0 : scrollup
-  outtextxycg(cursor_x,cursor_y," ",write_color,write_background)
+  outtextxycg(cursor_x,cursor_y,32,write_color,write_background)
   end sub
   
 end class
+
+
+dim windows(7) as TWindow
+
+sub initwindows
+
+for i=0 to 7: windows(i).num=255: next i
+end sub
+
+function createwindow(al,ah,ad) as ubyte
+
+dim i as ubyte
+
+i=0
+do while i<8 andalso windows(i).num<>255
+  i+=1
+loop
+if i>=8 then return 255
+
+windows(i).h=ah
+windows(i).l=al
+windows(i).x=0
+windows(i).y=0
+windows(i).canvas=ad+22*al
+windows(i).deco=ad
+windows(i).vcl=0
+windows(i).vch=0
+windows(i).vcx=0
+windows(i).vcy=0
+windows(i).vcl=0
+windows(i).font_ptr=v.font_ptr
+windows(i).font_family=0
+windows(i).cursor_x=0
+windows(i).cursor_y=0
+windows(i).write_color=154
+windows(i).write_background=147
+windows(i).mailbox=mbox
+windows(i).needclose=0
+windows(i).selected=0
+windows(i).visible=0
+windows(i).num=i
+windows(i).cls
+return i
+end function

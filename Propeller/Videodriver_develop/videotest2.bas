@@ -1,4 +1,5 @@
 #include "retromachine.bi"
+#include "windows.bas"
 const hubset338=%1_111011__11_1111_0111__1111_1011 '338_666_667 =30*44100 
 
 dim s(640) as ulong
@@ -17,8 +18,20 @@ dim ccc,x1,x2,y1,y2,r as ulong
 v.cls(200,0)
 let cog=cpu(movesprite,@s)
 v.setfontfamily(0)
+
+initwindows
+let test1=createwindow(320,200,$600000): position 50,15:  print test1
+
+
+26 for i=0 to 99 : v.fastline(0,100,i,i):next i
+v.box(0,476,100,575,200)
+waitms(5000)
+waitms(5000)
+waitms(5000)
+goto 26
+
 do
-  for i=1 to 500: print i: next i
+  for i=1 to 500: print i: next i : v.write("501") : waitms(5000)
 
   for i=0 to 10000
     ccc=getrnd() and 255
@@ -390,7 +403,7 @@ makelist01(framenum)
 loop
 end sub
 
-dim list1(575,11)
+dim list1(575,11) as ulong
 
 sub makelist01(pos)
 
@@ -401,8 +414,8 @@ sub testlist01(linenum,pos)
 
 list1(linenum,0)=$B0000000+v.buf_ptr+1024*linenum 					'read from $100000
 list1(linenum,1)=$80000-16384-4096+1024*(linenum mod 4)
-list1(linenum,2)=pos
-list1(linenum,3)=addr(list1(linenum,4))
+list1(linenum,2)=pos+1
+list1(linenum,3)=0 'addr(list1(linenum,4))
 list1(linenum,4)=$B0_10_0000 					'read from $100000
 list1(linenum,5)=$80000-16384-4096+1024*(linenum mod 4)+pos
 list1(linenum,6)=256
@@ -413,15 +426,16 @@ list1(linenum,10)=1024-256-pos
 list1(linenum,11)=0
 end sub
 
-dim dl1(576)
+dim dl1(577)
 
 sub maketestdl
 
 
 for i=0 to 575
-  dl1(i)=addr(list1(i)) shl 4
+  dl1(i)=addr(list1(i,0)) shl 4
   testlist01(i,256)
 next i
+dl1(576)=0: dl1(577)=0
 for i=0 to 255: pspoke $100000+i,i : next i
 end sub
 
