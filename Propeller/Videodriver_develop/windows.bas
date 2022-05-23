@@ -18,16 +18,13 @@ class TWindow
   
   dim psram as class using "/home/pik33/Programowanie/P2-retromachine/Propeller/Videodriver_develop/psram4.spin2"
   
-  
-  'sub create(ah,al,ah,ac)
-  
-  
+
   
 ''---------- putpixel - put a pixel on the screen - a mother of all graphic functions ---------------------------
 
-  sub putpixel(x,y as ulong,c as ubyte)
+  sub putpixel(xx,xy as ulong, c as ubyte)
 
-  if ((x>=0) andalso (x<l) andalso (y>=0) andalso (y<h)) then psram.fill(canvas+(l*y+x),c,1,0,1)
+  if ((xx>=0) andalso (xx<l) andalso (yy>=0) andalso (yy<h)) then psram.fill(canvas+(l*yy+xx),c,1,0,1)
   end sub
   
 '----------- A line drawing family ------------------------------------------------------------------------------
