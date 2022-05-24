@@ -2,7 +2,7 @@
 class TWindow
           
   dim x,y as integer
-  dim l,h as ulong                     
+  dim l,h,dh as ulong                     
   dim vcl,vch as ulong                   
   dim vcx,vcy as ulong
   dim canvas as ulong
@@ -13,12 +13,33 @@ class TWindow
   dim cursor_x,cursor_y as ubyte
   dim write_color,write_background as ubyte
   dim ccc(1) as ulong
-  dim mailbox as ulong
+  dim winmailbox as ulong
   dim needclose,selected,visible,num,cog as ubyte
   
-  dim psram as class using "/home/pik33/Programowanie/P2-retromachine/Propeller/Videodriver_develop/psram4.spin2"
+  dim psram as class using "/home/pik33/Programowanie/P2-retromachine/Propeller/Videodriver_develop/psram4.spin2" ' full path needed here
   
 
+  sub psread(hub,ram,cnt)
+  
+  dim r as ulong
+  
+  lpoke winmailbox+8,cnt
+  lpoke winmailbox+4,hub
+  lpoke winmailbox,$A0000000 + ram
+  do
+    let r = lpeek(winmailbox)    
+  loop while r and $80000000 <> 0   
+  end sub    
+  
+    sub pswrite(hub,ram,cnt)
+    dim r as ulong
+  lpoke winmailbox+8,cnt
+  lpoke winmailbox+4,hub
+  lpoke winmailbox,$F0000000 + ram
+  do
+    let r = lpeek(winmailbox)    
+  loop while r and $80000000 <> 0    
+  end sub  
   
 ''---------- putpixel - put a pixel on the screen - a mother of all graphic functions ---------------------------
 
@@ -157,50 +178,52 @@ class TWindow
   end sub    
       
 ' ------  Opaque character fast, x unit=4 pixels         
+  dim ccccc(1) as ulong   
       
   sub putcharxycgf(x,y,achar,f,b) 
   
-  dim bb as ubyte
-  dim c1,c2 as ulong
+  dim bbb as ubyte
+  dim cc1,cc2 as ulong
 
   for yy=0 to 15
-    bb=peek(font_ptr+(font_family shl 10)+ (achar shl 4) +yy)
+    bbb=peek(font_ptr+(font_family shl 10)+ (achar shl 4) +yy)
 
     	const asm
   
-  		testb bb,#0 wz
-  	if_z 	setbyte c1,f,#0
-  	if_nz setbyte c1,b,#0
- 		testb bb,#1 wz
-  	if_z 	setbyte c1,f,#1
-  	if_nz setbyte c1,b,#1
-  		testb bb,#2 wz
-  	if_z 	setbyte c1,f,#2
-  	if_nz setbyte c1,b,#2
-  		testb bb,#3 wz
-  	if_z 	setbyte c1,f,#3
-  	if_nz setbyte c1,b,#3
-  		testb bb,#4 wz
-  	if_z 	setbyte c2,f,#0
-  	if_nz setbyte c2,b,#0
-  		testb bb,#5 wz
-  	if_z 	setbyte c2,f,#1
-  	if_nz setbyte c2,b,#1
-  		testb bb,#6 wz
-  	if_z 	setbyte c2,f,#2
-  	if_nz setbyte c2,b,#2
-  		testb bb,#7 wz
-  	if_z 	setbyte c2,f,#3
-  	if_nz setbyte c2,b,#3
+  		testb bbb,#0 wz
+  	if_z 	setbyte cc1,f,#0
+  	if_nz setbyte cc1,b,#0
+ 		testb bbb,#1 wz
+  	if_z 	setbyte cc1,f,#1
+  	if_nz setbyte cc1,b,#1
+  		testb bbb,#2 wz
+  	if_z 	setbyte cc1,f,#2
+  	if_nz setbyte cc1,b,#2
+  		testb bbb,#3 wz
+  	if_z 	setbyte cc1,f,#3
+  	if_nz setbyte cc1,b,#3
+  		testb bbb,#4 wz
+  	if_z 	setbyte cc2,f,#0
+  	if_nz setbyte cc2,b,#0
+  		testb bbb,#5 wz
+  	if_z 	setbyte cc2,f,#1
+  	if_nz setbyte cc2,b,#1
+  		testb bbb,#6 wz
+  	if_z 	setbyte cc2,f,#2
+  	if_nz setbyte cc2,b,#2
+  		testb bbb,#7 wz
+  	if_z 	setbyte cc2,f,#3
+  	if_nz setbyte cc2,b,#3
 
  	end asm  
   
-    ccc(0)=c1
-    ccc(1)=c2 
-    lpoke mailbox+8,8
-    lpoke mailbox+4,addr(ccc)
-    lpoke mailbox,canvas+((y+yy) *l)+(x shl 2)+$f0000000   
-    do: loop until (lpeek(mailbox) and $F0000000)=0 
+    ccccc(0)=cc1
+    ccccc(1)=cc2 
+    psram.write(addr(ccccc),canvas+((y+yy) *l)+(x shl 2),8)
+'    lpoke winmailbox+8,8
+'    lpoke winmailbox+4,addr(ccccc)
+ '   lpoke winmailbox,canvas+((y+yy) *l)+(x shl 2)+$f0000000   
+ '   do: loop until (lpeek(winmailbox) and $80000000)=0 
     next yy
   end sub
  
@@ -360,7 +383,7 @@ class TWindow
   write(text$)
   cursor_x=0
   cursor_y+=1
-  if (cursor_y>(h/16)) then scrollup : cursor_y=(h/16)-1
+  if (cursor_y>(h/16)-1) then scrollup : cursor_y=(h/16)-1
   end sub
   
 ''-----------  Scroll the window one text line up
@@ -371,7 +394,7 @@ class TWindow
     psram.read1(addr(blitbuf),canvas+(i+16)*l,l)
     psram.write(addr(blitbuf),canvas+i*l,l)
   next i
-  for i=16*(h/16)-16 to i=16*(h/16)-1: fastline(0,l-1,i,write_background) : next i
+  for i=16*(h/16)-16 to 16*(h/16)-1: fastline(0,l-1,i,write_background) : next i
   end sub
  
 ''----------- Scroll the window one line down 
@@ -407,6 +430,26 @@ end class
 
 
 dim windows(7) as TWindow
+dim points(31,1) as short
+dim rectangles(127,3) as short
+
+sub getrects
+
+for i=0 to 7
+  var j=0: do while windows(j).num=i: j+=1 : loop
+  points(4*j,0)=windows(j).x: points(4*j,1)=windows(j).y
+  points(4*j+1,0)=windows(j).x+windows(j).l-1: points(4*j+3,1)=windows(j).y
+  points(4*j+2,0)=windows(j).x: points(4*j+3,1)=windows(j).y+windows(j).h+windows(j).dh-1
+  points(4*j+3,0)=windows(j).x+windows(j).l-1: points(4*j+3,1)=windows(j).y+windows(j).h+windows(j).dh-1
+next i
+
+for i=0 to 31
+  if points(i,0)<0 then points(i,0)=0
+  if points(i,0)>1023 then points(i,0)=1023
+  if points(i,1)<0 then points(i,1)=0
+  if points(i,1)>1023 then points(i,1)=1023
+next i
+end sub  
 
 sub initwindows
 
@@ -425,6 +468,7 @@ if i>=8 then return 255
 
 windows(i).h=ah
 windows(i).l=al
+windows(i).dh=22
 windows(i).x=0
 windows(i).y=0
 windows(i).canvas=ad+22*al
@@ -440,7 +484,7 @@ windows(i).cursor_x=0
 windows(i).cursor_y=0
 windows(i).write_color=154
 windows(i).write_background=147
-windows(i).mailbox=mbox
+windows(i).winmailbox=mbox+12*i
 windows(i).needclose=0
 windows(i).selected=0
 windows(i).visible=0

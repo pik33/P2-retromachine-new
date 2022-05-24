@@ -3,6 +3,7 @@
 const hubset338=%1_111011__11_1111_0111__1111_1011 '338_666_667 =30*44100 
 const HEAPSIZE=16384
 dim s(512) as ulong
+dim s2(512) as ulong
 
 let c1=1: let c2=0
 'startmachine
@@ -17,6 +18,7 @@ v.dl_ptr=addr(dl1(0))
 dim ccc,x1,x2,y1,y2,r as ulong
 v.cls(200,0)
 let cog=cpu(movesprite,@s)
+let cog2=cpu(windowtest,@s2)
 v.setfontfamily(0)
 
 initwindows
@@ -409,14 +411,14 @@ let framenum=(framenum+delta) mod 768
 if framenum=0 then delta=1
 if framenum=703 then delta=-1
 makelist01(framenum)
-windows(test1).cog=cpuid()
-windows(test1).mailbox=mbox+12*cpuid()
+'windows(test1).cog=cpuid()
+'windows(test1).mailbox=mbox+12*cpuid()
 'windows(test1).writeln(decuns$(framenum))
     let xx1=getrnd() mod 320
     let yy1=getrnd() mod 200
     let rr=getrnd() mod 50
     let cccc=getrnd() and 255
-    windows(test1).fcircle(xx1,yy1,rr,cccc)
+'    windows(test1).fcircle(xx1,yy1,rr,cccc)
 loop
 end sub
 
@@ -456,6 +458,76 @@ next i
 dl1(576)=0: dl1(577)=0
 for i=0 to 255: pspoke $100000+i,i : next i
 end sub
+
+
+sub windowtest
+
+windows(test1).cog=cpuid()
+windows(test1).winmailbox=mbox+12*cpuid()
+waitms(5000)
+do
+  for ii=1 to 500: windows(test1).writeln(str$(ii)): next ii : windows(test1).write("501") 
+
+  for ii=0 to 10000
+    let cccc=getrnd() and 255
+    let xx1=getrnd() mod 40 
+    let yy1=getrnd() mod 12                               
+    windows(test1).setcursorpos(2*xx1,yy1) : windows(test1).setwritecolors(cccc,0): windows(test1).write("Testing PSRAM window")
+  next ii
+
+  for ii=0 to 1000
+    cccc=getrnd() and 255
+    xx1=getrnd() mod 320
+    yy1=getrnd() mod 200
+    windows(test1).outtextxycg(xx1,yy1,"Testing PSRAM window outtextxycg",cccc,0)
+  next ii
+  
+  for ii = 0 to 5000
+    cccc=getrnd() and 255
+    xx1=getrnd() mod 320
+    let xx2=getrnd() mod 320
+    yy1=getrnd() mod 200
+    let yy2=getrnd() mod 200
+    windows(test1).draw(xx1,yy1,xx2,yy2,cccc)
+  next ii 
+
+  for ii = 0 to 5000
+    xx1=getrnd() mod 320
+    yy1=getrnd() mod 200
+    rr=getrnd() mod 50
+    cccc=getrnd() and 255
+    windows(test1).fcircle(xx1,yy1,rr,cccc)   
+  next ii  
+
+  for ii = 0 to 5000
+    cccc=getrnd() and 255
+    xx1=getrnd() mod 320
+    xx2=getrnd() mod 320
+    yy1=getrnd() mod 200
+    yy2=getrnd() mod 200
+    windows(test1).frame(xx1,yy1,xx2,yy2,cccc)
+  next ii  
+  
+  for ii = 0 to 5000
+    xx1=getrnd() mod 320
+    yy1=getrnd() mod 200
+    let rr=getrnd() mod 50
+    cccc=getrnd() and 255
+    windows(test1).circle(xx1,yy1,rr,cccc) 
+  next ii  
+  
+  for ii = 0 to 10000
+    cccc=getrnd() and 255
+    xx1=getrnd() mod 320
+    xx2=getrnd() mod 100
+    yy1=getrnd() mod 100
+    yy2=getrnd() mod 100
+    windows(test1).box(xx1,yy1,xx1+xx2,yy1+yy2,cccc)  
+  next ii      
+  
+loop
+end sub
+
 
 asm shared
 
