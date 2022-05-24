@@ -14,7 +14,7 @@ class TWindow
   dim write_color,write_background as ubyte
   dim ccc(1) as ulong
   dim mailbox as ulong
-  dim needclose,selected,visible,num as ubyte
+  dim needclose,selected,visible,num,cog as ubyte
   
   dim psram as class using "/home/pik33/Programowanie/P2-retromachine/Propeller/Videodriver_develop/psram4.spin2"
   
@@ -22,7 +22,7 @@ class TWindow
   
 ''---------- putpixel - put a pixel on the screen - a mother of all graphic functions ---------------------------
 
-  sub putpixel(xx,xy as ulong, c as ubyte)
+  sub putpixel(xx as ulong, yy as ulong, c as ubyte)
 
   if ((xx>=0) andalso (xx<l) andalso (yy>=0) andalso (yy<h)) then psram.fill(canvas+(l*yy+xx),c,1,0,1)
   end sub
@@ -166,7 +166,7 @@ class TWindow
   for yy=0 to 15
     bb=peek(font_ptr+(font_family shl 10)+ (achar shl 4) +yy)
 
-    	asm
+    	const asm
   
   		testb bb,#0 wz
   	if_z 	setbyte c1,f,#0
@@ -198,8 +198,8 @@ class TWindow
     ccc(0)=c1
     ccc(1)=c2 
     lpoke mailbox+8,8
-    lpoke mailbox+4,addr(ccc(0))
-    lpoke mailbox,canvas+((y+yy) shl 10)+(x shl 2)+$f0000000   
+    lpoke mailbox+4,addr(ccc)
+    lpoke mailbox,canvas+((y+yy) *l)+(x shl 2)+$f0000000   
     do: loop until (lpeek(mailbox) and $F0000000)=0 
     next yy
   end sub
@@ -247,24 +247,24 @@ class TWindow
           
 '' ----- String output using above          
 
-  sub outtextxycg(x,y,text,f,b)  
+  sub outtextxycg(x,y,text as const ubyte pointer,f,b)  
 
-  for i=0 to len(text$)-1 : putcharxycg(x+8*i,y,peek(lpeek(addr(text$))+i),f,b) : next i
+  var i=0 : do while peek(text+i)<>0 : putcharxycg(x+8*i,y,peek(text+i),f,b) : i+=1: loop
   end sub
 
-  sub outtextxycg8(x,y,text,f,b)  
+  sub outtextxycg8(x,y,text$,f,b)  
 
   for i=0 to len(text$)-1 : putcharxycg8(x+8*i,y,peek(lpeek(addr(text$))+i),f,b) : next i
   end sub
   
-  sub outtextxycf(x,y,text,f) 
+  sub outtextxycf(x,y,text$,f) 
 
   for i=0 to len(text$)-1 : putcharxycf(x+8*i,y,peek(lpeek(addr(text$))+i),f) : next i
   end sub
 
   sub outtextxycz(x,y,text,f,b,xz,yz) 
 
-  for i=0 to len(text$)-1 : putcharxycz(x+8*xz*iii,y,peek(lpeek(addr(text$))+i),f,b,xz,yz) :next i
+  for i=0 to len(text$)-1 : putcharxycz(x+8*xz*iii,y,peek(text+i),f,b,xz,yz) :next i
   end sub
 
 
@@ -347,19 +347,20 @@ class TWindow
 
 ''--------- Output a string at the cursor position, move the cursor  
 
-  sub write(byref text$ as string) 
+  sub write(text as const ubyte pointer) 
 
-  for i=0 to len(text$)-1 : putchar2(peek(lpeek(addr(text$))+iii)) : next i
+
+  var i=0 : do while peek(text+i)<>0 : putchar2(peek(text+i)) : i+=1 : loop
   end sub
 
 ''--------- Output a string at the cursor position x,y, move the cursor to the next line -
 
-  sub writeln(byref text$ as string)
+  sub writeln(text$ as string)
 
   write(text$)
   cursor_x=0
   cursor_y+=1
-  if (cursor_y>st_lines-1) then scrollup : cursor_y=st_lines-1
+  if (cursor_y>(h/16)) then scrollup : cursor_y=(h/16)-1
   end sub
   
 ''-----------  Scroll the window one text line up
@@ -370,7 +371,7 @@ class TWindow
     psram.read1(addr(blitbuf),canvas+(i+16)*l,l)
     psram.write(addr(blitbuf),canvas+i*l,l)
   next i
-  for i=560 to 575 : fastline(0,1023,i,write_background) : next i
+  for i=16*(h/16)-16 to i=16*(h/16)-1: fastline(0,l-1,i,write_background) : next i
   end sub
  
 ''----------- Scroll the window one line down 
@@ -399,7 +400,7 @@ class TWindow
 
   cursor_x-=1 : if cursor_x=255 then cursor_x=(l/8)-1
   cursor_y-=1 : if cursor_y=255 then cursor_y=0 : scrollup
-  outtextxycg(cursor_x,cursor_y,32,write_color,write_background)
+  outtextxycg(cursor_x,cursor_y,chr$(32),write_color,write_background)
   end sub
   
 end class
@@ -444,6 +445,7 @@ windows(i).needclose=0
 windows(i).selected=0
 windows(i).visible=0
 windows(i).num=i
+windows(i).cog=0
 windows(i).cls
 return i
 end function

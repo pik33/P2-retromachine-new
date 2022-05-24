@@ -9,7 +9,7 @@ let c1=1: let c2=0
 startpsram
 startvideo
 list1
-maketestdl2
+maketestdl
 let delta=1
 let olddl=v.dl_ptr
 v.dl_ptr=addr(dl1(0))
@@ -21,7 +21,8 @@ v.setfontfamily(0)
 
 initwindows
 let test1=createwindow(320,200,$600000): position 50,15:  print test1
-
+windows(test1).writeln("Window test")
+'windows(test1).scrollup
 
 for i=0 to 99 : v.fastline(0,100,i,i):next i
 v.box(0,475,100,574,40)
@@ -34,7 +35,9 @@ v.fastline(0,55,1,122)
 waitms(5000)
 waitms(5000)
 waitms(5000)
-26 goto 26
+waitms(5000)
+waitms(5000)
+
 
 do
   for i=1 to 500: print i: next i : v.write("501") : waitms(5000)
@@ -404,8 +407,16 @@ if ypos16>=0 then v.spr16y=ypos16
 do:loop until v.vblank=0
 let framenum=(framenum+delta) mod 768
 if framenum=0 then delta=1
-if framenum=767 then delta=-1
+if framenum=703 then delta=-1
 makelist01(framenum)
+windows(test1).cog=cpuid()
+windows(test1).mailbox=mbox+12*cpuid()
+'windows(test1).writeln(decuns$(framenum))
+    let xx1=getrnd() mod 320
+    let yy1=getrnd() mod 200
+    let rr=getrnd() mod 50
+    let cccc=getrnd() and 255
+    windows(test1).fcircle(xx1,yy1,rr,cccc)
 loop
 end sub
 
@@ -422,35 +433,14 @@ list1(linenum,0)=$B0000000+v.buf_ptr+1024*linenum 					'read from $100000
 list1(linenum,1)=$80000-16384-4096+1024*(linenum mod 4)
 list1(linenum,2)=pos+1
 list1(linenum,3)=addr(list1(linenum,4))
-list1(linenum,4)=$B0_10_0000 					'read from $100000
+if linenum<22+framenum/2 orelse linenum>221+framenum/2 then list1(linenum,3)=0: list1(linenum,2)=1024
+list1(linenum,4)=$B0_60_0000+320*(linenum-framenum/2) 					'read from $100000
 list1(linenum,5)=$80000-16384-4096+1024*(linenum mod 4)+pos
-list1(linenum,6)=256
+list1(linenum,6)=320
 list1(linenum,7)=addr(list1(linenum,8))
-list1(linenum,8)=$B0000000+v.buf_ptr+1024*linenum +256+pos					'read from $100000
-list1(linenum,9)=$80000-16384-4096+1024*(linenum mod 4)+256+pos
-list1(linenum,10)=1024-256-pos
-list1(linenum,11)=0
-end sub
-
-
-sub makelist02(pos)
-
-for i=0 to 575: testlist01(i,pos): next i
-end sub
-
-sub testlist02(linenum,pos)
-
-list1(linenum,0)=$B0000000+v.buf_ptr+1024*linenum 					'read from $100000
-list1(linenum,1)=$80000-16384-4096+1024*(linenum mod 4)
-list1(linenum,2)=1024
-list1(linenum,3)=0
-list1(linenum,4)=$B0_10_0000 					'read from $100000
-list1(linenum,5)=$80000-16384-4096+1024*(linenum mod 4)+pos
-list1(linenum,6)=256
-list1(linenum,7)=addr(list1(linenum,8))
-list1(linenum,8)=$B0000000+v.buf_ptr+1024*linenum +256+pos					'read from $100000
-list1(linenum,9)=$80000-16384-4096+1024*(linenum mod 4)+256+pos
-list1(linenum,10)=1024-256-pos
+list1(linenum,8)=$B0000000+v.buf_ptr+1024*linenum +320+pos					'read from $100000
+list1(linenum,9)=$80000-16384-4096+1024*(linenum mod 4)+320+pos
+list1(linenum,10)=1024-320-pos
 list1(linenum,11)=0
 end sub
 
@@ -459,8 +449,6 @@ end sub
 dim dl1(577)
 
 sub maketestdl
-
-
 for i=0 to 575
   dl1(i)=addr(list1(i,0)) shl 4
   testlist01(i,256)
@@ -468,22 +456,6 @@ next i
 dl1(576)=0: dl1(577)=0
 for i=0 to 255: pspoke $100000+i,i : next i
 end sub
-
-sub maketestdl2
-
-
-for i=0 to 575
-  dl1(i)=((v.buf_ptr+1024*(i)) shl 4) + %0010
-next i
-dl1(4)=dl1(0)
-dl1(576)=0: dl1(577)=0
-end sub
-
-sub maketestdl3
-dl1(0)=576<<20+(0)<<16+%0001+ (0+(1024)) <<4             
-dl1(1)=v.buf_ptr<<4+%10  
-end sub
-
 
 asm shared
 

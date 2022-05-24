@@ -1174,7 +1174,7 @@ p101            setq 	#3
                 testb   paletteptr,#31 wc
          if_nc  setq2   #255
          if_nc  rdlong  $000, paletteptr                   'read palette
- rdfast  #64,buf1d    
+
 '' -----   up porch (before the picture)
 
                 mov     hsync0,sync_000      	           ' init constants for sync
@@ -1189,7 +1189,7 @@ p101            setq 	#3
          	     call    #dli	                  ' call DL interpreter for line #0 at line #(-2) - 2 lines earlier, so it can start preloading data from PSRAM
                 xcont   m_bv,hsync0     
                 xcont   m_vi,hsync0
-   '                     rdfast  #64,buf1d                          ' prepare the HUB buffer for 4 scanlines
+                         rdfast  #64,buf1d                          ' prepare the HUB buffer for 4 scanlines
 
                 xcont   m_bs,hsync0                        ' horizontal sync
                 xzero   m_sn,hsync1
@@ -1299,7 +1299,7 @@ preload         mov     buf1c,dlinum			   ' preload a line buffer #dlinum (0..3)
     _ret_       wrlong  cmd,mailbox			   ' read the PSRAM
  
  
-preload2        incmod  dlinum,#3
+preload2      '  incmod  dlinum,#3
                 shr 	framebuf2,#4
                 mov 	cmd,affffffff
                 mov 	buf1,framebuf2
