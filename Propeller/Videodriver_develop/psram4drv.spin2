@@ -558,20 +558,20 @@ polling_loop                rep     #0-0, #0                'repeat until we get
 
 polling_code                tjs     req0, cog0_handler      ']A control handler executes before skipf &
                             skipf   mask                    ']after all priority COG handlers if present
-                            tjs     req1, cog1_handler      ']Initially this is just a dummy placeholder
+                    	    tjs     req1, cog1_handler      ']Initially this is just a dummy placeholder
                             tjs     req2, cog2_handler      ']loop taking up the most space assuming 
-                            tjs     req3, cog3_handler      ']a polling loop with all round robin COGs 
-                            tjs     req4, cog4_handler      ']from COG1-7 and one control COG, COG0.
-                            tjs     req5, cog5_handler      ']This loop is recreated at init time 
-                            tjs     req6, cog6_handler      ']based on the active COGs being polled
-                            tjs     req7, cog7_handler      ']and whether priority or round robin.
-                            tjs     req1, cog1_handler      ']Any update of COG parameters would also
-                            tjs     req2, cog2_handler      ']regenerate this code, in case priorities
-                            tjs     req3, cog3_handler      ']have changed.
-                            tjs     req4, cog4_handler      ']A skip pattern that is continually 
-                            tjs     req5, cog5_handler      ']changed selects which RR COG is the
-                            tjs     req6, cog6_handler      ']first to be polled in the seqeuence.
-pollinst                    tjs     req7, cog7_handler      'instruction template for RR COGs
+                     	    tjs     req3, cog3_handler      ']a polling loop with all round robin COGs 
+                    	    tjs     req4, cog4_handler      ']from COG1-7 and one control COG, COG0.
+                    	    tjs     req5, cog5_handler      ']This loop is recreated at init time 
+                    	    tjs     req6, cog6_handler      ']based on the active COGs being polled
+                   	    tjs     req7, cog7_handler      ']and whether priority or round robin.
+                    	    tjs     req1, cog1_handler      ']Any update of COG parameters would also
+                  	    tjs     req2, cog2_handler      ']regenerate this code, in case priorities
+                     	    tjs     req3, cog3_handler      ']have changed.
+                    	    tjs     req4, cog4_handler      ']A skip pattern that is continually 
+                  	    tjs     req5, cog5_handler      ']changed selects which RR COG is the
+                    	    tjs     req6, cog6_handler      ']first to be polled in the seqeuence.
+pollinst            	    tjs     req7, cog7_handler      'instruction template for RR COGs
 
 ctrlpollinst                tjs     req0, cog0_handler      'instruction template for control
 skipfinst                   skipf   mask                    'instruction template for skipf
@@ -588,7 +588,7 @@ real_list                   setq    #8-1                    'read 8 longs (large
                             bith    0-0, #LIST_BIT wcz      'retain fact that we are in a list
                             bith    id, #LIST_BIT           'retain fact that we are in a list
             if_z            jmp     #unsupported            'no list recursion is allowed!
-                            getbyte request, addr1, #3      'get upper byte of this request
+list_test                   getbyte request, addr1, #3      'get upper byte of this request
 service_request             altd    request, #0             'get request address in COG RAM
                             execf   0-0                     'process the request 
 
@@ -1105,6 +1105,7 @@ listcomplete                altd    id, #id0                ' a  compute COG's s
                             bitl    0-0, #LIST_BIT          ' a  clear list flag for this COG
             _ret_           push    #notify                 ' |  we are done with the list
             _ret_           push    #poller                 ' a  we are still continuing the list
+
 extendedreq                 tjz     count, #notransfer_lut  'test for single transfers, do nothing if extd *** 
                             getnib  a, addr2, #7            'check the request type
                             cmp     a, #$F wz               'write burst $F = bank to bank cases (b) or (c)

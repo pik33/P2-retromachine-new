@@ -56,44 +56,6 @@ const scope_ptr=$75A00
 const  dirpanelx1=  5,  dirpanely1=60,  dirpanelx2=357,  dirpanely2=235
 const filepanelx1=363, filepanely1=60, filepanelx2=719, filepanely2=403
 
-/'
-v.frame(4,408,524,555,15)							' clear the panel
-v.box(5,409,523,427,188)							' clear the panel
-v.box(5,428,523,554,177)							' clear the panel
-v.outtextxycf(12,410,"Osciloscope",0)
-
-v.frame(528,408,720,555,15)							' clear the panel
-v.box(529,409,719,427,26)							' clear the panel
-v.box(529,428,719,554,16)							' clear the panel
-v.outtextxycf(536,410,"Visualization",0)
-
-v.frame(724,408,1019,555,15)							' clear the panel
-v.box(725,409,1018,427,170)							' clear the panel
-v.box(725,428,1018,554,160)
-v.outtextxycf(732,410,"Channels",0)
-
-v.frame(724,40,1019,404,15)							' clear the panel
-v.box(725,41,1018,59,154)
-v.box(725,60,1018,403,147)
-v.outtextxycf(732,43,"File info",0)
-
-v.frame(362,40,720,404,15)							' clear the panel
-v.box(363,41,719,59,40)							' clear the panel
-v.box(363,60,719,403,34)							' clear the panel
-v.outtextxycf(370,43,"Files",0)
-
-
-v.frame(4,240,358,324,15)							' clear the panel
-v.box(5,241,357,259,232)							' clear the panel
-v.box(5,260,357,323,225)							' clear the panel
-v.outtextxycf(12,243,"Now playing",0)
-
-v.frame(4,328,358,404,15)							' clear the panel
-v.box(5,329,357,347,122)							' clear the panel
-v.box(5,348,357,403,114)							' clear the panel
-v.outtextxycf(12,331,"Status",0)
-'/
-
 declare a6502buf alias $64000 as ubyte($10FFF) '64000 doesnt work, why?
 declare mainstack alias $75000 as ubyte(2559)
 declare filebuf alias $76400 as ubyte(16383)
@@ -1169,9 +1131,9 @@ sub preparepanels
 
 ' 1. Channel and oscilloscope panel at graphic canvas
 
-cls(154,113)	
+cls(154,114)	
 v.setfontfamily(4)						'
-v.outtextxycz((1024-32*len(version$))/2,4,version$,120,113,4,2)
+v.outtextxycz((1024-32*len(version$))/2,4,version$,120,114,4,2)
 v.setfontfamily(0)						'
 
 v.frame(4,408,524,555,15)							' clear the panel
@@ -1215,7 +1177,7 @@ v.box(5,348,357,403,114)							' clear the panel
 v.outtextxycf(12,331,"Status",0)
 
 let oldcpl=v.s_cpl: let oldcpl1=v.s_cpl1: let oldbufptr=v.s_buf_ptr: v.setfontfamily(4)
-v.s_cpl=2048:v.s_cpl1=2048: v.s_buf_ptr=$700000: :position 0,0 : v.outtextxycg(0,0,statusline$+statusline$,120,113)
+v.s_cpl=2048:v.s_cpl1=2048: v.s_buf_ptr=$700000: :position 0,0 : v.outtextxycg(0,0,statusline$+statusline$,120,114)
 v.s_cpl=oldcpl:v.s_cpl1=oldcpl1:v.s_buf_ptr=oldbufptr: v.setfontfamily(0)
 
 
