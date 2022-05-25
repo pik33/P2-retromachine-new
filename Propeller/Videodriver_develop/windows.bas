@@ -493,3 +493,223 @@ windows(i).cog=0
 windows(i).cls
 return i
 end function
+
+
+/'
+
+procedure getrectanglelist;
+
+var rect,r2:PRectangle ;
+
+    window:TWindow;
+    dg,dh,dt,dl,dsh,dsv,dm:integer;
+    x1,x2,y1,y2:integer;
+    vcount,rcount:integer;
+
+    ttttt: int64;
+
+begin
+
+if arectangle.handle=0 then       						'Arectangle is a root
+  begin
+  rect:=Arectangle.next;
+  while rect^.next<>nil do rect:=rect^.next;
+  while rect^.prev<>nil do begin rect:=rect^.prev; dispose(rect^.next); end;
+  end;										'this clears the old rectangle list
+
+window:=background;				' start from background
+Arectangle.next:=nil;
+Arectangle.prev:=nil;
+Arectangle.x1:=0;
+Arectangle.x2:=0;
+Arectangle.y1:=0;
+Arectangle.y2:=0;
+Arectangle.handle:=0;    			' clear the first rectangle
+
+
+vcount:=0;
+ttttt:=gettime;
+// go to the top window and count vertices
+
+while window<>nil do
+  begin
+
+  if window.decoration=nil then
+    begin
+    dg:=0;
+    dh:=0;
+    dt:=0;
+    dl:=0;
+    dsh:=0;
+    dsv:=0;
+    dm:=0;
+    end
+  else
+    begin
+    dt:=titleheight;
+    dl:=borderwidth;
+    dg:=borderwidth;
+    dh:=borderwidth;
+    if window.decoration.menu then dm:=menuheight else dm:=0;
+    if window.decoration.hscroll then dsh:=scrollwidth else dsh:=0;
+    if window.decoration.vscroll then dsv:=scrollwidth else dsv:=0;
+    end ;
+
+  x1:=window.x-dg; x2:=window.x+window.l+dg+dsv; if x2>=xres then x2:=xres; if x1<0 then x1:=0;
+  y1:=window.y-dg-dm-dt; y2:=window.y+window.h+dg+dsh; if y2>=yres then y2:=yres; if y1<0 then y1:=0;
+  if vcount=0 then begin xtable[vcount]:=x1; ytable[vcount]:=y1; inc(vcount); end
+  else
+    begin
+    i:=0;
+    while (x1>xtable[i]) and (i<vcount) do i:=i+1;			' here are created x and y table
+    for j:=vcount downto i+1 do xtable[j]:=xtable[j-1];
+    xtable[i]:=x1;
+    i:=0;
+    while (y1>ytable[i]) and (i<vcount) do i:=i+1;
+    for j:=vcount downto i+1 do ytable[j]:=ytable[j-1];
+    ytable[i]:=y1;
+    inc(vcount);
+    end;
+
+
+  i:=0;
+  while (x2>xtable[i]) and (i<vcount) do i:=i+1;
+  for j:=vcount downto i+1 do xtable[j]:=xtable[j-1];
+  xtable[i]:=x2;
+  i:=0;
+  while (y2>ytable[i]) and (i<vcount) do i:=i+1;
+  for j:=vcount downto i+1 do ytable[j]:=ytable[j-1];
+  ytable[i]:=y2;
+  inc(vcount);
+
+  window:=window.next;        // go to the top window
+  end;									' we have sorted tables of x's and y's 
+
+// 									' delete duplicate vertices
+
+i:=0;
+repeat
+  if (xtable[i]=xtable[i+1]) and (ytable[i]=ytable[i+1]) then
+    begin
+    for j:=i+1 to vcount-1 do
+      begin
+      xtable[j]:=xtable[j+1];
+      ytable[j]:=ytable[j+1];
+      end;
+    xtable[vcount-1]:=0;
+    ytable[vcount-1]:=0;
+    vcount-=1;
+    end;
+  i:=i+1;
+until i>=vcount-1;
+
+'/// ---- here we have x and y lists
+
+// make a rectangle list
+
+rect:=@Arectangle;
+for i:=0 to vcount-2 do
+  for j:=0 to vcount-2 do
+    begin
+    if (xtable[j+1]>xtable[j]) and (ytable[i+1]>ytable[i]) then
+      begin
+      rect^.next:= new(PRectangle);
+      rect^.next^.prev:=rect;
+      rect^.next^.next:=nil;
+      rect:=rect^.next;
+      rect^.x1:=xtable[j];
+      rect^.y1:=ytable[i];
+      rect^.x2:=xtable[j+1]-1;
+      rect^.y2:=ytable[i+1]-1;
+      rect^.handle:=0;
+      end;
+    end;
+
+
+// assign rectangles to windows
+
+window:=background;
+
+// go to the top window
+
+while window.next<>nil do  window:=window.next;
+
+// find rectangles in the window
+
+while window<>nil do
+  begin
+    if window.decoration=nil then
+    begin
+    dg:=0;
+    dh:=0;
+    dt:=0;
+    dl:=0;
+    dsh:=0;
+    dsv:=0;
+    dm:=0;
+    end
+  else
+    begin
+    dt:=titleheight;
+    dl:=borderwidth;
+    dg:=borderwidth;
+    dh:=borderwidth;
+    if window.decoration.menu then dm:=menuheight else dm:=0;
+    if window.decoration.hscroll then dsh:=scrollwidth else dsh:=0;
+    if window.decoration.vscroll then dsv:=scrollwidth else dsv:=0;
+    end ;
+
+  rect:=Arectangle.next;
+  x1:=window.x-dg; x2:=window.x+window.l+dg+dsv;
+  y1:=window.y-dg-dm-dt; y2:=window.y+window.h+dg+dsh;
+
+
+
+  while rect<>nil do begin
+    if (rect^.x1>=x1) and (rect^.y1>=y1)and (rect^.x2<x2) and (rect^.y2<y2) and (rect^.handle=0) then rect^.handle:=integer(window);
+    rect:=rect^.next;
+    end;
+
+  window:=window.prev;
+  end ;
+
+// merge adjacent rectangles
+
+  rect:=Arectangle.next;
+  while rect^.next<>nil do
+    begin
+    if (rect^.x2+1=rect^.next^.x1) and (rect^.handle=rect^.next^.handle) then
+      begin
+      r2:=rect^.next;
+      rect^.x2:=rect^.next^.x2;
+      rect^.next:=rect^.next^.next;
+      dispose(r2);
+      if rect^.next<>nil then rect^.next^.prev:=rect;
+      end
+    else
+      rect:=rect^.next;
+    end;
+
+
+ttttt:=gettime-ttttt;
+
+//-------debug
+
+{
+retromalina.box(500,0,100,50,0); retromalina.outtextxy(500,0,inttostr(ttttt),15);
+retromalina.box(0,0,380,1000,0);
+for i:=0 to vcount-1 do background.outtextxy8(280,8*i,inttostr(xtable[i])+' '+inttostr(ytable[i]),15);
+rect:=Arectangle.next;
+i:=0;
+while rect<>nil do begin
+                                              retromalina.outtextxy(0,i*16,inttostr(rect^.x1),15);
+                                              retromalina.outtextxy(50,i*16,inttostr(rect^.y1),15);
+                                              retromalina.outtextxy(100,i*16,inttostr(rect^.x2),15);
+                                              retromalina.outtextxy(150,i*16,inttostr(rect^.y2),15);
+                                              retromalina.outtextxy(200,i*16,inttostr(rect^.handle),15);
+rect:=rect^.next;  i:=i+1;
+end;}
+
+
+end;
+'/
