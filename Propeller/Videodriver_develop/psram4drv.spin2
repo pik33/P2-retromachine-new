@@ -1096,15 +1096,32 @@ complete_rw_lut
                             wrlut   #0, ptra[8]             ' a   default is not to resume
             _ret_           push    #notify                 ' |   if not a request list then we are done
                             tjs     addr2, #extendedreq     '     test for special extended request  
+'checknext                   tjz     addr2, #listcomplete    'not special, check if the list is complete
+'                            rdlong  pa, ptrb[-1]            'check if list has been aborted by client
+'                            tjns    pa, #listcomplete       'exit if it has
+'                            skipf   #%1000                  'do not notify if list is continuing
+'                            wrlong  addr2, ptrb             ' a  write back next list address
+'listcomplete                altd    id, #id0                ' a  compute COG's state address
+'                            bitl    0-0, #LIST_BIT          ' a  clear list flag for this COG
+'            _ret_           push    #notify                 ' |  we are done with the list
+'            _ret_           push    #poller                 ' a  we are still continuing the list
+
+
 checknext                   tjz     addr2, #listcomplete    'not special, check if the list is complete
                             rdlong  pa, ptrb[-1]            'check if list has been aborted by client
                             tjns    pa, #listcomplete       'exit if it has
-                            skipf   #%1000                  'do not notify if list is continuing
+                            testb   id, #LOCKED_BIT wz
+            if_z            mov     hubdata, addr2
+            if_z            skipf   #%110001
+            if_nz           skipf   #%1000                  'do not notify if list is continuing
                             wrlong  addr2, ptrb             ' a  write back next list address
 listcomplete                altd    id, #id0                ' a  compute COG's state address
                             bitl    0-0, #LIST_BIT          ' a  clear list flag for this COG
             _ret_           push    #notify                 ' |  we are done with the list
             _ret_           push    #poller                 ' a  we are still continuing the list
+            _ret_           push    #real_list
+
+
 
 extendedreq                 tjz     count, #notransfer_lut  'test for single transfers, do nothing if extd *** 
                             getnib  a, addr2, #7            'check the request type
@@ -1145,14 +1162,16 @@ extendedreq                 tjz     count, #notransfer_lut  'test for single tra
                             sub     total, #1 wz            ' a | |  decrement scanline count
             if_z            sub     total, #1 wz            ' | b |  decrement scanline count after write
             if_z            sub     total, orighubsize wz   ' | | c  decrement bytes sent after write
-            if_nz           jmp     #moretransfers          ' a b c  more transfers still to go
-                            tjz     link, #listcomplete     ' a b c  test link for next request
-                            rdlong  pa, ptrb[-1]            'check if list has been aborted by client
-                            tjns    pa, #listcomplete       'will exit if it has
-                            wrlong  link, ptrb              'setup list next pointer
-                            altd    id, #id0                'compute COG's state address
-                            bitl    0-0, #LIST_BIT          'clear list flag for this COG
-            _ret_           push    #poller                 'we will return to polling
+'            if_nz           jmp     #moretransfers          ' a b c  more transfers still to go
+'                            tjz     link, #listcomplete     ' a b c  test link for next request
+'                            rdlong  pa, ptrb[-1]            'check if list has been aborted by client
+'                            tjns    pa, #listcomplete       'will exit if it has
+'                            wrlong  link, ptrb              'setup list next pointer
+'                            altd    id, #id0                'compute COG's state address
+'                            bitl    0-0, #LIST_BIT          'clear list flag for this COG
+'            _ret_           push    #poller                 'we will return to polling
+            if_z            mov addr2,link
+            if_z            jmp #checknext
 moretransfers               getbyte request, addr1, #3      'prepare next request
                             testb   id, #LOCKED_BIT wz      'check if we can keep sending or need to yield
             if_z            skipf   #%1110                  '     skip some code if we are locked
