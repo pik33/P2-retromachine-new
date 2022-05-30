@@ -399,7 +399,7 @@ waitms(1)                                                   	' wait for stabiliz
 lines:=timings[11]
 t_lines:=lines/16
 buflen:=cpl*lines						' framebuffer length in longs
-buf_ptr:=$800000-4*buflen                          	     	' todo: get a PSRAM real himem 
+buf_ptr:=$2000000-4*buflen                          	     	' todo: get a PSRAM real himem 
 mode_ptr:=@timings						' set pointers to timings
 graphmode:=1024+512+192+48							' det global variable
 makedl(graphmode)							' make a DL for the mode

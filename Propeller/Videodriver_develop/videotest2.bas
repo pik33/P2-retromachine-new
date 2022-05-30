@@ -23,28 +23,27 @@ v.cls(200,0)
 let cog=cpu(movesprite,@s)
 let cog2=cpu(windowtest,@s2)
 v.setfontfamily(0)
-'hubset(hubset354)
+''hubset(hubset354)
 initwindows
-let test1=createwindow(320,200,$600000): position 50,15:  print test1
+let test1=createwindow(320,200,0,$600000)
+'let background=createwindow(1024,576,0, $800000)
 windows(test1).writeln("Window test")
+windows(test1).show
+'windows(background).show
+'getrects
+'print vcount
+'print rectnum
+'for i=0 to vcount: print xtable(i),ytable(i): next i
+'for i=0 to rectnum: print rectangles(i).x1,rectangles(i).y1,rectangles(i).x2,rectangles(i).y2, rectangles(i).handle : next i
+
 'windows(test1).scrollup
 
-for i=0 to 99 : v.fastline(0,100,i,i):next i
-v.box(0,475,100,574,40)
-v.fastline(0,100,573,200)
-v.fastline(0,100,574,200)
-v.fastline(0,100,575,200)
-v.fastline(0,100,572,200)
-v.fastline(0,1023,0,40)
-v.fastline(0,55,1,122)
-waitms(5000)
-waitms(5000)
-waitms(5000)
-waitms(5000)
-waitms(5000)
 
 
+let loopcnt=1
 do
+  loopcnt+=1
+  windows(test1).writeln("Window test "+str$(loopcnt))
   for i=1 to 500: print i: next i : v.write("501") : waitms(5000)
 
   for i=0 to 10000
@@ -438,7 +437,7 @@ list1(linenum,0)=$B0000000+v.buf_ptr+1024*linenum 					'read from $100000
 list1(linenum,1)=$80000-16384-4096+1024*(linenum mod 4)
 list1(linenum,2)=pos+1
 list1(linenum,3)=addr(list1(linenum,4))
-if linenum<22+framenum/2 orelse linenum>221+framenum/2 then list1(linenum,3)=0: list1(linenum,2)=1024
+if linenum<0+framenum/2 orelse linenum>199+framenum/2 then list1(linenum,3)=0: list1(linenum,2)=1024
 list1(linenum,4)=$B0_60_0000+320*(linenum-framenum/2) 					'read from $100000
 list1(linenum,5)=$80000-16384-4096+1024*(linenum mod 4)+pos
 list1(linenum,6)=320

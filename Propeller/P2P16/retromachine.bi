@@ -1,6 +1,4 @@
-const _clkfreq = 354000000
-'c'onst _clkfreq = 336956522
-'const _clkfreq = 336956522
+const _clkfreq = 336956522
 
 dim v as class using "hg008.spin2"
 dim rm as class using "retrocog.spin2"

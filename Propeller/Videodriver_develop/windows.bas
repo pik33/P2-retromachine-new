@@ -428,10 +428,18 @@ class TWindow
   outtextxycg(cursor_x,cursor_y,chr$(32),write_color,write_background)
   end sub
   
+  sub show
+  visible=1
+  end sub
+  
+  sub hide
+  visible=0
+  end sub
+
 end class
 
 class TRectangle
- dim rx1,rx2,ry1,ry2,handle as short
+ dim x1,x2,y1,y2,handle as short
 end class
 
 dim windows(7) as TWindow
@@ -453,12 +461,13 @@ vcount=0                        ' Phase 2 - make a vertices list
 for i=0 to 7
   if windows(i).visible then
     x1=windows(i).x : x2=windows(i).x+windows(i).l
-    if deco=0 then y1=windows(i).x else y1=windows(i).x-22 '// to do: make this configurable
-    if deco=0 then y2=windows(i).x else y1=windows(i).x-22 '// to do: make this configurable
+    if windows(i).deco=0 then y1=windows(i).y else y1=windows(i).y-22 '// to do: make this configurable
+    if windows(i).deco=0 then y2=windows(i).y+windows(i).h else y1=windows(i).y+windows(i).h+windows(i).dh-22 '// to do: make this configurable
     if x1<0 then x1=0
     if y1<0 then y1=0
-    if x2>xres-1 then x2=xres-1
-    if y2>yres-1 then y2=yres-1
+    if x2>xres then x2=xres
+    if y2>yres then y2=yres
+    print x1,x2,y1,y2
     
     if vcount=0 then xtable(0)=x1 : ytable(0) = y1: vcount=1 : goto 500
         
@@ -500,232 +509,79 @@ do
   i=i+1
 loop until i>=vcount-1
 
-' Phase 4 - assign rectangles to windows - TODO 
-  j=0: do while windows(j).num=i: j+=1 : loop
-  points(4*j,0)=windows(j).x: points(4*j,1)=windows(j).y
-  points(4*j+1,0)=windows(j).x+windows(j).l-1: points(4*j+3,1)=windows(j).y
-  points(4*j+2,0)=windows(j).x: points(4*j+3,1)=windows(j).y+windows(j).h+windows(j).dh-1
-  points(4*j+3,0)=windows(j).x+windows(j).l-1: points(4*j+3,1)=windows(j).y+windows(j).h+windows(j).dh-1
+
+' Phase 4: make a rectangle list
+
+let rectnum=0
+for i=0 to vcount-2
+  for j=0 to vcount-2 
+    if (xtable(j+1)>xtable(j)) and (ytable(i+1)>ytable(i)) then
+      rectangles(rectnum).x1=xtable[j]
+      rectangles(rectnum).y1=ytable[i]
+      rectangles(rectnum).x2=xtable[j+1]-1
+      rectangles(rectnum).y2=ytable[i+1]-1
+      rectangles(rectnum).handle=0
+      rectnum+=1
+    endif
+  next j
+next i  
 
 
-for i=0 to 31
-  if points(i,0)<0 then points(i,0)=0
-  if points(i,0)>1023 then points(i,0)=1023
-  if points(i,1)<0 then points(i,1)=0
-  if points(i,1)>1023 then points(i,1)=1023
-next i
+
+' Phase 5 - assign rectangles to windows - TODO 
+
+var maxnum=-1 : var maxidx=-1
+for i=0 to 7
+  if windows (i).visible<>0  then maxnum=i
+next i  
+
+
+' find rectangles in the window
+for i=maxnum to 0 step -1
+  if windows(i).visible<>0 then
+
+
+
+    x1=windows(i).x : x2=windows(i).x+windows(i).l
+    if windows(i).deco=0 then y1=windows(i).y else y1=windows(i).y-22 '// to do: make this configurable
+    if windows(i).deco=0 then y2=windows(i).y+windows(i).h else y1=windows(i).y+windows(i).h+windows(i).dh-22 '// to do: make this configurable
+    if x1<0 then x1=0
+    if y1<0 then y1=0
+    if x2>xres then x2=xres
+    if y2>yres then y2=yres
+
+  
+    for j=0 to rectnum -1
+      if rectangles(j).x1>=x1 andalso rectangles(j).y1>=y1 andalso rectangles(j).x2<x2 andalso rectangles(j).y2<y2 then rectangles(j).handle=i
+    next j
+  endif
+next i    
+
+' Phase 6 - merge adjacent rectangles
+
+var rectnum2=rectnum 
+
+'for i=0 to rectnum-2
+'  if (rectangles(i).x2+1=rectangles(i+1).x1) andalso (rectangles(i).handle=rectangles(i+1).handle) then
+'    rectangles(i).x2=rectangles(i+1).x2
+'    for j=i+1 to rectnum-1
+'      rectangles(j)=rectangles(j+1) 
+'    next j
+'    rectangles(rectnum-1).x1=0
+'    rectnum2-=1
+'  endif
+'next i   
+ 
+
 end sub  
 
-/'
-procedure getrectanglelist;
-
-var rect,r2:PRectangle ;
-
-    window:TWindow;
-    dg,dh,dt,dl,dsh,dsv,dm:integer;
-    x1,x2,y1,y2:integer;
-    vcount,rcount:integer;
-
-    ttttt: int64;
-
-begin
-
-' Phase 1 - clear the rectangle list
-
-vcount:=0;
-ttttt:=gettime;
-// go to the top window and count vertices
-
-while window<>nil do
-  begin
-
-  if window.decoration=nil then
-    begin
-    dg:=0;
-    dh:=0;
-    dt:=0;
-    dl:=0;
-    dsh:=0;
-    dsv:=0;
-    dm:=0;
-    end
-  else
-    begin
-    dt:=titleheight;
-    dl:=borderwidth;
-    dg:=borderwidth;
-    dh:=borderwidth;
-    if window.decoration.menu then dm:=menuheight else dm:=0;
-    if window.decoration.hscroll then dsh:=scrollwidth else dsh:=0;
-    if window.decoration.vscroll then dsv:=scrollwidth else dsv:=0;
-    end ;
-
-  x1:=window.x-dg; x2:=window.x+window.l+dg+dsv; if x2>=xres then x2:=xres; if x1<0 then x1:=0;
-  y1:=window.y-dg-dm-dt; y2:=window.y+window.h+dg+dsh; if y2>=yres then y2:=yres; if y1<0 then y1:=0;
-  if vcount=0 then begin xtable[vcount]:=x1; ytable[vcount]:=y1; inc(vcount); end
-  else
-    begin
-    i:=0;
-    while (x1>xtable[i]) and (i<vcount) do i:=i+1;
-    for j:=vcount downto i+1 do xtable[j]:=xtable[j-1];
-    xtable[i]:=x1;
-    i:=0;
-    while (y1>ytable[i]) and (i<vcount) do i:=i+1;
-    for j:=vcount downto i+1 do ytable[j]:=ytable[j-1];
-    ytable[i]:=y1;
-    inc(vcount);
-    end;
-
-
-  i:=0;
-  while (x2>xtable[i]) and (i<vcount) do i:=i+1;
-  for j:=vcount downto i+1 do xtable[j]:=xtable[j-1];
-  xtable[i]:=x2;
-  i:=0;
-  while (y2>ytable[i]) and (i<vcount) do i:=i+1;
-  for j:=vcount downto i+1 do ytable[j]:=ytable[j-1];
-  ytable[i]:=y2;
-  inc(vcount);
-
-  window:=window.next;        // go to the top window
-  end;
-
-// delete duplicate vertices
-
-i:=0;
-repeat
-  if (xtable[i]=xtable[i+1]) and (ytable[i]=ytable[i+1]) then
-    begin
-    for j:=i+1 to vcount-1 do
-      begin
-      xtable[j]:=xtable[j+1];
-      ytable[j]:=ytable[j+1];
-      end;
-    xtable[vcount-1]:=0;
-    ytable[vcount-1]:=0;
-    vcount-=1;
-    end;
-  i:=i+1;
-until i>=vcount-1;
-
-
-
-// make a rectangle list
-
-rect:=@Arectangle;
-for i:=0 to vcount-2 do
-  for j:=0 to vcount-2 do
-    begin
-    if (xtable[j+1]>xtable[j]) and (ytable[i+1]>ytable[i]) then
-      begin
-      rect^.next:= new(PRectangle);
-      rect^.next^.prev:=rect;
-      rect^.next^.next:=nil;
-      rect:=rect^.next;
-      rect^.x1:=xtable[j];
-      rect^.y1:=ytable[i];
-      rect^.x2:=xtable[j+1]-1;
-      rect^.y2:=ytable[i+1]-1;
-      rect^.handle:=0;
-      end;
-    end;
-
-
-// assign rectangles to windows
-
-window:=background;
-
-// go to the top window
-
-while window.next<>nil do  window:=window.next;
-
-// find rectangles in the window
-
-while window<>nil do
-  begin
-    if window.decoration=nil then
-    begin
-    dg:=0;
-    dh:=0;
-    dt:=0;
-    dl:=0;
-    dsh:=0;
-    dsv:=0;
-    dm:=0;
-    end
-  else
-    begin
-    dt:=titleheight;
-    dl:=borderwidth;
-    dg:=borderwidth;
-    dh:=borderwidth;
-    if window.decoration.menu then dm:=menuheight else dm:=0;
-    if window.decoration.hscroll then dsh:=scrollwidth else dsh:=0;
-    if window.decoration.vscroll then dsv:=scrollwidth else dsv:=0;
-    end ;
-
-  rect:=Arectangle.next;
-  x1:=window.x-dg; x2:=window.x+window.l+dg+dsv;
-  y1:=window.y-dg-dm-dt; y2:=window.y+window.h+dg+dsh;
-
-
-
-  while rect<>nil do begin
-    if (rect^.x1>=x1) and (rect^.y1>=y1)and (rect^.x2<x2) and (rect^.y2<y2) and (rect^.handle=0) then rect^.handle:=integer(window);
-    rect:=rect^.next;
-    end;
-
-  window:=window.prev;
-  end ;
-
-// merge adjacent rectangles
-
-  rect:=Arectangle.next;
-  while rect^.next<>nil do
-    begin
-    if (rect^.x2+1=rect^.next^.x1) and (rect^.handle=rect^.next^.handle) then
-      begin
-      r2:=rect^.next;
-      rect^.x2:=rect^.next^.x2;
-      rect^.next:=rect^.next^.next;
-      dispose(r2);
-      if rect^.next<>nil then rect^.next^.prev:=rect;
-      end
-    else
-      rect:=rect^.next;
-    end;
-
-
-ttttt:=gettime-ttttt;
-
-//-------debug
-
-{
-retromalina.box(500,0,100,50,0); retromalina.outtextxy(500,0,inttostr(ttttt),15);
-retromalina.box(0,0,380,1000,0);
-for i:=0 to vcount-1 do background.outtextxy8(280,8*i,inttostr(xtable[i])+' '+inttostr(ytable[i]),15);
-rect:=Arectangle.next;
-i:=0;
-while rect<>nil do begin
-                                              retromalina.outtextxy(0,i*16,inttostr(rect^.x1),15);
-                                              retromalina.outtextxy(50,i*16,inttostr(rect^.y1),15);
-                                              retromalina.outtextxy(100,i*16,inttostr(rect^.x2),15);
-                                              retromalina.outtextxy(150,i*16,inttostr(rect^.y2),15);
-                                              retromalina.outtextxy(200,i*16,inttostr(rect^.handle),15);
-rect:=rect^.next;  i:=i+1;
-end;}
-
-
-end;  
-
-'/
 
 sub initwindows
 
 for i=0 to 7: windows(i).num=255: next i
 end sub
 
-function createwindow(al,ah,ad) as ubyte
+function createwindow(al,ah,ad,canvas) as ubyte
 
 dim i as ubyte
 
@@ -740,7 +596,7 @@ windows(i).l=al
 windows(i).dh=22
 windows(i).x=0
 windows(i).y=0
-windows(i).canvas=ad+22*al
+windows(i).canvas=canvas 'ad+22*al
 windows(i).deco=ad
 windows(i).vcl=0
 windows(i).vch=0
@@ -762,223 +618,3 @@ windows(i).cog=0
 windows(i).cls
 return i
 end function
-
-
-/'
-
-procedure getrectanglelist;
-
-var rect,r2:PRectangle ;
-
-    window:TWindow;
-    dg,dh,dt,dl,dsh,dsv,dm:integer;
-    x1,x2,y1,y2:integer;
-    vcount,rcount:integer;
-
-    ttttt: int64;
-
-begin
-
-if arectangle.handle=0 then       						'Arectangle is a root
-  begin
-  rect:=Arectangle.next;
-  while rect^.next<>nil do rect:=rect^.next;
-  while rect^.prev<>nil do begin rect:=rect^.prev; dispose(rect^.next); end;
-  end;										'this clears the old rectangle list
-
-window:=background;				' start from background
-Arectangle.next:=nil;
-Arectangle.prev:=nil;
-Arectangle.x1:=0;
-Arectangle.x2:=0;
-Arectangle.y1:=0;
-Arectangle.y2:=0;
-Arectangle.handle:=0;    			' clear the first rectangle
-
-
-vcount:=0;
-ttttt:=gettime;
-// go to the top window and count vertices
-
-while window<>nil do
-  begin
-
-  if window.decoration=nil then
-    begin
-    dg:=0;
-    dh:=0;
-    dt:=0;
-    dl:=0;
-    dsh:=0;
-    dsv:=0;
-    dm:=0;
-    end
-  else
-    begin
-    dt:=titleheight;
-    dl:=borderwidth;
-    dg:=borderwidth;
-    dh:=borderwidth;
-    if window.decoration.menu then dm:=menuheight else dm:=0;
-    if window.decoration.hscroll then dsh:=scrollwidth else dsh:=0;
-    if window.decoration.vscroll then dsv:=scrollwidth else dsv:=0;
-    end ;
-
-  x1:=window.x-dg; x2:=window.x+window.l+dg+dsv; if x2>=xres then x2:=xres; if x1<0 then x1:=0;
-  y1:=window.y-dg-dm-dt; y2:=window.y+window.h+dg+dsh; if y2>=yres then y2:=yres; if y1<0 then y1:=0;
-  if vcount=0 then begin xtable[vcount]:=x1; ytable[vcount]:=y1; inc(vcount); end
-  else
-    begin
-    i:=0;
-    while (x1>xtable[i]) and (i<vcount) do i:=i+1;			' here are created x and y table
-    for j:=vcount downto i+1 do xtable[j]:=xtable[j-1];
-    xtable[i]:=x1;
-    i:=0;
-    while (y1>ytable[i]) and (i<vcount) do i:=i+1;
-    for j:=vcount downto i+1 do ytable[j]:=ytable[j-1];
-    ytable[i]:=y1;
-    inc(vcount);
-    end;
-
-
-  i:=0;
-  while (x2>xtable[i]) and (i<vcount) do i:=i+1;
-  for j:=vcount downto i+1 do xtable[j]:=xtable[j-1];
-  xtable[i]:=x2;
-  i:=0;
-  while (y2>ytable[i]) and (i<vcount) do i:=i+1;
-  for j:=vcount downto i+1 do ytable[j]:=ytable[j-1];
-  ytable[i]:=y2;
-  inc(vcount);
-
-  window:=window.next;        // go to the top window
-  end;									' we have sorted tables of x's and y's 
-
-// 									' delete duplicate vertices
-
-i:=0;
-repeat
-  if (xtable[i]=xtable[i+1]) and (ytable[i]=ytable[i+1]) then
-    begin
-    for j:=i+1 to vcount-1 do
-      begin
-      xtable[j]:=xtable[j+1];
-      ytable[j]:=ytable[j+1];
-      end;
-    xtable[vcount-1]:=0;
-    ytable[vcount-1]:=0;
-    vcount-=1;
-    end;
-  i:=i+1;
-until i>=vcount-1;
-
-/// ---- here we have x and y lists
-
-// make a rectangle list
-
-rect:=@Arectangle;
-for i:=0 to vcount-2 do
-  for j:=0 to vcount-2 do
-    begin
-    if (xtable[j+1]>xtable[j]) and (ytable[i+1]>ytable[i]) then
-      begin
-      rect^.next:= new(PRectangle);
-      rect^.next^.prev:=rect;
-      rect^.next^.next:=nil;
-      rect:=rect^.next;
-      rect^.x1:=xtable[j];
-      rect^.y1:=ytable[i];
-      rect^.x2:=xtable[j+1]-1;
-      rect^.y2:=ytable[i+1]-1;
-      rect^.handle:=0;
-      end;
-    end;
-
-
-// assign rectangles to windows
-
-window:=background;
-
-// go to the top window
-
-while window.next<>nil do  window:=window.next;
-
-// find rectangles in the window
-
-while window<>nil do
-  begin
-    if window.decoration=nil then
-    begin
-    dg:=0;
-    dh:=0;
-    dt:=0;
-    dl:=0;
-    dsh:=0;
-    dsv:=0;
-    dm:=0;
-    end
-  else
-    begin
-    dt:=titleheight;
-    dl:=borderwidth;
-    dg:=borderwidth;
-    dh:=borderwidth;
-    if window.decoration.menu then dm:=menuheight else dm:=0;
-    if window.decoration.hscroll then dsh:=scrollwidth else dsh:=0;
-    if window.decoration.vscroll then dsv:=scrollwidth else dsv:=0;
-    end ;
-
-  rect:=Arectangle.next;
-  x1:=window.x-dg; x2:=window.x+window.l+dg+dsv;
-  y1:=window.y-dg-dm-dt; y2:=window.y+window.h+dg+dsh;
-
-
-
-  while rect<>nil do begin
-    if (rect^.x1>=x1) and (rect^.y1>=y1)and (rect^.x2<x2) and (rect^.y2<y2) and (rect^.handle=0) then rect^.handle:=integer(window);
-    rect:=rect^.next;
-    end;
-
-  window:=window.prev;
-  end ;
-
-// merge adjacent rectangles
-
-  rect:=Arectangle.next;
-  while rect^.next<>nil do
-    begin
-    if (rect^.x2+1=rect^.next^.x1) and (rect^.handle=rect^.next^.handle) then
-      begin
-      r2:=rect^.next;
-      rect^.x2:=rect^.next^.x2;
-      rect^.next:=rect^.next^.next;
-      dispose(r2);
-      if rect^.next<>nil then rect^.next^.prev:=rect;
-      end
-    else
-      rect:=rect^.next;
-    end;
-
-
-ttttt:=gettime-ttttt;
-
-//-------debug
-
-{
-retromalina.box(500,0,100,50,0); retromalina.outtextxy(500,0,inttostr(ttttt),15);
-retromalina.box(0,0,380,1000,0);
-for i:=0 to vcount-1 do background.outtextxy8(280,8*i,inttostr(xtable[i])+' '+inttostr(ytable[i]),15);
-rect:=Arectangle.next;
-i:=0;
-while rect<>nil do begin
-                                              retromalina.outtextxy(0,i*16,inttostr(rect^.x1),15);
-                                              retromalina.outtextxy(50,i*16,inttostr(rect^.y1),15);
-                                              retromalina.outtextxy(100,i*16,inttostr(rect^.x2),15);
-                                              retromalina.outtextxy(150,i*16,inttostr(rect^.y2),15);
-                                              retromalina.outtextxy(200,i*16,inttostr(rect^.handle),15);
-rect:=rect^.next;  i:=i+1;
-end;}
-
-
-end;
-'/
