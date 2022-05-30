@@ -18,7 +18,7 @@ class TWindow
   dim winmailbox as ulong
   dim needclose,selected,visible,num,cog as ubyte
   
-  dim psram as class using "/home/pik33/Programowanie/P2-retromachine/Propeller/Videodriver_develop/psram4.spin2" ' full path needed here
+  dim psram as class using "/home/pik33/Programowanie/P2-retromachine/Propeller/Videodriver_develop/psram.spin2" ' full path needed here
   
 
   sub psread(hub,ram,cnt)
@@ -431,7 +431,7 @@ class TWindow
 end class
 
 class TRectangle
-dim x1,x2,y1,y2,handle as short
+ dim rx1,rx2,ry1,ry2,handle as short
 end class
 
 dim windows(7) as TWindow
@@ -444,17 +444,17 @@ dim vcount as ubyte
 
 sub getrects
 
-
+dim x1,x2,y1,y2 as short
 
 rectnum=0 			' Phase 1 - clear the rectangle list
-var i=0
+dim i,j as integer
 
 vcount=0                        ' Phase 2 - make a vertices list
 for i=0 to 7
   if windows(i).visible then
-    let x1=windows(i).x : let x2=windows(i).x+windows(i).l
-    if deco=0 then let y1=windows(i).x else let y1=windows(i).x-22 // to do: make this configurable
-    if deco=0 then let y1=windows(i).x else let y1=windows(i).x-22 // to do: make this configurable
+    x1=windows(i).x : x2=windows(i).x+windows(i).l
+    if deco=0 then y1=windows(i).x else y1=windows(i).x-22 '// to do: make this configurable
+    if deco=0 then y2=windows(i).x else y1=windows(i).x-22 '// to do: make this configurable
     if x1<0 then x1=0
     if y1<0 then y1=0
     if x2>xres-1 then x2=xres-1
@@ -463,50 +463,50 @@ for i=0 to 7
     if vcount=0 then xtable(0)=x1 : ytable(0) = y1: vcount=1 : goto 500
         
     j=0
-    do while (x1>xtable(j)) and (j<vcount) : j:=j+1 : loop 
-    for k:=vcount to j+1 step -1 : xtable[k]:=xtable[k-1] : next k
-    xtable[j]:=x1;
+    do while (x1>xtable(j)) and (j<vcount) : j=j+1 : loop 
+    for k=vcount to j+1 step -1 : xtable[k]=xtable[k-1] : next k
+    xtable(j)=x1
     j=0
-    do while (y1>ytable(j)) and (j<vcount) : j:=j+1 : loop 
-    for k:=vcount to j+1 step -1 : ytable[k]:=ytable[k-1] : next k
-    ytable[j]:=y1;
+    do while (y1>ytable(j)) and (j<vcount) : j=j+1 : loop 
+    for k=vcount to j+1 step -1 : ytable[k]=ytable[k-1] : next k
+    ytable(j)=y1
     vcount+=1
 
 500 j=0
-    do while (x2>xtable(j)) and (j<vcount) : j:=j+1 : loop 
-    for k:=vcount to j+1 step -1 : xtable[k]:=xtable[k-1] : next k
-    xtable[j]:=x2;
+    do while (x2>xtable(j)) and (j<vcount) : j=j+1 : loop 
+    for k=vcount to j+1 step -1 : xtable[k]=xtable[k-1] : next k
+    xtable(j)=x2
     j=0
-    do while (y2>ytable(j)) and (j<vcount) : j:=j+1 : loop 
-    for k:=vcount to j+1 step -1 : ytable[k]:=ytable[k-1] : next k
-    ytable[j]:=y2;
+    do while (y2>ytable(j)) and (j<vcount) : j=j+1 : loop 
+    for k=vcount to j+1 step -1 : ytable[k]=ytable[k-1] : next k
+    ytable(j)=y2
     vcount+=1
   endif
 next i
 
 ' Phase 3 - delete duplicate vertices
 
-i:=0;
+i=0
 do
   if (xtable(i)=xtable(i+1)) and (ytable(i)=ytable(i+1)) then
     for j=i+1 to vcount-1 
-      xtable(j):=xtable(j+1);
-      ytable(j):=ytable(j+1);
+      xtable(j)=xtable(j+1)
+      ytable(j)=ytable(j+1)
     next j  
-    xtable(vcount-1)=0;
-    ytable(vcount-1)=0;
-    vcount-=1;
+    xtable(vcount-1)=0
+    ytable(vcount-1)=0
+    vcount-=1
   endif
-  i:=i+1;
-loop until i>=vcount-1;
+  i=i+1
+loop until i>=vcount-1
 
 ' Phase 4 - assign rectangles to windows - TODO 
-  var j=0: do while windows(j).num=i: j+=1 : loop
+  j=0: do while windows(j).num=i: j+=1 : loop
   points(4*j,0)=windows(j).x: points(4*j,1)=windows(j).y
   points(4*j+1,0)=windows(j).x+windows(j).l-1: points(4*j+3,1)=windows(j).y
   points(4*j+2,0)=windows(j).x: points(4*j+3,1)=windows(j).y+windows(j).h+windows(j).dh-1
   points(4*j+3,0)=windows(j).x+windows(j).l-1: points(4*j+3,1)=windows(j).y+windows(j).h+windows(j).dh-1
-next i
+
 
 for i=0 to 31
   if points(i,0)<0 then points(i,0)=0
@@ -872,7 +872,7 @@ repeat
   i:=i+1;
 until i>=vcount-1;
 
-'/// ---- here we have x and y lists
+/// ---- here we have x and y lists
 
 // make a rectangle list
 

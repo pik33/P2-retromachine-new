@@ -1,8 +1,8 @@
-dim psram as class using "psram4"
+dim psram as class using "psram"
 
 dim s(512)
 
-psram.startx(0, 0, 12, -1)
+psram.startx(0, 0, 11, -1)
 let mbox=psram.getMailbox(0)
 
 dim list1(59)

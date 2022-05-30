@@ -1,0 +1,2100 @@
+obj {{
+             
+                             ┌───── ┌─────┐ ┌─────
+                     │ ┌─── │ ┌─┐ │ │ ┌───
+                               │ │    │ │ │ │ │ │ ┐ ┐
+                               │ └─── │ └─┘ │ │ └─┘ │
+                     └───── └─────┘ └─────┘  V1.0
+
+              The sound of the Super Nintendo in a cog!
+
+
+This is an emulation of the Nintendo/Sony sound module used in the Super NES / Super Famicom,
+consisting of an SPC700 processor and a custom audio DSP.
+
+Features:
+  • 8 channels of BRR sample playback
+  • 32kHz sample rate, accurate to real S-DSP
+  • SPC700 CPU emulation with instruction timings
+
+Misfeatures:
+  • Requires ~200 MHz P2 clock or higher
+    (If clock isn't way too low, it fails gracefully by skipping SPC700 cycles)
+  • Some tunes exhibit minor clicking..
+  • Inaccurate Timer 2 emulation
+
+
+Legal nonsense:
+
+     (C) 2022 Ada Gottensträter, IRQsome Software non-inc.
+
+
+(This software production is not associated with or endorsed by either Nintendo or Sony)
+
+
+┌──── This object is licensed under the MIT license: ───────────────────────────────┐
+│                                                                                     │
+│ Permission is hereby granted, free of charge, to any person obtaining a             │
+│ copy of this software and associated documentation files (the "Software"),          │
+│ to deal in the Software without restriction, including without limitation           │
+│ the rights to use, copy, modify, merge, publish, distribute, sublicense,            │
+│ and/or sell copies of the Software, and to permit persons to whom the Software      │
+│ is furnished to do so, subject to the following conditions:                         │
+│                                                                                     │
+│ The above copyright notice and this permission notice shall be included in all      │
+│ copies or substantial portions of the Software.                                     │
+│                                                                                     │
+│ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, │
+│ INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A       │
+│ PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT  │
+│ HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION   │
+│ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH          │
+│ THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                          │
+└─────────────────────────────────────────────────────────────────────────────────────┘
+
+
+
+}}
+
+VAR
+long cog,memptr
+
+' SPCcog state
+byte inport[4],outport[4]
+long chanstate[8*CHANNEL_SIZE]
+
+'' Get current volume for channel (zero to $7FF00)
+PUB get_current_volume(channel) : v | chbase
+  chbase := @chanstate[channel*CHANNEL_SIZE]
+  return (abs(byte[chbase][14*4 + 1] signx 7) + abs(byte[chbase][14*4 + 3] signx 7))*long[chbase][10]
+
+
+PUB start_spcfile(left,right,fileptr) :r
+'' ┌──────────────────────────────────────────────────────────────┐
+'' │                 Starts SPCcog from SPC file                  │
+'' ├──────────────────────────────────────────────────────────────┤
+'' │ Returns the used cog number + 1 on success,                  │
+'' │ otherwise returns 0.                                         │
+'' │                                                              │
+'' │ left  - The pin to output the left channel to.               │
+'' │ right - The pin to output the right channel to.              │
+'' │         Note that mono output is not supported.              │
+'' │                                                              │
+'' │ fileptr - Pointer to the SPC file to play. Note that it is   │
+'' │           assumed that the file contains valid data at       │
+'' │           relevant offsets, no sanity checking is done.      │
+'' │                                                              │
+'' └──────────────────────────────────────────────────────────────┘
+
+return startx(left,right,fileptr+$100,fileptr|(1<<31))
+
+PUB start_loaded(left,right,memory,startpc) :r
+'' ┌──────────────────────────────────────────────────────────────┐
+'' │              Starts SPCcog with preloaded memory             │
+'' ├──────────────────────────────────────────────────────────────┤
+'' │ Returns the used cog number + 1 on success,                  │
+'' │ otherwise returns 0.                                         │
+'' │                                                              │
+'' │ left  - The pin to output the left channel to.               │
+'' │ right - The pin to output the right channel to.              │
+'' │         Note that mono output is not supported.              │
+'' │                                                              │
+'' │ memory  - Pointer to the 64K memory block that will be used  │
+'' │           as audio RAM.                                      │
+'' │ startpc - Initial SPC700 PC. Use $FFC0 to boot into IPL.     │
+'' │                                                              │
+'' └──────────────────────────────────────────────────────────────┘
+
+return startx(left,right,memory,startpc&$FFFF)
+
+PUB stop()
+'' ┌──────────────────────────────────────────────────────────────┐
+'' │                         Stops SPCcog                         │
+'' └──────────────────────────────────────────────────────────────┘
+  if cog
+    cogstop(cog~ -1)
+    cog := 0
+
+PUB read_port(i) :r
+'' ┌──────────────────────────────────────────────────────────────┐
+'' │                      Read SPC I/O port                       │
+'' ├──────────────────────────────────────────────────────────────┤
+'' │ Read a SPC I/O port.                                         │
+'' │ (These corrospond to the ports at $2140..$2143 on the SNES)  │
+'' │                                                              │
+'' └──────────────────────────────────────────────────────────────┘
+return outport[i&3]
+
+PUB write_port(i,data)
+'' ┌──────────────────────────────────────────────────────────────┐
+'' │                      Write SPC I/O port                      │
+'' ├──────────────────────────────────────────────────────────────┤
+'' │ Write a SPC I/O port.                                        │
+'' │ (These corrospond to the ports at $2140..$2143 on the SNES)  │
+'' │                                                              │
+'' └──────────────────────────────────────────────────────────────┘
+inport[i&3] := data
+
+PUB startx(left,right,memory,param) : result | i,cyc_per_sample,dacmode
+'' ┌──────────────────────────────────────────────────────────────┐
+'' │         Advanced start function. Use with caution.           │
+'' └──────────────────────────────────────────────────────────────┘
+
+stop()
+sp_rambase:=memptr:=memory
+sp_firmbase:=@spc_firmware-$FFC0
+sp_statbase:=@inport
+dsp_lpin:=left
+dsp_rpin:=right
+
+ifnot patched\true
+  dsp_run_ptch.[0 addbits 19] += @dsp_run
+  patch_augptr(@dsp_gt_patch1,@dsp_gausstbl)
+  patch_augptr(@dsp_gt_patch2,@dsp_gausstbl)
+
+longfill(@chanstate,0,8*CHANNEL_SIZE)
+repeat i from 0 to 7
+  chanstate[i*CHANNEL_SIZE+12] := ENV_RELEASE
+
+'debug(`TERM spd SIZE 40 25 POS 10 10)
+'debug(`TERM dspv SIZE 60 9 POS 200 10 UPDATE)
+
+cyc_per_sample := clkfreq/DSP_SAMPLE_RATE
+dacmode := P_DAC_75R_2V|P_OE | (cyc_per_sample&255 ? P_DAC_DITHER_RND : P_DAC_DITHER_PWM)
+
+pinf(left)
+pinf(right)
+wrpin(left,dacmode)
+wrpin(right,dacmode)
+wxpin(left,cyc_per_sample)
+wxpin(right,cyc_per_sample)
+wypin(left,DAC_CENTER)
+wypin(right,DAC_CENTER)
+
+cog := coginit(HUBEXEC_NEW,@sp_init, param) + 1
+
+return cog
+
+PRI patch_augptr(where,what) |tmp
+
+tmp := long[where][1]&$1FF
+tmp += what&$1FF
+long[where][1].[0 addbits  8] := tmp
+long[where][0].[0 addbits 22] += (what>>9)+(tmp>>9)
+
+CON
+
+DSP_SAMPLE_RATE = 32_000
+
+DAC_SCALE = $FF00
+DAC_CENTER = DAC_SCALE/2
+DAC_SCAS = DAC_SCALE/4
+
+
+CHANNEL_SIZE = DSP_RWLONGS+DSP_RDLONGS
+DSP_RWLONGS = 8+5
+DSP_RDLONGS = 3
+
+{{
+              ' read/write
+dsp_sbuf      res 8 ' decode buffer for current channel
+dsp_brrbase   res 1 ' current BRR header pointer
+dsp_gausspos  res 1 ' inter-sample position
+dsp_envlvl    res 1 ' envelope level
+dsp_output    res 1 ' output level
+dsp_envstat   res 1 ' envelope state machine
+
+              ' read only
+dsp_pitch     res 1 ' pitch
+dsp_cvol      res 1 ' channel left/right volume in byte 1/3 (others zero)
+dsp_src_adsr_gain res 1 ' SRCN,ADSR and GAIN registers
+}}
+
+#0,ENV_ATTACK,ENV_DECAY,ENV_SUSTAIN,ENV_RELEASE
+
+CON
+
+SP_AMOP = 1<<10
+
+SP_AMODE_A_IMM  =SP_AMOP |  0<<28 ' A,#imm
+SP_AMODE_A_DP   =SP_AMOP |  1<<28 ' A,dp
+SP_AMODE_A_DPX  =SP_AMOP |  2<<28 ' A,dp+X
+SP_AMODE_A_XI   =SP_AMOP |  3<<28 ' A,(X)
+SP_AMODE_A_ABS  =SP_AMOP |  4<<28 ' A,!a
+SP_AMODE_A_ABSX =SP_AMOP |  5<<28 ' A,!a+X
+SP_AMODE_A_ABSY =SP_AMOP |  6<<28 ' A,!a+Y
+SP_AMODE_A_DPXI =SP_AMOP |  7<<28 ' A,[dp+X]
+SP_AMODE_A_DPIY =SP_AMOP |  8<<28 ' A,[dp]+Y
+SP_AMODE_XI_YI  =SP_AMOP |  9<<28 ' (X),(Y)
+SP_AMODE_DP_DP  =SP_AMOP | 10<<28 ' dd,ds
+SP_AMODE_DP_IMM =SP_AMOP | 11<<28 ' dp,#imm
+' These don't set up a destination
+SP_AMODE_U_IMM  =SP_AMOP | 12<<28 ' ?,#imm
+SP_AMODE_U_DP   =SP_AMOP | 13<<28 ' ?,dp
+SP_AMODE_U_DPX  =SP_AMOP | 14<<28 ' ?,dp+X
+SP_AMODE_U_ABS  =SP_AMOP | 15<<28 ' ?,!a
+
+'' NVPB_HIZC
+SP_CARRY_BIT = 0
+SP_ZERO_BIT  = 1
+SP_IRQ_BIT   = 2
+SP_HALF_BIT  = 3
+SP_BREAK_BIT = 4
+SP_PAGE_BIT  = 5
+SP_OVER_BIT  = 6
+SP_NEG_BIT   = 7
+
+
+
+
+DAT ' SPCcog cog code
+              orgh
+sp_cogblob
+              org 0
+sp_nextop
+              jse1 #dsp_dosample
+              tjs sp_cycles,#sp_nextop
+              'tjs sp_cycles,#dsp_dosample ' For debugging
+              'nop
+              'nop
+
+              'debug("---  NVPBHIZC")
+              'debug("PSW: ",ubin_byte_(sp_psw)," PC: ",uhex_word_(sp_pc), " SP: ",uhex_byte_(sp_sp),sdec(sp_cycles))
+              'debug("X: ",uhex_byte_(sp_x)," Y: ",uhex_byte_(sp_y)," A: ",uhex_byte_(sp_a))
+              'debug(dly(#50))
+              call #sp_readcode
+        'mov pa,sp_pc
+        'decmod pa,sp_FFFFh
+        'debug("PC: ",uhex_word_(pa)," OP: ",uhex_byte_(sp_memv)," A: ",uhex_byte_(sp_a)," X: ",uhex_byte_(sp_x)," Y: ",uhex_byte_(sp_y)," SP: ",uhex_byte_(sp_sp))
+              mov sp_opcode,sp_memv
+              'debug(uhex_byte(sp_opcode))
+              rdlut sp_opimpl,sp_opcode
+              'debug(uhex_long(sp_opimpl))
+              push #sp_nextop
+              bitl  sp_opimpl,#10 wcz
+        if_nc execf sp_opimpl
+              getnib pa,sp_opimpl,#7
+              altd pa,#sp_amode_tbl
+              skipf 0-0
+              setnib sp_opimpl,#0,#7
+              ' All the complex addressing modes are handled here
+              ' Code concerning source operands first
+              call #\sp_readcode16              ' absoulte read
+              call #\sp_readcode                ' zp address / immediate read
+              mov sp_ea,sp_memv                 ' for all modes where we just read an address
+              mov sp_ea,#0                      ' for (X) and (Y) mode
+              add sp_ea,sp_x                    ' for (X), !a+X, d+X and [d+x] modes
+              setbyte sp_ea,sp_dpage,#1         ' for all direct page modes
+
+              call #\sp_read16                  ' for all indirect modes
+              mov sp_ea,sp_memv                 ' ^^
+              add sp_ea,sp_y                    ' for (Y),!a+Y and [d]+Y modes
+
+              zerox sp_ea,#15                   ' for all memory modes that may wrap around
+              mov sp_srcea,sp_ea                ' for all memory modes
+              call #\sp_read8                   ' for all memory modes
+
+              mov sp_optmp1,sp_memv             ' all modes
+              ' Get destination now
+              mov sp_memv,sp_a                  ' A register
+              mov sp_writef,#sp_writeA          ' ^
+
+              call #\sp_readcode                ' for direct page dest.
+              mov sp_ea,sp_memv                 ' ^
+              mov sp_ea,sp_x                    ' for (X) mode
+              setbyte sp_ea,sp_dpage,#1         ' for direct page dest.
+              call #\sp_read8                   ' for memory destination modes
+              mov sp_writef,#sp_write8          ' for memory destination modes
+
+              sub sp_cycles,#1                  ' extra internal cycle
+              execf sp_opimpl
+
+sp_amode_tbl
+              long %01_111111_00_0_111_111_111101_0 ' A,#imm
+              long %01_111111_00_0_001_111_011001_0 ' A,dp
+              long %01_111111_00_0_001_111_001001_0 ' A,dp+X
+              long %00_111111_00_0_001_111_000111_0 ' A,(X)
+              long %01_111111_00_0_001_111_111010_0 ' A,!a
+              long %00_111111_00_0_000_111_101010_0 ' A,!a+X
+              long %00_111111_00_0_000_011_111010_0 ' A,!a+Y
+              long %00_111111_00_0_001_100_001001_0 ' A,[dp+X]
+              long %00_111111_00_0_000_000_011001_0 ' A,[dp]+Y
+              long %00_000011_11_0_001_011_010111_0 ' (X),(Y)
+              long %01_000100_11_0_001_111_011001_0 ' dd,ds
+              long %01_000100_11_0_001_111_111101_0 ' dp,#imm
+              long %01_111111_11_0_111_111_111101_0 ' ?,#imm
+              long %01_111111_11_0_001_111_011001_0 ' ?,dp
+              long %00_111111_11_0_001_111_001001_0 ' ?,dp+X
+              long %01_111111_11_0_001_111_111010_0 ' ?,!a
+
+sp_flagbranchtbl byte SP_NEG_BIT,SP_OVER_BIT,SP_CARRY_BIT,SP_ZERO_BIT
+
+
+dsp_dosample
+              ' Output last sample to DAC, then compute next one
+              mov pa,dsp_daccenter
+              scas dsp_lsample,dsp_dacscas
+              add pa,0-0
+              mov pb,dsp_daccenter
+              scas dsp_rsample,dsp_dacscas
+              add pb,0-0
+              
+              
+              '''''' to do: oscilloscope here
+
+                      
+              
+              wypin pa,dsp_lpin
+              wypin pb,dsp_rpin
+              
+            			setword pa,pb,#1   
+            			mov scptr2,scptr
+            			shl scptr2,#2
+            			add scptr2,scbase     
+ 			        wrlong pa,scptr2
+          			incmod scptr,##639                
+              
+              
+              
+dsp_run_ptch  jmp #\0
+
+
+sp_pushpc
+              mov .temp,sp_memv
+              getbyte sp_memv,sp_pc,#1
+              mov sp_ea,sp_sp
+              decmod sp_sp,#$FF
+              setbyte sp_ea,#1,#1
+              call #sp_write8
+              getbyte sp_memv,sp_pc,#0
+              setbyte sp_ea,sp_sp,#0
+              decmod sp_sp,#$FF
+              call #sp_write8
+        _ret_ mov sp_memv,.temp
+.temp         long 0
+
+
+sp_div        sub sp_cycles,#11
+              getnib pa,sp_y,#0
+              getnib pb,sp_x,#0
+              cmp pa,pb wc
+              bitnc sp_psw,#SP_HALF_BIT
+              rolbyte sp_y,sp_a,#0
+              shl sp_x,#9
+              rep @.divlp,#9
+              ' Funny division loop
+              bitl sp_y,#16 addbits 15 wcz
+              rcl sp_y,#1
+              cmp sp_y,sp_x wc ' C clear if Y>=X
+        if_nc xor sp_y,#1
+        if_c_eq_z sub sp_y,sp_x ' Runs if LSB is now set
+.divlp
+              shr sp_x,#9
+              getbyte sp_a,sp_y,#0
+              shr sp_y,#9 wc
+              bitc sp_psw,#SP_OVER_BIT
+              and sp_y,#255
+              and sp_a,#255 wz
+              bitz sp_psw,#SP_ZERO_BIT
+              test sp_a,#128 wc
+        _ret_ bitc sp_psw,#SP_NEG_BIT
+
+
+sp_mul        sub sp_cycles,#8
+              mul sp_y,sp_a
+              getbyte sp_a,sp_y,#0
+              shr sp_y,#8 wz
+              bitz sp_psw,#SP_ZERO_BIT
+              testb sp_y,#7 wc
+        _ret_ bitc sp_psw,#SP_NEG_BIT
+
+
+sp_daa        sub sp_cycles,#2
+              testb sp_opcode,#0 wz ' Set Z for DAA, clear for DAS
+
+              cmpr sp_a,#$99 wc
+              testb  sp_psw,#SP_CARRY_BIT orc ' DAA
+              testbn sp_psw,#SP_CARRY_BIT orc ' DAS
+        if_c  sumnz sp_a,#$60
+        if_c  bitz sp_psw,#SP_CARRY_BIT
+
+              getnib pa,sp_a,#0
+              cmpr pa,#$09 wc
+              testb  sp_psw,#SP_HALF_BIT orc ' DAA
+              testbn sp_psw,#SP_HALF_BIT orc ' DAS
+        if_c  sumnz sp_a,#$06
+
+              and sp_a,#255 wz
+              bitz sp_psw,#SP_ZERO_BIT
+              testb sp_a,#7 wc
+        _ret_ bitc  sp_psw,#SP_NEG_BIT
+
+
+sp_readcode16
+              call #sp_readcode
+sp_readcode16_rest
+              sets .patch,sp_memv
+              call #sp_readcode
+.patch  _ret_ rolbyte sp_memv,#0-0,#0
+
+
+sp_read_dpaddr
+              call #sp_readcode
+              mov sp_ea,sp_memv
+       _ret_  setbyte sp_ea,sp_dpage,#1
+
+sp_read_dp8
+              call #sp_read_dpaddr
+              jmp #sp_read8
+sp_read_dp16
+              call #sp_read_dpaddr
+              ' drop through
+sp_read16
+              'debug("in sp_read16 ",uhex_word(sp_ea))
+              call #sp_read8
+sp_read16_rest
+              sets .patch,sp_memv
+              incmod sp_ea,sp_FFFFh
+              call #sp_read8
+.patch  _ret_ rolbyte sp_memv,#0-0,#0
+
+
+
+sp_readcode
+              mov sp_ea,sp_pc
+              incmod sp_pc,sp_FFFFh
+              ' Fall through
+sp_read8
+              sub sp_cycles,#1
+              cmp  sp_ea,#$F0 wc
+        if_nc cmpr sp_ea,#$FF wc
+        if_nc jmp #.ioread
+              getword sp_memv,sp_ea,#0 ' make double sure we don't read OOB
+              cmp sp_ea,sp_romstart wc
+        if_ae add sp_memv,sp_firmbase
+        if_b  add sp_memv,sp_rambase
+              rdbyte sp_memv,sp_memv
+              'debug("got read ",uhex_word(sp_ea),uhex_byte(sp_memv))
+              ret wcz
+.ioread
+              pop pa wcz
+              push pa
+              mov ptra,sp_statbase
+              getnib pa,sp_ea,#0
+              jmprel pa
+        _ret_ mov sp_memv,#0                    ' Register $F0: Undocumented/test
+        _ret_ mov sp_memv,#0                    ' Register $F1: Control (not readable)
+        _ret_ mov sp_memv,dsp_addr              ' Register $F2: DSP port address
+              jmp #dsp_read                     ' Register $F3: DSP I/O
+        _ret_ rdbyte sp_memv,ptra[0]            ' Register $F4: Input port 0
+        _ret_ rdbyte sp_memv,ptra[1]            ' Register $F5: Input port 1
+        _ret_ rdbyte sp_memv,ptra[2]            ' Register $F6: Input port 2
+        _ret_ rdbyte sp_memv,ptra[3]            ' Register $F7: Input port 3
+sp_f8   _ret_ mov sp_memv,#0                    ' Register $F8: Memory (technically I/O)
+sp_f9   _ret_ mov sp_memv,#0                    ' Register $F9: Memory (technically I/O)
+        _ret_ mov sp_memv,#0                    ' Register $FA: Timer 0 (not readable)
+        _ret_ mov sp_memv,#0                    ' Register $FB: Timer 1 (not readable)
+        _ret_ mov sp_memv,#0                    ' Register $FC: Timer 2 (not readable)
+              nop                               ' Register $FD: Counter 0
+              nop                               ' Register $FE: Counter 1
+                                                ' Register $FF: Counter 2
+              ' Common handler for the timer regs (read+clear)
+              alts pa,#sp_ctr0-$D
+              mov sp_memv,0-0
+              altd pa,#sp_ctr0-$D
+        _ret_ mov 0-0,#0
+
+
+dsp_read
+              getnib pb,dsp_addr,#0
+              cmp pb,#$A wc
+        if_ae jmp #.global
+              ' per voice registers
+              add ptra,#8+(DSP_RWLONGS*4) ' advance past ports & rwlogs
+              getnib pa,dsp_addr,#1
+              bitl pa,#3
+              mul pa,#CHANNEL_SIZE*4
+              add ptra,pa
+              pop pa wcz
+              push pa
+              jmprel pb
+        _ret_ rdbyte sp_memv,ptra[5] ' $x0: Left Volume
+        _ret_ rdbyte sp_memv,ptra[7] ' $x1: Right Volume
+        _ret_ rdbyte sp_memv,ptra[0] ' $x2: Pitch low
+        _ret_ rdbyte sp_memv,ptra[1] ' $x3: Pitch high
+        _ret_ rdbyte sp_memv,ptra[8] ' $x4: SRCN
+        _ret_ rdbyte sp_memv,ptra[9] ' $x5: ADSR low
+        _ret_ rdbyte sp_memv,ptra[10]' $x6: ADSR high
+        _ret_ rdbyte sp_memv,ptra[11]' $x7: GAIN
+              jmp #.envx             ' $x8: ENVX (read-only)
+                                     ' $x9: OUTX (read-only)
+              rdlong sp_memv,ptra[-2]
+              sar sp_memv,#7
+        _ret_ and sp_memv,#255
+.envx
+              rdlong sp_memv,ptra[-3]
+              shr sp_memv,#4
+        _ret_ and sp_memv,#255
+
+.global
+              cmp pb,#$E wcz
+        if_a  jmp #.firread
+        'if_e drvh #39 ' Set LED if unused location read
+        if_e  ret wcz
+              cmp pb,#$C wcz
+        'if_b drvh #39 ' Set LED if unused location read
+        if_b  ret wcz
+              getnib pa,dsp_addr,#1
+              bitnz pa,#3
+              alts pa,#.gcall
+              call #\0
+              cmp pa,#$4 wc
+              cmp pa,#$8 wz
+    if_c_or_z shr sp_memv,#7 ' shift down MVOL/EVOL/EFB values
+              and sp_memv,#255
+              ret wcz
+.gcall
+        _ret_ getword sp_memv,dsp_mvol,#0        ' $0C: MVOL left
+        _ret_ getword sp_memv,dsp_mvol,#1        ' $1C: MVOL right
+        _ret_ getword sp_memv,dsp_evol,#0        ' $2C: EVOL left
+        _ret_ getword sp_memv,dsp_evol,#1        ' $3C: EVOL right
+        _ret_ mov sp_memv,dsp_kon_read           ' $4C: KON
+        _ret_ mov sp_memv,dsp_koff               ' $5C: KOFF
+        _ret_ mov sp_memv,dsp_flg                ' $6C: FLG
+        _ret_ mov sp_memv,dsp_endx               ' $7C: ENDX
+        _ret_ mov sp_memv,dsp_efb                ' $0D: EFB (Echo feedback)
+        _ret_ mov sp_memv,#0                     ' $1D: ???
+        _ret_ getbyte sp_memv,dsp_pmon_non_eon,#0' $2D: PMON
+        _ret_ getbyte sp_memv,dsp_pmon_non_eon,#1' $3D: NON
+        _ret_ getbyte sp_memv,dsp_pmon_non_eon,#2' $4D: RON
+        _ret_ getbyte sp_memv,dsp_dir_esa_edl,#0 ' $5D: DIR
+        _ret_ getbyte sp_memv,dsp_dir_esa_edl,#1 ' $6D: ESA
+        _ret_ getbyte sp_memv,dsp_dir_esa_edl,#2 ' $7D: EDL
+
+.firread
+              getnib pa,dsp_addr,#1
+              bitl pa,#3
+              alts pa,#dsp_efir
+              getbyte sp_memv,0-0,#1
+              ret wcz
+
+
+sp_brkjp      bitl sp_psw,#SP_IRQ_BIT
+              bith sp_psw,#SP_BREAK_BIT
+              mov sp_ea,##$FFDE
+              call #\sp_read16
+        _ret_ mov sp_pc,sp_memv
+
+sp_writeA
+        _ret_ getbyte sp_a,sp_memv,#0
+
+sp_write16
+              'debug("in sp_write16 ",uhex_word(sp_ea))
+              getbyte pa,sp_memv,#1
+              sets .patch,pa
+              call #sp_write8
+              incmod sp_ea,sp_FFFFh
+.patch        mov sp_memv,#0
+              ' Fall through
+
+sp_write8
+              sub sp_cycles,#1
+              'debug("mem write ",uhex_word(sp_ea),uhex_byte(sp_memv))
+              getword pa,sp_ea,#0 ' make double sure we don't write OOB
+              add pa,sp_rambase
+              wrbyte sp_memv,pa
+              cmp  sp_ea,#$F0 wc
+        if_nc cmpr sp_ea,#$FF wc
+        if_c  ret wcz
+.iowrite
+              'debug("io write ",uhex_byte(sp_ea),uhex_byte(sp_memv))
+              'debug("lmao")
+              zerox sp_memv,#7 ' limit to 8 bit here
+              pop pa wcz
+              push pa
+              mov ptra,sp_statbase
+              getnib pa,sp_ea,#0
+              jmprel pa
+              jmp #.debugwrite                  ' Register $F0: Undocumented/test
+              jmp #.ctrlwrite                   ' Register $F1: Control
+        _ret_ mov dsp_addr,sp_memv              ' Register $F2: DSP port address
+              jmp #dsp_write                    ' Register $F3: DSP I/O
+        _ret_ wrbyte sp_memv,ptra[4]            ' Register $F4: Output port 0
+        _ret_ wrbyte sp_memv,ptra[5]            ' Register $F5: Output port 1
+        _ret_ wrbyte sp_memv,ptra[6]            ' Register $F6: Output port 2
+        _ret_ wrbyte sp_memv,ptra[7]            ' Register $F7: Output port 3
+        _ret_ sets sp_f8,sp_memv                ' Register $F8: Memory (technically I/O)
+        _ret_ sets sp_f9,sp_memv                ' Register $F9: Memory (technically I/O)
+        _ret_ mov sp_tfreq0,sp_memv             ' Register $FA: Timer 0
+        _ret_ mov sp_tfreq1,sp_memv             ' Register $FB: Timer 1
+        _ret_ mov sp_tfreq2,sp_memv             ' Register $FC: Timer 2
+              ret                               ' Register $FD: Counter 0 (not writeable)
+              ret                               ' Register $FE: Counter 1 (not writeable)
+              ret                               ' Register $FF: Counter 2 (not writeable)
+
+.debugwrite
+              debug("Debug write: ",uhex_byte_(sp_memv))
+              'debug(`spd `(sp_memv))
+              ret wcz
+.ctrlwrite
+              ' timers reset on start
+              mov pa,sp_memv
+              andn pa,sp_tstat
+              getnib sp_tstat,sp_memv,#0
+              testb pa,#0 wc
+        if_c  mov sp_tval0,#0
+        if_c  mov sp_ctr0,#0
+              testb pa,#1 wc
+        if_c  mov sp_tval1,#0
+        if_c  mov sp_ctr1,#0
+              testb pa,#2 wc
+        if_c  mov sp_tval2,#0
+        if_c  mov sp_ctr2,#0
+              ' input port clearing
+              testb sp_memv,#4 wc
+        if_c  wrword #0,ptra[0]
+              testb sp_memv,#5 wc
+        if_c  wrword #0,ptra[1]
+              ' enable firmware if bit 7
+              testb sp_memv,#7 wc
+              negnc sp_romstart,sp_firmaddr
+              ret wcz
+
+
+dsp_write
+              testb dsp_addr,#7 wc
+        if_c  ret wcz
+              'debug("DSP write ",uhex_byte(dsp_addr,sp_memv))
+              getnib pb,dsp_addr,#0
+              cmp pb,#$A wc
+        if_ae jmp #.global
+              ' per voice registers
+              add ptra,#8+(DSP_RWLONGS*4) ' advance past ports & rwlongs
+              getnib pa,dsp_addr,#1
+              mul pa,#CHANNEL_SIZE*4
+              add ptra,pa
+              pop pa wcz
+              push pa
+              jmprel pb
+        _ret_ wrbyte sp_memv,ptra[5] ' $x0: Left Volume
+        _ret_ wrbyte sp_memv,ptra[7] ' $x1: Right Volume
+        _ret_ wrbyte sp_memv,ptra[0] ' $x2: Pitch low
+        _ret_ wrbyte sp_memv,ptra[1] ' $x3: Pitch high
+        _ret_ wrbyte sp_memv,ptra[8] ' $x4: SRCN
+        _ret_ wrbyte sp_memv,ptra[9] ' $x5: ADSR low
+        _ret_ wrbyte sp_memv,ptra[10]' $x6: ADSR high
+        _ret_ wrbyte sp_memv,ptra[11]' $x7: GAIN
+              ret                    ' $x8: ENVX (read-only)
+              ret                    ' $x9: OUTX (read-only)
+
+.global
+              cmp pb,#$E wcz
+        if_a  jmp #.firwrite
+        if_e  ret wcz
+              cmp pb,#$C wcz
+        if_b  ret wcz
+              getnib pa,dsp_addr,#1
+              bitnz pa,#3
+              cmp pa,#$4 wc
+              cmp pa,#$8 wz
+    if_c_or_z shl sp_memv,#7 ' shift up and signx MVOL/EVOL/EFB values
+    if_c_or_z signx sp_memv,#14
+              pop pb wcz
+              push pb
+              jmprel pa
+        _ret_ setword dsp_mvol,sp_memv,#0        ' $0C: MVOL left
+        _ret_ setword dsp_mvol,sp_memv,#1        ' $1C: MVOL right
+        _ret_ setword dsp_evol,sp_memv,#0        ' $2C: EVOL left
+        _ret_ setword dsp_evol,sp_memv,#1        ' $3C: EVOL right
+              jmp #.kon                          ' $4C: KON
+        _ret_ mov dsp_koff,sp_memv               ' $5C: KOFF
+        _ret_ mov dsp_flg,sp_memv                ' $6C: FLG
+        _ret_ mov dsp_endx,#0                    ' $7C: ENDX (always clear)
+        _ret_ mov dsp_efb,sp_memv                ' $0D: EFB (Echo feedback)
+              ret                                ' $1D: ???
+        _ret_ setbyte dsp_pmon_non_eon,sp_memv,#0' $2D: PMON
+        _ret_ setbyte dsp_pmon_non_eon,sp_memv,#1' $3D: NON
+        _ret_ setbyte dsp_pmon_non_eon,sp_memv,#2' $4D: RON
+        _ret_ setbyte dsp_dir_esa_edl,sp_memv,#0 ' $5D: DIR
+        _ret_ setbyte dsp_dir_esa_edl,sp_memv,#1 ' $6D: ESA
+        _ret_ setbyte dsp_dir_esa_edl,sp_memv,#2 ' $7D: EDL
+
+.kon
+        _ret_ mov dsp_kon_latch,sp_memv
+        _ret_ mov dsp_kon_read,sp_memv
+
+.firwrite
+              getnib pa,dsp_addr,#1
+              altr pa,#dsp_efir
+              shl sp_memv,#8
+              ret wcz
+
+
+scptr long 0
+scptr2 long 0
+scbase long $75A00 
+
+sp_400h       long $400
+dsp_maxenv    ' alias
+sp_7FFh       long $7FF
+sp_FFFFh      long $FFFF
+sp_10000h     long $10000
+sp_18000h     long $18000
+sp_31ab16     long 31 addbits 16
+
+dsp_min       long $FFFF_8000
+dsp_max       long $0000_7FFF
+dsp_maxpitch  long $0000_3FFF
+dsp_gainbend  long $601
+
+'sp_alti_incs8 long %000_000_110__000_000_111 ' ALTI mode for 8reg wrapped S subs+increment
+'sp_alti_incd8 long %000_110_000__000_111_000 ' ALTI mode for 8reg wrapped D subs+increment
+'sp_alti_incr8 long %110_000_000__111_000_000 ' ALTI mode for 8reg wrapped R subs+increment
+
+
+dsp_daccenter long DAC_CENTER
+dsp_dacscas   long DAC_SCAS
+
+sp_cycles     long -1
+sp_pc         long 0
+sp_sp         long 0
+sp_psw        long 0
+sp_a          long 0
+sp_x          long 0
+sp_y          long 0
+
+sp_dpage      long 0 ' 0 or 1, based on D bit in PSW
+sp_romstart   long $FFC0 ' negative value or sp_firmaddr based on ROM enablement
+sp_firmaddr   long $FFC0
+
+dsp_addr      long 0
+
+sp_tstat      long 0
+sp_tdiv       long 0
+sp_tfreq0     long 0
+sp_tfreq1     long 0
+sp_tfreq2     long 0
+sp_tval0      long 0
+sp_tval1      long 0
+sp_tval2      long 0
+sp_ctr0       long 0
+sp_ctr1       long 0
+sp_ctr2       long 0
+
+dsp_lsample   long 0
+dsp_rsample   long 0
+
+sp_rambase    long 0 ' patched by start
+sp_firmbase   long 0 ' patched by start
+sp_statbase   long 0 ' patched by start
+dsp_lpin      long 0 ' patched by start
+dsp_rpin      long 0 ' patched by start
+
+dsp_rateremap byte
+' To facilitate faster timer checks
+' Timer long looks like this:
+'  31   27   23   19   15   11   7    4
+' %0555_5555_5d33_3333_333d_1111_1111_111d
+byte   31, 11, 21
+byte   30, 10, 20
+byte   29,  9, 19
+byte   28,  8, 18
+byte   27,  7, 17
+byte   26,  6, 16
+byte   25,  5, 15
+byte   24,  4, 14
+byte   23,  3, 13
+byte   22,  2, 12
+byte        1
+byte        0
+
+dsp_brrpred_tbl long ' BRR predictor coefficents (sometimes wrongly referred to as "filters")
+
+long $0000_0000
+long $3C00_0000
+long $7A00_C400
+long $7300_CC00
+{
+long $0000_0000
+long $1E00_0000
+long $3D00_E200
+long $3980_E600
+}
+
+
+              '' TODO: make sure initial values for these are ok
+dsp_ct1       long 0 ' undivded rate counter
+dsp_ct3       long 348 ' rate counter divided by 3
+dsp_ct5       long 148 ' rate counter divided by 5
+dsp_div3      long 1
+dsp_div5      long 4
+dsp_xct       long 0 ' extra sample counter for debugging
+
+dsp_noise     long $4000
+dsp_eoff      long 0
+dsp_ewrap     long 4
+dsp_dir_esa_edl long 0 'DIR, ESA and EDL register values
+dsp_pmon_non_eon long 0 ' PMON, NON and EON register values
+dsp_flg       long %001_00000
+dsp_efb       long 0
+dsp_mvol      long 0 ' master volume (left/right)
+dsp_evol      long 0 ' echo volume (left/right)
+dsp_endx      long 0
+dsp_kon_latch long 0
+dsp_kon_read  long 0
+dsp_koff      long 0
+
+dsp_ehist     long 0[8] ' echo history buffer
+dsp_efir      long 0[8] ' echo buffer FIR filter coefficents
+
+dsp_chan      'alias
+sp_ea         res 1
+dsp_tmp1      'alias
+sp_memv       res 1
+dsp_tmp2      'alias
+sp_opcode     res 1
+dsp_tmp3      'alias
+sp_opimpl     res 1
+dsp_tmp4      'alias
+sp_optmp1     res 1
+dsp_tmp5      'alias
+sp_srcea      res 1
+dsp_tmp6      ' alias
+sp_writef     res 1
+
+dsp_tmp7      res 1
+
+dsp_rates     res 1
+
+dsp_lecho     res 1
+dsp_recho     res 1
+dsp_modout    res 1
+                
+
+
+              fit $1E0
+              org $1E0
+              ' Channel data starts here
+              ' read/write
+dsp_sbuf      res 8 ' decode buffer for current channel
+dsp_brrbase   res 1 ' current BRR header pointer
+dsp_gausspos  res 1 ' inter-sample position
+dsp_envlvl    res 1 ' envelope level
+dsp_output    res 1 ' output level
+dsp_envstat   res 1 ' envelope state machine
+
+              ' read only
+dsp_pitch     res 1 ' pitch
+dsp_cvol      res 1 ' channel left/right volume in byte 1/3 (others zero)
+dsp_src_adsr_gain res 1 ' SRCN,ADSR0,ADSR1 and GAIN registers
+
+              fit 502
+
+DAT ' SPCcog LUT code
+              orgh
+sp_lutblob
+              org 512
+long    sp_nop                                                                  ' 00: NOP
+long    sp_tcall+%000_001_0000_0<<10                                            ' 01: TCALL
+long    sp_dpbitop+                        %00_10_0<<10                         ' 02: SET1 dp.0
+long    sp_dpbitop+%0000_0010_1_1_1111_111_011_10_0<<10                         ' 03: BBS dp.0
+long    sp_ora+%0_0001_111111_1111_111110<<10 +SP_AMODE_A_DP                    ' 04: OR A,dp
+long    sp_ora+%0_0001_111111_1111_111110<<10 +SP_AMODE_A_ABS                   ' 05: OR A,!a
+long    sp_ora+%0_0001_111111_1111_111110<<10 +SP_AMODE_A_XI                    ' 06: OR A,(X)
+long    sp_ora+%0_0001_111111_1111_111110<<10 +SP_AMODE_A_DPXI                  ' 07: OR A,[d+X]
+long    sp_ora+%0_0001_111111_1111_111110<<10 +SP_AMODE_A_IMM                   ' 08: OR A,#imm
+long    sp_ora+%0_0001_111111_1111_111110<<10 +SP_AMODE_DP_DP                   ' 09: OR dd,ds
+long    sp_bitop+  %0_1011_1000_000000<<10                                      ' 0A: OR1 C,m.b
+long    sp_shiftm+ %0_00000_0011_10<<10      +SP_AMODE_U_DP                     ' 0B: ASL dp
+long    sp_shiftm+ %0_00000_0011_10<<10      +SP_AMODE_U_ABS                    ' 0C: ASL !a
+long    sp_push+%00111_0000<<10                                                 ' 0D: PUSH PSW
+long    sp_tsetclr+%0_10_000000<<10          +SP_AMODE_U_ABS                    ' 0E: TSET1 !a
+long    sp_brk+%00111_00001_00<<10                                              ' 0F: BRK
+
+long    sp_branch+ %0000_0011_1_1_1111_000_111_0<<10                            ' 10: BPL
+long    sp_tcall+%000_001_0000_0<<10                                            ' 11: TCALL
+long    sp_dpbitop+                        %00_10_0<<10                         ' 12: CLR1 dp.0
+long    sp_dpbitop+%0000_0010_1_1_1111_111_011_10_0<<10                         ' 13: BBC dp.0
+long    sp_ora+%0_0001_111111_1111_111110<<10 +SP_AMODE_A_DPX                   ' 14: OR A,dp+X
+long    sp_ora+%0_0001_111111_1111_111110<<10 +SP_AMODE_A_ABSX                  ' 15: OR A,!a+X
+long    sp_ora+%0_0001_111111_1111_111110<<10 +SP_AMODE_A_ABSY                  ' 16: OR A,!a+Y
+long    sp_ora+%0_0001_111111_1111_111110<<10 +SP_AMODE_A_DPIY                  ' 17: OR A,[dp]+Y
+long    sp_ora+%0_0001_111111_1111_111110<<10 +SP_AMODE_DP_IMM                  ' 18: OR dp,#imm
+long    sp_ora+%0_0001_111111_1111_111110<<10 +SP_AMODE_XI_YI                   ' 19: OR (X),(Y)
+long    sp_incdecw+    %01_0010_1101_11111_00<<10                               ' 1A: DECW dp
+long    sp_shiftm+ %0_00000_0011_10<<10      +SP_AMODE_U_DPX                    ' 1B: ASL dp+X
+long    sp_shifta+%01_00000_0011_10_00<<10                                      ' 1C: ASL A
+long    sp_incdecr+  %0111_0001_0111_11010<<10                                  ' 1D: DEC X
+long    sp_cmpx+%10<<10                  +SP_AMODE_U_ABS                        ' 1E: CMP X,!a
+long    sp_jmp+%010_000_1111_10<<10                                             ' 1F: JMP [!a+X]
+
+long    sp_setflags1+%0101110<<10                                               ' 20: CLRP
+long    sp_tcall+%000_001_0000_0<<10                                            ' 21: TCALL
+long    sp_dpbitop+                        %00_10_0<<10                         ' 22: SET1 dp.1
+long    sp_dpbitop+%0000_0010_1_1_1111_111_011_10_0<<10                         ' 23: BBS dp.1
+long    sp_and+%0_0001_111111_1111_1110<<10 +SP_AMODE_A_DP                      ' 24: AND A,dp
+long    sp_and+%0_0001_111111_1111_1110<<10 +SP_AMODE_A_ABS                     ' 25: AND A,!a
+long    sp_and+%0_0001_111111_1111_1110<<10 +SP_AMODE_A_XI                      ' 26: AND A,(X)
+long    sp_and+%0_0001_111111_1111_1110<<10 +SP_AMODE_A_DPXI                    ' 27: AND A,[d+X]
+long    sp_and+%0_0001_111111_1111_1110<<10 +SP_AMODE_A_IMM                     ' 28: AND A,#imm
+long    sp_and+%0_0001_111111_1111_1110<<10 +SP_AMODE_DP_DP                     ' 29: AND dd,ds
+long    sp_bitop+  %0_1011_0100_000000<<10                                      ' 2A: OR1 C,/m.b
+long    sp_rollm + %0_00000_0011_0<<10       +SP_AMODE_U_DP                     ' 2B: ROL dp
+long    sp_rollm + %0_00000_0011_0<<10       +SP_AMODE_U_ABS                    ' 2C: ROL !a
+long    sp_push+%01110_0000<<10                                                 ' 2D: PUSH A
+long    sp_cbne+   %0000_0010_0_0<<10 +SP_AMODE_U_DP                            ' 2E: CBNE dp
+long    sp_bra +   %0000_10<<10                                                 ' 2F: BRA
+
+long    sp_branch+ %0000_0011_1_1_1111_000_111_0<<10                            ' 30: BMI
+long    sp_tcall+%000_001_0000_0<<10                                            ' 31: TCALL
+long    sp_dpbitop+                        %00_10_0<<10                         ' 32: CLR1 dp.1
+long    sp_dpbitop+%0000_0010_1_1_1111_111_011_10_0<<10                         ' 33: BBC dp.1
+long    sp_and+%0_0001_111111_1111_1110<<10 +SP_AMODE_A_DPX                     ' 34: AND A,dp+X
+long    sp_and+%0_0001_111111_1111_1110<<10 +SP_AMODE_A_ABSX                    ' 35: AND A,!a+X
+long    sp_and+%0_0001_111111_1111_1110<<10 +SP_AMODE_A_ABSY                    ' 36: AND A,!a+Y
+long    sp_and+%0_0001_111111_1111_1110<<10 +SP_AMODE_A_DPIY                    ' 37: AND A,[dp]+Y
+long    sp_and+%0_0001_111111_1111_1110<<10 +SP_AMODE_DP_IMM                    ' 38: AND dp,#imm
+long    sp_and+%0_0001_111111_1111_1110<<10 +SP_AMODE_XI_YI                     ' 39: AND (X),(Y)
+long    sp_incdecw+    %01_0010_1110_11111_00<<10                               ' 3A: INCW dp
+long    sp_rollm + %0_00000_0011_0<<10       +SP_AMODE_U_DPX                    ' 3B: ROL dp+X
+long    sp_shifta+%01_00000_0011_01_00<<10                                      ' 3C: ROL A
+long    sp_incdecr+  %0111_0001_1011_11010<<10                                  ' 3D: INC X
+long    sp_cmpx+%10<<10                  +SP_AMODE_U_DP                         ' 3E: CMP X,dp
+long    sp_jmp +%000_111_1111_00<<10                                            ' 3F: CALL !a
+
+long    sp_setflags1+%0011110<<10                                               ' 40: SETP
+long    sp_tcall+%000_001_0000_0<<10                                            ' 41: TCALL
+long    sp_dpbitop+                        %00_10_0<<10                         ' 42: SET1 dp.2
+long    sp_dpbitop+%0000_0010_1_1_1111_111_011_10_0<<10                         ' 43: BBS dp.2
+long    sp_eor+%0_0001_111111_1111_11110<<10 +SP_AMODE_A_DP                     ' 44: EOR A,dp
+long    sp_eor+%0_0001_111111_1111_11110<<10 +SP_AMODE_A_ABS                    ' 45: EOR A,!a
+long    sp_eor+%0_0001_111111_1111_11110<<10 +SP_AMODE_A_XI                     ' 46: EOR A,(X)
+long    sp_eor+%0_0001_111111_1111_11110<<10 +SP_AMODE_A_DPXI                   ' 47: EOR A,[d+X]
+long    sp_eor+%0_0001_111111_1111_11110<<10 +SP_AMODE_A_IMM                    ' 48: EOR A,#imm
+long    sp_eor+%0_0001_111111_1111_11110<<10 +SP_AMODE_DP_DP                    ' 49: EOR dd,ds
+long    sp_bitop+  %0_1101_1001_000000<<10                                      ' 4A: AND1 C,m.b
+long    sp_shiftm+ %0_00000_1100_10<<10      +SP_AMODE_U_DP                     ' 4B: LSR dp
+long    sp_shiftm+ %0_00000_1100_10<<10      +SP_AMODE_U_ABS                    ' 4C: LSR !a
+long    sp_push+%01101_0000<<10                                                 ' 4D: PUSH X
+long    sp_tsetclr+%0_01_000000<<10          +SP_AMODE_U_ABS                    ' 4E: TCLR1 !a
+long    sp_pcall+%001_111_0111_010<<10                                          ' 4F: PCALL
+
+long    sp_branch+ %0000_0011_1_1_1111_000_111_0<<10                            ' 50: BVC
+long    sp_tcall+%000_001_0000_0<<10                                            ' 51: TCALL
+long    sp_dpbitop+                        %00_10_0<<10                         ' 52: CLR1 dp.2
+long    sp_dpbitop+%0000_0010_1_1_1111_111_011_10_0<<10                         ' 53: BBC dp.2
+long    sp_eor+%0_0001_111111_1111_11110<<10 +SP_AMODE_A_DPX                    ' 54: EOR A,dp+X
+long    sp_eor+%0_0001_111111_1111_11110<<10 +SP_AMODE_A_ABSX                   ' 55: EOR A,!a+X
+long    sp_eor+%0_0001_111111_1111_11110<<10 +SP_AMODE_A_ABSY                   ' 56: EOR A,!a+Y
+long    sp_eor+%0_0001_111111_1111_11110<<10 +SP_AMODE_A_DPIY                   ' 57: EOR A,[dp]+Y
+long    sp_eor+%0_0001_111111_1111_11110<<10 +SP_AMODE_DP_IMM                   ' 58: EOR dp,#imm
+long    sp_eor+%0_0001_111111_1111_11110<<10 +SP_AMODE_XI_YI                    ' 59: EOR (X),(Y)
+long    sp_wop+  %0_0000_111100_00000_100_00<<10                                ' 5A: CMPW YA,dp
+long    sp_shiftm+ %0_00000_1100_10<<10      +SP_AMODE_U_DPX                    ' 5B: LSR dp+X
+long    sp_shifta+%01_00000_1100_10_00<<10                                      ' 5C: LSR A
+long    sp_mova+%01_000_101_11110<<10                                           ' 5D: MOV X,A
+long    sp_cmpy+%0<<10                   +SP_AMODE_U_ABS                        ' 5E: CMP Y,!a
+long    sp_jmp+%011_111_1111_10<<10                                             ' 5F: JMP !a
+
+long    sp_setflags1+%010<<10                                                   ' 60: CLRC
+long    sp_tcall+%000_001_0000_0<<10                                            ' 61: TCALL
+long    sp_dpbitop+                        %00_10_0<<10                         ' 62: SET1 dp.3
+long    sp_dpbitop+%0000_0010_1_1_1111_111_011_10_0<<10                         ' 63: BBS dp.3
+long    sp_sbc+%1_0000_111100_1101_010<<10 +SP_AMODE_A_DP                       ' 64: CMP A,dp
+long    sp_sbc+%1_0000_111100_1101_010<<10 +SP_AMODE_A_ABS                      ' 65: CMP A,!a
+long    sp_sbc+%1_0000_111100_1101_010<<10 +SP_AMODE_A_XI                       ' 66: CMP A,(X)
+long    sp_sbc+%1_0000_111100_1101_010<<10 +SP_AMODE_A_DPXI                     ' 67: CMP A,[d+X]
+long    sp_sbc+%1_0000_111100_1101_010<<10 +SP_AMODE_A_IMM                      ' 68: CMP A,#imm
+long    sp_sbc+%1_0000_111100_1101_010<<10 +SP_AMODE_DP_DP                      ' 69: CMP dd,ds
+long    sp_bitop+  %0_1101_0101_000000<<10                                      ' 6A: AND1 C,/m.b
+long    sp_rollm + %0_00000_1100_0<<10       +SP_AMODE_U_DP                     ' 6B: ROR dp
+long    sp_rollm + %0_00000_1100_0<<10       +SP_AMODE_U_ABS                    ' 6C: ROR !a
+long    sp_push+%01011_0000<<10                                                 ' 6D: PUSH Y
+long    sp_dbnz_dp+%0000_0011_0_1_000<<10 +SP_AMODE_U_DP                        ' 6E: DBNZ dp
+long    sp_return                                                               ' 6F: RET
+
+long    sp_branch+ %0000_0011_1_1_1111_000_111_0<<10                            ' 70: BVS
+long    sp_tcall+%000_001_0000_0<<10                                            ' 71: TCALL
+long    sp_dpbitop+                        %00_10_0<<10                         ' 72: CLR1 dp.3
+long    sp_dpbitop+%0000_0010_1_1_1111_111_011_10_0<<10                         ' 73: BBC dp.3
+long    sp_sbc+%1_0000_111100_1101_010<<10 +SP_AMODE_A_DPX                      ' 74: CMP A,dp+X
+long    sp_sbc+%1_0000_111100_1101_010<<10 +SP_AMODE_A_ABSX                     ' 75: CMP A,!a+X
+long    sp_sbc+%1_0000_111100_1101_010<<10 +SP_AMODE_A_ABSY                     ' 76: CMP A,!a+Y
+long    sp_sbc+%1_0000_111100_1101_010<<10 +SP_AMODE_A_DPIY                     ' 77: CMP A,[dp]+Y
+long    sp_sbc+%1_0000_111100_1101_010<<10 +SP_AMODE_DP_IMM                     ' 78: CMP dp,#imm
+long    sp_sbc+%1_0000_111100_1101_010<<10 +SP_AMODE_XI_YI                      ' 79: CMP (X),(Y)
+long    sp_wop+%0001_0000_000000_00001_100_00<<10                               ' 7A: ADDW YA,dp
+long    sp_rollm + %0_00000_1100_0<<10       +SP_AMODE_U_DPX                    ' 7B: ROR dp+X
+long    sp_shifta+%01_00000_1100_01_00<<10                                      ' 7C: ROR A
+long    sp_movx+ %0_000_101_10<<10                                              ' 7D: MOV A,X
+long    sp_cmpy+%0<<10                   +SP_AMODE_U_DP                         ' 7E: CMP Y,dp
+long    sp_pop + %111_1000_11111_11000<<10                                      ' 7F: RETI
+
+long    sp_setflags1+%00<<10                                                    ' 80: SETC
+long    sp_tcall+%000_001_0000_0<<10                                            ' 81: TCALL
+long    sp_dpbitop+                        %00_10_0<<10                         ' 82: SET1 dp.4
+long    sp_dpbitop+%0000_0010_1_1_1111_111_011_10_0<<10                         ' 83: BBS dp.4
+long    sp_adc+%0_0000_000000_0000_10<<10 +SP_AMODE_A_DP                        ' 84: ADC A,dp
+long    sp_adc+%0_0000_000000_0000_10<<10 +SP_AMODE_A_ABS                       ' 85: ADC A,!a
+long    sp_adc+%0_0000_000000_0000_10<<10 +SP_AMODE_A_XI                        ' 86: ADC A,(X)
+long    sp_adc+%0_0000_000000_0000_10<<10 +SP_AMODE_A_DPXI                      ' 87: ADC A,[d+X]
+long    sp_adc+%0_0000_000000_0000_10<<10 +SP_AMODE_A_IMM                       ' 88: ADC A,#imm
+long    sp_adc+%0_0000_000000_0000_10<<10 +SP_AMODE_DP_DP                       ' 89: ADC dd,ds
+long    sp_bitop+  %0_0111_1000_000000<<10                                      ' 8A: EOR1 C,m.b
+long    sp_incdecm+     %0_0001_0111_0<<10+SP_AMODE_U_DP                        ' 8B: DEC dp
+long    sp_incdecm+     %0_0001_0111_0<<10+SP_AMODE_U_ABS                       ' 8C: DEC !a
+long    sp_mov + %011_000_111_1110<<10   +SP_AMODE_A_IMM                        ' 8D: MOV Y,#imm
+long    sp_pop +     %0000_11111_01000<<10                                      ' 8E: POP PSW
+long    sp_mov +%0111_111_111_1110<<10   +SP_AMODE_DP_IMM                       ' 8F: MOV dp,#imm
+
+long    sp_branch+ %0000_0011_1_1_1111_000_111_0<<10                            ' 90: BCC
+long    sp_tcall+%000_001_0000_0<<10                                            ' 91: TCALL
+long    sp_dpbitop+                        %00_10_0<<10                         ' 92: CLR1 dp.4
+long    sp_dpbitop+%0000_0010_1_1_1111_111_011_10_0<<10                         ' 93: BBC dp.4
+long    sp_adc+%0_0000_000000_0000_10<<10 +SP_AMODE_A_DPX                       ' 94: ADC A,dp+X
+long    sp_adc+%0_0000_000000_0000_10<<10 +SP_AMODE_A_ABSX                      ' 95: ADC A,!a+X
+long    sp_adc+%0_0000_000000_0000_10<<10 +SP_AMODE_A_ABSY                      ' 96: ADC A,!a+Y
+long    sp_adc+%0_0000_000000_0000_10<<10 +SP_AMODE_A_DPIY                      ' 97: ADC A,[dp]+Y
+long    sp_adc+%0_0000_000000_0000_10<<10 +SP_AMODE_DP_IMM                      ' 98: ADC dp,#imm
+long    sp_adc+%0_0000_000000_0000_10<<10 +SP_AMODE_XI_YI                       ' 99: ADC (X),(Y)
+long    sp_wop+%0001_0000_000000_00000_100_00<<10                               ' 9A: SUBW YA,dp
+long    sp_incdecm+     %0_0001_0111_0<<10+SP_AMODE_U_DPX                       ' 9B: DEC dp+X
+long    sp_incdecr+   %011_0001_0111_11100<<10                                  ' 9C: DEC A
+long    sp_movsp+%01_000_101_111110<<10                                         ' 9D: MOV X,SP
+long    sp_div                                                                  ' 9E: DIV
+long    sp_xcn                                                                  ' 9F: XCN A
+
+long    sp_setflags2+%000<<10                                                   ' A0: EI
+long    sp_tcall+%000_001_0000_0<<10                                            ' A1: TCALL
+long    sp_dpbitop+                        %00_10_0<<10                         ' A2: SET1 dp.5
+long    sp_dpbitop+%0000_0010_1_1_1111_111_011_10_0<<10                         ' A3: BBS dp.5
+long    sp_sbc+%0_0000_000000_0000_100<<10 +SP_AMODE_A_DP                       ' A4: SBC A,dp
+long    sp_sbc+%0_0000_000000_0000_100<<10 +SP_AMODE_A_ABS                      ' A5: SBC A,!a
+long    sp_sbc+%0_0000_000000_0000_100<<10 +SP_AMODE_A_XI                       ' A6: SBC A,(X)
+long    sp_sbc+%0_0000_000000_0000_100<<10 +SP_AMODE_A_DPXI                     ' A7: SBC A,[d+X]
+long    sp_sbc+%0_0000_000000_0000_100<<10 +SP_AMODE_A_IMM                      ' A8: SBC A,#imm
+long    sp_sbc+%0_0000_000000_0000_100<<10 +SP_AMODE_DP_DP                      ' A9: SBC dd,ds
+long    sp_bitop+  %0_1110_1011_000000<<10                                      ' AA: MOV1 C,m.b
+long    sp_incdecm+     %0_0001_1011_0<<10+SP_AMODE_U_DP                        ' AB: INC dp
+long    sp_incdecm+     %0_0001_1011_0<<10+SP_AMODE_U_ABS                       ' AC: INC !a
+long    sp_cmpy+%0<<10                   +SP_AMODE_U_IMM                        ' AD: CMP Y,#imm
+long    sp_pop +   %0_1110_11111_01000<<10                                      ' AE: POP A
+long    sp_mxi+  %0111_111_010_111101_1100<<10                                  ' AF: MOV (X+),A
+
+long    sp_branch+ %0000_0011_1_1_1111_000_111_0<<10                            ' B0: BCS
+long    sp_tcall+%000_001_0000_0<<10                                            ' B1: TCALL
+long    sp_dpbitop+                        %00_10_0<<10                         ' B2: CLR1 dp.5
+long    sp_dpbitop+%0000_0010_1_1_1111_111_011_10_0<<10                         ' B3: BBC dp.5
+long    sp_sbc+%0_0000_000000_0000_100<<10 +SP_AMODE_A_DPX                      ' B4: SBC A,dp+X
+long    sp_sbc+%0_0000_000000_0000_100<<10 +SP_AMODE_A_ABSX                     ' B5: SBC A,!a+X
+long    sp_sbc+%0_0000_000000_0000_100<<10 +SP_AMODE_A_ABSY                     ' B6: SBC A,!a+Y
+long    sp_sbc+%0_0000_000000_0000_100<<10 +SP_AMODE_A_DPIY                     ' B7: SBC A,[dp]+Y
+long    sp_sbc+%0_0000_000000_0000_100<<10 +SP_AMODE_DP_IMM                     ' B8: SBC dp,#imm
+long    sp_sbc+%0_0000_000000_0000_100<<10 +SP_AMODE_XI_YI                      ' B9: SBC (X),(Y)
+long    sp_wop+%0001_0000_111111_11111_111_10<<10                               ' BA: MOVW YA,dp
+long    sp_incdecm+     %0_0001_1011_0<<10+SP_AMODE_U_DPX                       ' BB: INC dp+X
+long    sp_incdecr+   %011_0001_1011_11100<<10                                  ' BC: INC A
+long    sp_movx+%01111_111_101_10<<10                                           ' BD: MOV SP,X
+long    sp_daa+%0000_00100_00010_00<<10                                         ' BE: DAS
+long    sp_mxi+     %0_111_010_111111_0000<<10                                  ' BF: MOV A,(X+)
+
+long    sp_setflags2+%010<<10                                                   ' C0: DI
+long    sp_tcall+%000_001_0000_0<<10                                            ' C1: TCALL
+long    sp_dpbitop+                        %00_10_0<<10                         ' C2: SET1 dp.6
+long    sp_dpbitop+%0000_0010_1_1_1111_111_011_10_0<<10                         ' C3: BBS dp.6
+long    sp_rmov+ %0111_111_111_110<<10   +SP_AMODE_A_DP                         ' C4: MOV dp,A
+long    sp_rmov+ %0111_111_111_110<<10   +SP_AMODE_A_ABS                        ' C5: MOV !a,A
+long    sp_rmov+ %0111_111_111_110<<10   +SP_AMODE_A_XI                         ' C6: MOV (X),A
+long    sp_rmov+ %0111_111_111_110<<10   +SP_AMODE_A_DPXI                       ' C7: MOV [d+X],A
+long    sp_cmpx+%10<<10                  +SP_AMODE_U_IMM                        ' C8: CMP X,#imm
+long    sp_rmov+ %0111_111_111_100<<10   +SP_AMODE_U_ABS                        ' C9: MOV !a,X
+long    sp_bitop+%001_1111_1100_000000<<10                                      ' CA: MOV1 m.b,C
+long    sp_rmov+ %0111_111_111_010<<10   +SP_AMODE_U_DP                         ' CB: MOV dp,Y
+long    sp_rmov+ %0111_111_111_010<<10   +SP_AMODE_U_ABS                        ' CC: MOV !a,Y
+long    sp_mov +  %01_000_111_1110<<10   +SP_AMODE_A_IMM                        ' CD: MOV X,#imm
+long    sp_pop +  %01_1110_11111_01000<<10                                      ' CE: POP X
+long    sp_mul                                                                  ' CF: MUL
+
+long    sp_branch+ %0000_0011_1_1_1111_000_111_0<<10                            ' D0: BNE
+long    sp_tcall+%000_001_0000_0<<10                                            ' D1: TCALL
+long    sp_dpbitop+                        %00_10_0<<10                         ' D2: CLR1 dp.6
+long    sp_dpbitop+%0000_0010_1_1_1111_111_011_10_0<<10                         ' D3: BBC dp.6
+long    sp_rmov+ %0111_111_111_110<<10   +SP_AMODE_A_DPX                        ' D4: MOV dp+X,A
+long    sp_rmov+ %0111_111_111_110<<10   +SP_AMODE_A_ABSX                       ' D5: MOV !a+X,A
+long    sp_rmov+ %0111_111_111_110<<10   +SP_AMODE_A_ABSY                       ' D6: MOV !a+Y,A
+long    sp_rmov+ %0111_111_111_110<<10   +SP_AMODE_A_DPIY                       ' D7: MOV [dp]+Y,A
+long    sp_rmov+ %0111_111_111_100<<10   +SP_AMODE_U_DP                         ' D8: MOV dp,X
+long    sp_mdpy+ %0111_111_101_101111_1001000<<10                               ' D9: MOV dp+Y,X
+long    sp_movw1+%000_110<<10                                                   ' DA: MOVW dp,YA
+long    sp_rmov+ %0111_111_111_010<<10   +SP_AMODE_U_DPX                        ' DB: MOV dp+X,Y
+long    sp_incdecr+ %01111_0001_0111_10110<<10                                  ' DC: DEC Y
+long    sp_movy+    %0_000_101_0<<10                                            ' DD: MOV A,Y
+long    sp_cbne+   %0000_0010_0_0<<10 +SP_AMODE_U_DPX                           ' DE: CBNE dp+X
+long    sp_daa+%0000_01000_00100_00<<10                                         ' DF: DAA
+
+long    sp_setflags1+%0110<<10                                                  ' E0: SETC
+long    sp_tcall+%000_001_0000_0<<10                                            ' E1: TCALL
+long    sp_dpbitop+                        %00_10_0<<10                         ' E2: SET1 dp.7
+long    sp_dpbitop+%0000_0010_1_1_1111_111_011_10_0<<10                         ' E3: BBS dp.7
+long    sp_mov +   %0_000_111_1110<<10   +SP_AMODE_U_DP                         ' E4: MOV A,dp
+long    sp_mov +   %0_000_111_1110<<10   +SP_AMODE_U_ABS                        ' E5: MOV A,!a
+long    sp_mov +   %0_000_111_1110<<10   +SP_AMODE_A_XI                         ' E6: MOV A,(X)
+long    sp_mov +   %0_000_111_1110<<10   +SP_AMODE_A_DPXI                       ' E7: MOV A,[dp+X]
+long    sp_mov +   %0_000_111_1110<<10   +SP_AMODE_A_IMM                        ' E8: MOV A,#imm
+long    sp_mov +  %01_000_111_1110<<10   +SP_AMODE_U_ABS                        ' E9: MOV X,!a
+long    sp_bitop+%001_1110_0111_000000<<10                                      ' EA: NOT1 m.b
+long    sp_mov + %011_000_111_1110<<10   +SP_AMODE_U_DP                         ' EB: MOV Y,dp
+long    sp_mov + %011_000_111_1110<<10   +SP_AMODE_U_ABS                        ' EC: MOV Y,!a
+long    sp_setflags2+%0110<<10                                                  ' ED: NOTC
+long    sp_pop + %011_1110_11111_01000<<10                                      ' EE: POP Y
+long    sp_stop                                                                 ' EF: SLEEP
+
+long    sp_branch+ %0000_0011_1_1_1111_000_111_0<<10                            ' F0: BEQ
+long    sp_tcall+%000_001_0000_0<<10                                            ' F1: TCALL
+long    sp_dpbitop+                        %00_10_0<<10                         ' F2: CLR1 dp.7
+long    sp_dpbitop+%0000_0010_1_1_1111_111_011_10_0<<10                         ' F3: BBC dp.7
+long    sp_mov +   %0_000_111_1110<<10   +SP_AMODE_U_DPX                        ' F4: MOV A,dp+X
+long    sp_mov +   %0_000_111_1110<<10   +SP_AMODE_A_ABSX                       ' F5: MOV A,!a+X
+long    sp_mov +   %0_000_111_1110<<10   +SP_AMODE_A_ABSY                       ' F6: MOV A,!a+Y
+long    sp_mov +   %0_000_111_1110<<10   +SP_AMODE_A_DPIY                       ' F7: MOV A,[d]+Y
+long    sp_mov +  %01_000_111_1110<<10   +SP_AMODE_U_DP                         ' F8: MOV X,dp
+long    sp_mdpy+  %01_000_111_111111_0001000<<10                                ' F9: MOV X,dp+Y
+long    sp_dpmov                                                                ' FA: MOV dd,ds
+long    sp_mov + %011_000_111_1110<<10   +SP_AMODE_U_DPX                        ' FB: MOV Y,dp+X
+long    sp_incdecr+ %01111_0001_1011_10110<<10                                  ' FC: INC Y
+long    sp_mova+ %011_000_101_11110<<10                                         ' FD: MOV Y,A
+long    sp_dbnz_y+ %0000_0010_0_1_1110<<10                                      ' FE: DBNZ Y
+long    sp_stop                                                                 ' FF: STOP
+
+
+sp_movw1      call #\sp_read_dp8 ' dummy read for MOVW dp,YA
+sp_wop        call #\sp_read_dp16 ' slight inaccuracy - 16 bit op at $FF should wrap around, this doesn't
+              getword sp_optmp1,sp_memv,#0 ' make double sure this is 16 bit
+
+              mov sp_memv,sp_a
+              setbyte sp_memv,sp_y,#1
+              jmp #sp_write16 ' for MOVW dp,YA
+
+              bitnot sp_optmp1,sp_31ab16 ' invert operand for SUBW (sets bit 31)
+              mov pa,sp_optmp1 wc ' set carry for SUBW, clear for ADDW
+              xor pa,sp_memv
+              addx sp_memv,sp_optmp1
+              xor pa,sp_memv
+
+              test sp_memv,sp_10000h wc
+              bitc sp_psw,#SP_CARRY_BIT
+              test pa,sp_18000h wc
+              bitc sp_psw,#SP_OVER_BIT
+              testb pa,#12 wc
+              bitc sp_psw,#SP_HALF_BIT
+
+              and sp_memv,sp_FFFFh wz
+              bitz sp_psw,#SP_ZERO_BIT
+              testb sp_memv,#15 wc
+              bitc sp_psw,#SP_NEG_BIT
+
+              ret
+              sub sp_cycles,#1 ' Dummy cycle
+              getbyte sp_a,sp_memv,#0
+        _ret_ getbyte sp_y,sp_memv,#1
+
+
+sp_bitop      call #\sp_readcode16
+              mov sp_optmp1,sp_memv
+              shr sp_optmp1,#13
+              mov sp_ea,sp_memv
+              zerox sp_ea,#12
+              call #\sp_read8
+
+              sub sp_cycles,#1 ' Dummy cycle
+              testb sp_psw,#SP_CARRY_BIT wc
+              testb sp_memv,sp_optmp1 wz
+              testbn sp_memv,sp_optmp1 wz
+
+              modc _z wc
+              modc _z_and_c wc
+              modc _z_or_c wc
+              modc _z_ne_c wc
+
+        _ret_ bitc sp_psw,#SP_CARRY_BIT
+              bitc sp_memv,sp_optmp1
+              jmp #\sp_write8
+
+
+sp_tsetclr    sub sp_cycles,#1
+              mov pa,sp_a
+              sub pa,sp_memv wz
+              testb pa,#7 wc
+              bitz sp_psw,#SP_ZERO_BIT
+              bitc sp_psw,#SP_NEG_BIT
+
+              or sp_memv,sp_a    ' TSET1
+              andn sp_memv,sp_a  ' TCLR1
+
+              jmp #\sp_write8
+
+
+sp_shifta     mov sp_memv,sp_a
+              sub sp_cycles,#1
+
+sp_shiftm     modc _clr wc
+sp_rollm      testb sp_psw,#SP_CARRY_BIT wc
+
+              bitc sp_memv,#8 ' right
+              shr sp_memv,#1 wc ' right
+              rcl sp_memv,#1  ' left
+              bitl sp_memv,#8 wcz 'left
+
+              bitc sp_psw,#SP_CARRY_BIT
+              and sp_memv,#255 wz
+              bitz sp_psw,#SP_ZERO_BIT
+              testb sp_memv,#7 wc
+              bitc sp_psw,#SP_NEG_BIT
+
+              jmp #\sp_write8
+        _ret_ mov sp_a,sp_memv
+
+
+sp_incdecw    call #\sp_read_dp16' slight inaccuracy - 16 bit op at $FF should wrap around, this doesn't
+              decmod sp_ea,sp_FFFFh
+
+sp_incdecr    sub sp_cycles,#1
+              mov sp_memv,sp_a
+              mov sp_memv,sp_x
+              mov sp_memv,sp_y
+sp_incdecm    mov sp_ea,sp_srcea
+
+              incmod sp_memv,sp_FFFFh wz
+              decmod sp_memv,sp_FFFFh wz
+              incmod sp_memv,#$FF wz
+              decmod sp_memv,#$FF wz
+
+              testb sp_memv,#15 wc
+              testb sp_memv,#7 wc
+              bitz sp_psw,#SP_ZERO_BIT
+              bitc sp_psw,#SP_NEG_BIT
+
+              jmp #sp_write8
+              jmp #sp_write16
+        _ret_ mov sp_a,sp_memv
+        _ret_ mov sp_x,sp_memv
+        _ret_ mov sp_y,sp_memv
+
+
+sp_setflags1  sub sp_cycles,#1
+        _ret_ bith sp_psw,#SP_CARRY_BIT ' SETC
+        _ret_ bitl sp_psw,#SP_CARRY_BIT ' CLRC
+        _ret_ andn sp_psw,#(1<<SP_OVER_BIT)|(1<<SP_HALF_BIT) ' CLRV
+              mov sp_dpage,#0 wz ' CLRP
+              mov sp_dpage,#1 wz ' SETP
+        _ret_ bitnz sp_psw,#SP_PAGE_BIT ' CLRP/SETP
+
+sp_setflags2  sub sp_cycles,#2
+        _ret_ bith sp_psw,#SP_IRQ_BIT ' EI
+        _ret_ bitl sp_psw,#SP_IRQ_BIT ' DI
+        _ret_ bitnot sp_psw,#SP_CARRY_BIT ' NOTC
+
+
+sp_brk        call #\sp_pushpc
+              push #sp_brkjp
+
+sp_pop        incmod sp_sp,#$FF
+sp_push       mov sp_ea,sp_sp
+              setbyte sp_ea,#1,#1
+              decmod sp_sp,#$FF
+              sub sp_cycles,#2
+
+              mov sp_memv,sp_a
+              mov sp_memv,sp_x
+              mov sp_memv,sp_y
+              mov sp_memv,sp_psw
+              jmp #\sp_write8
+
+              call #\sp_read8
+              mov sp_psw,sp_memv
+              testb sp_psw,#SP_PAGE_BIT wc
+        _ret_ wrc sp_dpage
+
+        _ret_ mov sp_a,sp_memv
+        _ret_ mov sp_x,sp_memv
+        _ret_ mov sp_y,sp_memv
+
+              wrc sp_dpage
+              ' Can fall through for RETI
+sp_return     sub sp_cycles,#2
+              incmod sp_sp,#$FF
+              mov sp_ea,sp_sp
+              setbyte sp_ea,#1,#1
+              call #\sp_read8
+              setbyte sp_pc,sp_memv,#0
+              incmod sp_sp,#$FF
+              setbyte sp_ea,sp_sp,#0
+              call #\sp_read8
+        _ret_ setbyte sp_pc,sp_memv,#1
+
+
+
+sp_dpbitop
+              call #\sp_read_dp8
+
+              shr sp_opcode,#5 wc ' SET1/CLR1/BBS/BBC
+sp_branch     shr sp_opcode,#6 wc ' Flag branches
+
+              bitnc sp_memv,sp_opcode ' SET1/CLR1
+              jmp #\sp_write8         ' SET1/CLR1
+              testb sp_memv,sp_opcode xorc ' BBS/BBC
+
+              altgb sp_opcode,#sp_flagbranchtbl ' Flag branches
+              getbyte pa            ' Flag branches
+              testbn sp_psw,pa xorc ' Flag branches
+
+sp_dbnz_y     decmod sp_y,#$FF wz ' DBNZ Y
+sp_dbnz_dp    mov sp_memv,sp_optmp1 ' DBNZ dp
+              decmod sp_memv,#$FF wz ' DBNZ dp
+              call #\sp_write8 ' DBNZ dp
+
+sp_cbne       cmp sp_a,sp_optmp1 wz
+
+              modc _nz wc ' all DBNZ/CBNE
+
+              sub sp_cycles,#1  ' BBS/BBC/CBNE
+              sub sp_cycles,#2  ' DBNZ Y
+sp_bra        call #\sp_readcode
+        if_nc ret
+
+              sub sp_cycles,#2
+              signx sp_memv,#7
+              'debug(sdec(sp_memv))
+              add sp_pc,sp_memv
+        _ret_ zerox sp_pc,#15
+
+
+
+sp_pcall      call #\sp_readcode   ' PCALL
+sp_jmp        call #\sp_readcode16 ' All but PCALL or TCALL
+sp_tcall      call #\sp_pushpc     ' All calls
+
+              getnib sp_memv,sp_opcode,#1 ' TCALL
+              shl sp_memv,#1            ' TCALL
+              subr sp_memv,#$DE         ' TCALL
+              setbyte sp_memv,#$FF,#1   ' TCALL/PCALL
+
+              add sp_memv,sp_x  ' JMP [!a+X]
+              getword sp_ea,sp_memv,#0 ' indirect
+              call #\sp_read16  ' indirect
+
+              sub sp_cycles,#1
+              sub sp_cycles,#2
+        _ret_ mov sp_pc,sp_memv
+
+
+
+              ' MOV-related funnies
+sp_mdpy       call #\sp_readcode  ' Elusive dp+Y mode
+              mov sp_ea,sp_memv
+              add sp_ea,sp_y
+sp_mxi        mov sp_ea,sp_x      ' for (X+) mode
+              setbyte sp_ea,sp_dpage,#1
+              call #\sp_read8
+              mov sp_memv,sp_memv wz
+
+sp_movsp      mov sp_memv,sp_sp wz
+sp_mova       mov sp_memv,sp_a wz
+sp_mov        mov sp_memv,sp_optmp1 wz
+sp_rmov       mov sp_ea,sp_srcea       ' For moving from D to S. Lunacy.
+sp_movx       mov sp_memv,sp_x wz
+sp_movy       mov sp_memv,sp_y wz
+
+              incmod sp_x,#$FF ' for (X+) mode
+              sub sp_cycles,#1 ' Extra cycle
+              sub sp_cycles,#2 ' Double xtra cycle
+
+              testb sp_memv,#7 wc
+              bitc sp_psw,#SP_NEG_BIT
+              bitz sp_psw,#SP_ZERO_BIT
+
+        _ret_ getbyte sp_a,sp_memv,#0
+        _ret_ getbyte sp_x,sp_memv,#0
+        _ret_ getbyte sp_y,sp_memv,#0
+              jmp #\sp_write8
+        _ret_ getbyte sp_sp,sp_memv,#0
+
+
+sp_dpmov    ' Can't use amode because there's not supposed to be a dummy read
+            call #\sp_read_dp8
+            mov sp_optmp1,sp_memv
+            call #\sp_read_dpaddr
+            mov sp_memv,sp_optmp1
+            jmp #\sp_write8
+
+
+sp_cmpx       mov sp_memv,sp_x
+sp_cmpy       mov sp_memv,sp_y
+              skipf ##%011_1_0000_111100_1101_010111
+
+        ' All the funny ALU ops
+sp_ora        or  sp_memv,sp_optmp1 wz
+sp_eor        xor sp_memv,sp_optmp1 wz
+sp_and        and sp_memv,sp_optmp1 wz
+sp_sbc        xor sp_optmp1,#$FF       ' Believe it or not, that is how subtract works on 6502-like CPUs
+sp_adc        testb sp_psw,#SP_CARRY_BIT wc
+              modc _set wc ' for CMP
+
+              mov pa,sp_memv
+              addx sp_memv,sp_optmp1
+              xor pa,sp_memv
+              xor pa,sp_optmp1
+
+              test sp_memv,#$100 wc
+              bitc sp_psw,#SP_CARRY_BIT
+              test pa,#$180 wc
+              bitc sp_psw,#SP_OVER_BIT
+              test pa,#$010 wc
+              bitc sp_psw,#SP_HALF_BIT
+
+              and sp_memv,#$FF wz
+              bitz sp_psw,#SP_ZERO_BIT
+              test sp_memv,#$80 wc
+              bitc sp_psw,#SP_NEG_BIT
+
+              jmp sp_writef
+              ' for CMP
+              cmp sp_writef,#sp_write8 wz
+        if_z  sub sp_cycles,#1
+              ret
+
+
+
+sp_xcn
+              sub sp_cycles,#4
+              rolnib sp_a,sp_a,#1
+              and sp_a,#255 wz
+              testb sp_a,#7 wc
+              bitz sp_psw,#SP_ZERO_BIT
+        _ret_ bitc sp_psw,#SP_NEG_BIT
+
+sp_stop
+              'debug("Halted! ",uhex_word(sp_pc))
+              decmod sp_pc,sp_FFFFh
+sp_nop
+        _ret_ sub sp_cycles,#1
+
+
+              fit 1024
+
+
+DAT ' S-DSP emulation
+              orgh
+dsp_run
+              '' Give cycles to CPU
+              add sp_cycles,#32 wc
+        'if_nc drvh #39 ' Set LED if DSP is called before CPU exhausted cycle budget
+              fles sp_cycles,#32*3
+              '' Update SPC timers
+              incmod sp_tdiv,#3 wc ' 8kHz master divider for T0/T1
+              testb sp_tstat,#0 wz
+        if_11 incmod sp_tval0,#255
+              cmp    sp_tval0,sp_tfreq0 wz
+        if_11 mov    sp_tval0,#0
+        if_11 incmod sp_ctr0,#15
+              testb sp_tstat,#1 wz
+        if_11 incmod sp_tval1,#255
+              cmp    sp_tval1,sp_tfreq1 wz
+        if_11 mov    sp_tval1,#0
+        if_11 incmod sp_ctr1,#15
+              ' Timer 2 runs at 64kHz, so do two steps
+              'testb
+              testb sp_tstat,#2 wc
+        if_1x incmod sp_tval2,#255
+              cmp    sp_tval2,sp_tfreq2 wz
+        if_11 mov    sp_tval2,#0
+        if_11 incmod sp_ctr2,#15
+        if_1x incmod sp_tval2,#255
+              cmp    sp_tval2,sp_tfreq2 wz
+        if_11 mov    sp_tval2,#0
+        if_11 incmod sp_ctr2,#15
+
+              'debug(`dspv update 0)
+
+              mov ptra,sp_statbase
+              'debug("Canary alive!")
+              add ptra,#8
+
+
+              '' Update DSP timers
+              ' 1/5n part
+              mov dsp_rates,dsp_ct5
+              incmod dsp_div5,#4 wc
+        if_c  incmod dsp_ct5,#$0FF
+              andn dsp_rates,dsp_ct5
+              rcl dsp_rates,#1
+              ' 1/3n part
+              shl dsp_rates,#9
+              or dsp_rates,dsp_ct3
+              incmod dsp_div3,#2 wc
+        if_c  incmod dsp_ct3,#$1FF
+              andn dsp_rates,dsp_ct3
+              rcl dsp_rates,#1
+              ' 1/1n part
+              shl dsp_rates,#11
+              or dsp_rates,dsp_ct1
+              incmod dsp_ct1,sp_7FFh
+              andn dsp_rates,dsp_ct1
+              modc _set wc
+              rcl dsp_rates,#1
+
+
+              '' Update noise generator
+              mov pa,dsp_flg
+              and pa,#31
+              altgb pa,#dsp_rateremap
+              getbyte pa
+              testb dsp_rates,pa wz
+              test dsp_noise,#6 wc
+        if_z  shr dsp_noise,#1
+              bitl dsp_noise,#0
+        if_z  bitc dsp_noise,#15
+              signx dsp_noise,#15
+
+              ''
+              mov dsp_lsample,#0
+              mov dsp_rsample,#0
+              mov dsp_lecho,#0
+              mov dsp_recho,#0
+              mov dsp_modout,#0
+
+              andn dsp_endx,dsp_kon_latch ' clear ENDX for key-on channels
+
+
+              mov dsp_chan,#0
+dsp_chloop    '' Channel loop
+              ' Get channel data from hub
+              setq #DSP_RWLONGS+DSP_RDLONGS-1
+              rdlong dsp_sbuf,ptra
+
+              'debug(`dspv 'what the shit' 13)
+
+              '' Handle Key-off
+              testb dsp_koff,dsp_chan wc
+        if_c  mov dsp_envstat,#ENV_RELEASE
+
+              '' Pitch modulation
+              zerox dsp_pitch,#13
+              'sar dsp_modout,#1
+              testb dsp_pmon_non_eon,dsp_chan wc
+        if_c scas dsp_modout,dsp_pitch
+        if_c add dsp_pitch,0-0
+              fges dsp_pitch,#0
+              fles dsp_pitch,dsp_maxpitch
+              '' Handle some stuff related to Key-On
+              bitl dsp_kon_latch,dsp_chan wcz
+        if_z  mov dsp_gausspos,#0 ' Reset phase on key-on
+        if_z  mov dsp_envlvl,#0
+        if_z  mov dsp_envstat,#ENV_ATTACK
+        if_z  mov dsp_sbuf+4,#0
+        if_z  mov dsp_sbuf+5,#0
+        if_z  mov dsp_sbuf+6,#0
+        if_z  mov dsp_sbuf+7,#0
+              '' Figure out reload address
+              getbyte ptrb,dsp_dir_esa_edl,#0
+              getbyte pa,dsp_src_adsr_gain,#0
+              shl ptrb,#6
+              add ptrb,pa
+              shl ptrb,#2
+              zerox ptrb,#15
+              add ptrb,sp_rambase
+        if_z  rdword dsp_brrbase,ptrb ' if key-on, read start ptr
+              '' Phase accumulate
+              testb dsp_gausspos,#14 wc
+        if_nz add dsp_gausspos,dsp_pitch
+              testb dsp_gausspos,#14 xorc
+        if_00 jmp #.no_brrdecode
+
+              '' Decode 4 BRR samples
+              ' Get header
+              mov pa,dsp_brrbase
+              add pa,sp_rambase
+              rdbyte dsp_tmp4,pa
+              ' Handle end of sample
+              testbn dsp_tmp4,#1 wc ' Loop flag
+              testb dsp_tmp4,#0 andc ' End flag?
+              testb dsp_flg,#7 orc ' Reset?
+        if_c  mov dsp_envstat,#ENV_RELEASE
+        if_c  mov dsp_envlvl,#0
+              ' figure out BRR offset and buffer target using top nibble of phase
+              mov pa,dsp_gausspos
+              shr pa,#12+2 ' reduce to four-sample granularity
+              and pa,#3    ' 16 samples in a block
+        if_nz incmod pa,#3 ' need to load the next one (except when key-on)
+              mov dsp_tmp3,pa
+              shl pa,#1     ' 4 samples -> 2 bytes
+              add pa,#1     ' skip header
+              add pa,dsp_brrbase
+              add pa,sp_rambase ' Note: no provisions made for trying to read a sample across the memory wraparound
+              rdword dsp_tmp1,pa ' got the data
+              ' Figure out parameters from header
+              getnib pa,dsp_tmp4,#0
+              shr pa,#2
+              alts pa,#dsp_brrpred_tbl
+              mov dsp_tmp6,0-0
+              getword dsp_tmp5,dsp_tmp6,#1 ' tmp5/tmp6 are first/second prediction coefficient
+              getnib pb,dsp_tmp4,#1 ' scale (invalid values are not treated correctly)
+              subr pb,#28
+              ' Move buffer
+              mov dsp_sbuf+0,dsp_sbuf+4
+              mov dsp_sbuf+1,dsp_sbuf+5
+              mov dsp_sbuf+2,dsp_sbuf+6
+              mov dsp_sbuf+3,dsp_sbuf+7
+
+              ' First sample
+              getnib dsp_sbuf+4,dsp_tmp1,#1
+              shl dsp_sbuf+4,#28
+              sar dsp_sbuf+4,pb
+              scas dsp_sbuf+3,dsp_tmp5 ' s[t-1]
+              add dsp_sbuf+4,0-0
+              scas dsp_sbuf+2,dsp_tmp6 ' s[t-2]
+              add dsp_sbuf+4,0-0
+              ' Second sample
+              getnib dsp_sbuf+5,dsp_tmp1,#0
+              shl dsp_sbuf+5,#28
+              sar dsp_sbuf+5,pb
+              scas dsp_sbuf+4,dsp_tmp5 ' s[t-1]
+              add dsp_sbuf+5,0-0
+              scas dsp_sbuf+3,dsp_tmp6 ' s[t-2]
+              add dsp_sbuf+5,0-0
+              ' Third sample
+              getnib dsp_sbuf+6,dsp_tmp1,#3
+              shl dsp_sbuf+6,#28
+              sar dsp_sbuf+6,pb
+              scas dsp_sbuf+5,dsp_tmp5 ' s[t-1]
+              add dsp_sbuf+6,0-0
+              scas dsp_sbuf+4,dsp_tmp6 ' s[t-2]
+              add dsp_sbuf+6,0-0
+              ' Fourth sample
+              getnib dsp_sbuf+7,dsp_tmp1,#2
+              shl dsp_sbuf+7,#28
+              sar dsp_sbuf+7,pb
+              scas dsp_sbuf+6,dsp_tmp5 ' s[t-1]
+              add dsp_sbuf+7,0-0
+              scas dsp_sbuf+5,dsp_tmp6 ' s[t-2]
+              add dsp_sbuf+7,0-0
+
+              ' advance BRR pointer if we're done with this block
+              cmp dsp_tmp3,#3 wz
+        if_x1 add dsp_brrbase,#9
+              zerox dsp_brrbase,#15
+              testb dsp_tmp4,#0 andz ' End flag?
+        if_x1 bith dsp_endx,dsp_chan
+        if_x1 rdword dsp_brrbase,ptrb[1] ' read loop pointer
+
+.no_brrdecode
+
+
+              '' Gaussian interpolation
+              ' Get coefficents
+              getnib ptrb,dsp_gausspos,#2
+              rolnib ptrb,dsp_gausspos,#1
+              shl ptrb,#2
+dsp_gt_patch1 rdlong dsp_tmp2,ptrb[##0] ' "reverse"
+              bitnot ptrb,#2 addbits 7
+dsp_gt_patch2 rdlong dsp_tmp1,ptrb[##0] ' "forward"
+
+              getnib pb,dsp_gausspos,#3
+              and pb,#3
+              ' Do the thing
+              alts pb,#dsp_sbuf+0
+              scas dsp_tmp1,0-0
+              mov dsp_output,0-0
+
+              getword pa,dsp_tmp1,#1
+              alts pb,#dsp_sbuf+1
+              scas pa,0-0
+              add dsp_output,0-0
+
+              getword pa,dsp_tmp2,#1
+              alts pb,#dsp_sbuf+2
+              scas pa,0-0
+              add dsp_output,0-0
+              signx dsp_output,#15 ' first three overflow
+
+              alts pb,#dsp_sbuf+3
+              scas dsp_tmp2,0-0
+              add dsp_output,0-0
+              ' saturate last add
+              fges dsp_output,dsp_min
+              fles dsp_output,dsp_max
+
+
+              getbyte pa,dsp_pmon_non_eon,#1
+              testb pa,dsp_chan wc ' Noise on?
+        if_c  mov dsp_output,dsp_noise
+
+              '' Envelope generator
+              mov dsp_tmp1,dsp_envlvl
+              mov dsp_tmp2,#31 ' default rate (for release/static-GAIN)
+
+              cmp dsp_envstat,#ENV_RELEASE wc
+        if_ae sub dsp_tmp1,#8
+        if_ae jmp #.envelope_done
+
+
+              testb dsp_src_adsr_gain,#7+8 wc ' ADSR enabled?
+        if_nc jmp #.gainmode
+
+              getbyte dsp_tmp3,dsp_src_adsr_gain,#2 ' Second ADSR register supplies sustain level
+              cmp dsp_envstat,#ENV_DECAY wcz
+        if_1x getnib  dsp_tmp2,dsp_src_adsr_gain,#2 ' Attack/decay rate
+        if_01 getnib  dsp_tmp2,dsp_src_adsr_gain,#3 ' decay rate
+              addx dsp_tmp2,dsp_tmp2 ' when attack, rate = rate*2+1 (carry); when decay rate = rate*2 + 16 (implied from ADSR enable bit)
+        if_00 getbyte dsp_tmp2,dsp_src_adsr_gain,#2 ' Sustain rate
+              cmp dsp_tmp2,#31 wz
+        if_10 add dsp_tmp1,#32
+        if_0x sub dsp_tmp1,#1
+        if_0x scas dsp_tmp1,#$40
+    if_not_10 sumnc dsp_tmp1,sp_400h
+              jmp #.envelope_done
+
+.gainmode     ' Use GAIN register
+              getbyte dsp_tmp3,dsp_src_adsr_gain,#3 ' GAIN register supplies sustain level (HW bug?)
+              testb dsp_src_adsr_gain,#7+24 wc
+        if_nc getbyte dsp_tmp1,dsp_src_adsr_gain,#3
+        if_nc shl dsp_tmp1,#4
+        if_nc jmp #.envelope_done
+              getbyte dsp_tmp2,dsp_src_adsr_gain,#3
+              testb dsp_src_adsr_gain,#6+24 wc
+              testb dsp_src_adsr_gain,#5+24 wz
+        if_01 sub dsp_tmp1,#1
+        if_01 scas dsp_tmp1,#$40
+              sumnc dsp_tmp1,#32
+        if_11 cmp dsp_gainbend,dsp_tmp1 wc
+        if_11 sub dsp_tmp1,#24
+
+
+.envelope_done
+              shr dsp_tmp3,#5
+              getbyte pa,dsp_tmp1,#1
+              cmp dsp_tmp3,pa wz
+        if_z  cmp dsp_envstat,#ENV_DECAY wz
+        if_z  mov dsp_envstat,#ENV_SUSTAIN
+
+              cmp dsp_envstat,#ENV_ATTACK wz
+              fges dsp_tmp1,#0 wc
+        if_nc fles dsp_tmp1,dsp_maxenv wc
+        if_11 mov dsp_envstat,#ENV_DECAY
+
+              and dsp_tmp2,#31
+              altgb dsp_tmp2,#dsp_rateremap
+              getbyte dsp_tmp2
+              testb dsp_rates,dsp_tmp2 wc
+        if_c  mov dsp_envlvl,dsp_tmp1
+
+
+              '' Output!
+              muls dsp_output,dsp_envlvl
+              sar dsp_output,#11+1
+              mov dsp_modout,dsp_output
+              ' Mix into output
+              getword dsp_tmp2,dsp_cvol,#1 ' right volume (left is in lowword of dsp_cvol)
+              getbyte pa,dsp_pmon_non_eon,#2
+              testb pa,dsp_chan wc ' Echo on?
+              scas dsp_output,dsp_cvol
+              add dsp_lsample,0-0
+              fges dsp_lsample,dsp_min
+              fles dsp_lsample,dsp_max
+        if_c  scas dsp_output,dsp_cvol
+        if_c  add dsp_lecho,0-0
+              fges dsp_lecho,dsp_min
+              fles dsp_lecho,dsp_max
+              scas dsp_output,dsp_tmp2
+              add dsp_rsample,0-0
+              fges dsp_rsample,dsp_min
+              fles dsp_rsample,dsp_max
+        if_c  scas dsp_output,dsp_tmp2
+        if_c  add dsp_recho,0-0
+              fges dsp_recho,dsp_min
+              fles dsp_recho,dsp_max
+
+
+              'debug(`dspv '`uhex_word_(dsp_pitch) `(dsp_envstat) `uhex_word_(dsp_envlvl) `uhex_word_(dsp_brrbase) `uhex_word_(dsp_gausspos) `uhex_long_(dsp_cvol) `uhex_word_(dsp_output)' 13)
+
+              setq #DSP_RWLONGS-1
+              wrlong dsp_sbuf,ptra
+              add ptra,#CHANNEL_SIZE*4
+              incmod dsp_chan,#7 wc
+        if_nc jmp #dsp_chloop
+''
+''
+              'debug(`dspv '`ubin_byte_(dsp_endx) `uhex_byte_(sp_tfreq0) `uhex_byte_(sp_tval0) `uhex_byte_(sp_ctr0)')
+
+
+              '' Update echo
+              ' Advance echo history
+              mov dsp_ehist+0,dsp_ehist+1
+              mov dsp_ehist+1,dsp_ehist+2
+              mov dsp_ehist+2,dsp_ehist+3
+              mov dsp_ehist+3,dsp_ehist+4
+              mov dsp_ehist+4,dsp_ehist+5
+              mov dsp_ehist+5,dsp_ehist+6
+              mov dsp_ehist+6,dsp_ehist+7
+              ' Read echo data into history
+              getbyte ptrb,dsp_dir_esa_edl,#1
+              shl ptrb,#8
+              add ptrb,dsp_eoff
+              zerox ptrb,#15
+              add ptrb,sp_rambase
+              rdlong dsp_ehist+7,ptrb
+              testb dsp_ehist+7,#15 wc
+              bitc dsp_ehist+7,#16
+              sar dsp_ehist+7,#1
+              ' Advance pointer
+              add dsp_eoff,#4
+              zerox dsp_eoff,#15
+              cmp dsp_eoff,dsp_ewrap wz
+              ' Reset pointer if end reached
+        if_z  mov dsp_eoff,#0
+        if_z  getnib dsp_ewrap,dsp_dir_esa_edl,#4
+        if_z  shl dsp_ewrap,#11
+        if_z  fge dsp_ewrap,#4
+              ' run FIR filter
+              scas dsp_efir+0,dsp_ehist+0
+              mov dsp_tmp1,0-0
+              getword pa,dsp_ehist+0,#1
+              scas dsp_efir+0,pa
+              mov dsp_tmp2,0-0
+
+              scas dsp_efir+1,dsp_ehist+1
+              add dsp_tmp1,0-0
+              getword pa,dsp_ehist+1,#1
+              scas dsp_efir+1,pa
+              add dsp_tmp2,0-0
+
+              scas dsp_efir+2,dsp_ehist+2
+              add dsp_tmp1,0-0
+              getword pa,dsp_ehist+2,#1
+              scas dsp_efir+2,pa
+              add dsp_tmp2,0-0
+
+              scas dsp_efir+3,dsp_ehist+3
+              add dsp_tmp1,0-0
+              getword pa,dsp_ehist+3,#1
+              scas dsp_efir+3,pa
+              add dsp_tmp2,0-0
+
+              scas dsp_efir+4,dsp_ehist+4
+              add dsp_tmp1,0-0
+              getword pa,dsp_ehist+4,#1
+              scas dsp_efir+4,pa
+              add dsp_tmp2,0-0
+
+              scas dsp_efir+5,dsp_ehist+5
+              add dsp_tmp1,0-0
+              getword pa,dsp_ehist+5,#1
+              scas dsp_efir+5,pa
+              add dsp_tmp2,0-0
+
+              scas dsp_efir+6,dsp_ehist+6
+              add dsp_tmp1,0-0
+              getword pa,dsp_ehist+6,#1
+              scas dsp_efir+6,pa
+              add dsp_tmp2,0-0
+              ' let taps 0..6 overflow
+              signx dsp_tmp1,#15
+              signx dsp_tmp2,#15
+
+              scas dsp_efir+7,dsp_ehist+7
+              add dsp_tmp1,0-0
+              getword pa,dsp_ehist+7,#1
+              scas dsp_efir+7,pa
+              add dsp_tmp2,0-0
+              ' saturate last add
+              fges dsp_tmp1,dsp_min
+              fges dsp_tmp2,dsp_min
+              fles dsp_tmp1,dsp_max
+              fles dsp_tmp2,dsp_max
+
+
+              ' Echo feedback
+              scas dsp_tmp1,dsp_efb
+              add dsp_lecho,0-0
+              scas dsp_tmp2,dsp_efb
+              add dsp_recho,0-0
+              fges dsp_lecho,dsp_min
+              fges dsp_recho,dsp_min
+              fles dsp_lecho,dsp_max
+              fles dsp_recho,dsp_max
+              ' Master volume
+              muls dsp_lsample,dsp_mvol
+              sar dsp_lsample,#14
+              getword pa,dsp_mvol,#1
+              muls dsp_rsample,pa
+              sar dsp_rsample,#14
+              ' Echo volume
+              scas dsp_tmp1,dsp_evol
+              add dsp_lsample,0-0
+              getword pa,dsp_evol,#1
+              scas dsp_tmp2,pa
+              add dsp_rsample,0-0
+              ' saturate output
+              fges dsp_lsample,dsp_min
+              fges dsp_rsample,dsp_min
+              fles dsp_lsample,dsp_max
+              fles dsp_rsample,dsp_max
+
+              '' write echo data
+              rolword dsp_recho,dsp_lecho,#0
+              bitl dsp_recho,#0
+              bitl dsp_recho,#16
+              testbn dsp_flg,#5 wc ' Echo write enabled?
+        if_c wrlong dsp_recho,ptrb ' ptrb is still pointing to echo buffer
+
+
+              'debug(`dspv ' `uhex_word_(dsp_lsample)')
+
+              testb dsp_flg,#6 wc ' Mute?
+        if_c  mov dsp_lsample,#0
+        if_c  mov dsp_rsample,#0
+
+
+              add dsp_xct,#1
+              testb dsp_xct,#14 wc
+              'drvc #38 ' Hearbeat LED
+
+              jmp #\sp_nextop
+
+
+DAT ' SPCcog init code
+              orgh
+sp_init
+              loc ptrb,#sp_cogblob
+              'debug(uhex_long(ptrb))
+              setq #502-1
+              rdlong 0,ptrb
+              loc ptrb,#sp_lutblob
+              setq2 #511
+              rdlong 0,ptrb
+
+              'drvl #38 addpins 1 ' init LEDs
+
+              {
+              loc pa,#dsp_run
+              add dsp_run_ptch,pa
+              '' TODO: move patching to spin and make sure we only do it once
+              loc pa,#dsp_gausstbl
+              loc ptrb,#dsp_gt_patch1
+              call #sp_patch_augptr
+              loc pa,#dsp_gausstbl
+              loc ptrb,#dsp_gt_patch2
+              call #sp_patch_augptr  }
+
+              'debug(uhex_long(ptra,sp_rambase))
+              bitl ptra,#31 wcz
+        if_nc getword sp_pc,ptra,#0 ' Boot directly
+        if_nc jmp #.no_spcload
+
+              '' Load SPC dump
+              add ptra,#$25 ' jump past guff
+              rdword sp_pc,ptra[0]
+              rdbyte sp_a,ptra[2]
+              rdbyte sp_x,ptra[3]
+              rdbyte sp_y,ptra[4]
+              rdbyte sp_psw,ptra[5]
+              testb sp_psw,#SP_PAGE_BIT wc
+              wrc sp_dpage
+              rdbyte sp_sp,ptra[6]
+              add ptra,#$100-$25 ' Jump past tags
+              ' Copy memory
+              'debug("before loading ram ",uhex_long(ptra))
+              mov ptrb,sp_rambase
+              cmp ptra,ptrb wz
+        if_z  add ptra,##$10000
+        if_z  jmp #.memcpy_loop
+              rep @.memcpy_loop,##$10000/(8*4)
+              setq #8-1
+              rdlong dsp_sbuf,ptra++
+              setq #8-1
+              wrlong dsp_sbuf,ptrb++
+.memcpy_loop
+              mov dsp_addr,#0
+              mov ptrb,ptra
+              'debug("before loading dsp ",uhex_long(ptrb))
+              'debug(uhex_byte_array(ptrb,#128))
+.dspset_loop
+              'debug(uhex_byte(dsp_addr),uhex_long(ptrb))
+              rdbyte sp_memv,ptrb++
+              mov ptra,sp_statbase ' dsp write needs this
+              call #dsp_write
+              incmod dsp_addr,#127 wc
+        if_nc jmp #.dspset_loop
+
+              ' Init echo wrap point
+              getnib dsp_ewrap,dsp_dir_esa_edl,#4
+              shl dsp_ewrap,#11
+              fge dsp_ewrap,#4
+
+              ' Clear echo buffer, seems to be the right thing to do (or not?)
+              getbyte pa,dsp_dir_esa_edl,#1
+              shl pa,#8
+              mov pb,dsp_ewrap
+              shr pb,#2
+              rep @.eclr_loop,pb
+              add pa,sp_rambase
+              wrlong #0,pa
+              sub pa,sp_rambase
+              add pa,#4
+              zerox pa,#15
+.eclr_loop
+
+
+
+
+              sub ptrb,##$10000+$80-$F0 ' move to MMIO area
+              'debug("before loading MMIO ",uhex_long(ptrb))
+              rdbyte pa,ptrb[1] ' $F1: control
+              getnib sp_tstat,pa,#0
+              testb pa,#7 wc
+              negnc sp_romstart,sp_firmaddr
+              rdbyte dsp_addr,ptrb[2] ' $F2: DSP address
+              rdlong pa,ptrb[4/4] ' $F4..$F7: input ports
+              wrlong pa,sp_statbase
+              rdbyte pa,ptrb[8]
+              sets sp_f8,pa
+              rdbyte pa,ptrb[9]
+              sets sp_f9,pa
+              rdbyte sp_tfreq0,ptrb[10]
+              rdbyte sp_tfreq1,ptrb[11]
+              rdbyte sp_tfreq2,ptrb[12]
+              rdbyte sp_ctr0,ptrb[13]
+              and sp_ctr0,#15
+              rdbyte sp_ctr1,ptrb[14]
+              and sp_ctr1,#15
+              rdbyte sp_ctr2,ptrb[15]
+              and sp_ctr2,#15
+
+              'debug(uhex_word(sp_pc),uhex_byte(sp_a,sp_x,sp_y))
+              'debug("SPC init done")
+
+.no_spcload
+              ' setup pins
+              drvl dsp_lpin
+              drvl dsp_rpin
+              ' Setup event on left pin ready
+              mov pa,#%001_000000
+              add pa,dsp_lpin
+              setse1 pa
+
+              jmp #\sp_nextop '' GO!
+
+patched       long 0
+
+
+DAT ' SPC700 firmware ROM
+              orgh
+spc_firmware
+byte        $CD, $EF, $BD, $E8, $00, $C6, $1D, $D0, $FC, $8F, $AA, $F4, $8F, $BB, $F5, $78
+byte        $CC, $F4, $D0, $FB, $2F, $19, $EB, $F4, $D0, $FC, $7E, $F4, $D0, $0B, $E4, $F5
+byte        $CB, $F4, $D7, $00, $FC, $D0, $F3, $AB, $01, $10, $EF, $7E, $F4, $10, $EB, $BA
+byte        $F6, $DA, $00, $BA, $F4, $C4, $F4, $DD, $5D, $D0, $DB, $1F, $00, $00, $C0, $FF
+
+DAT ' S-DSP Gaussian table
+              orgh
+dsp_gausstbl  file "DSPGAUSS.DAT"

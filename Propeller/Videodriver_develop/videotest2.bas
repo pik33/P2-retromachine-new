@@ -1,6 +1,7 @@
 #include "retromachine.bi"
 #include "windows.bas"
 const hubset338=%1_111011__11_1111_0111__1111_1011 '338_666_667 =30*44100 
+const hubset354=%1_110000__11_0110_1100__1111_1011 '354693878,   %1_110000__11_0110_1100__1111_1011
 const HEAPSIZE=16384
 dim s(512) as ulong
 dim s2(512) as ulong
@@ -9,18 +10,20 @@ let c1=1: let c2=0
 'startmachine
 startpsram
 startvideo
+
+
+pinlo(38): pinlo(39)
 list1
 maketestdl
 let delta=1
 let olddl=v.dl_ptr
 v.dl_ptr=addr(dl1(0))
-
 dim ccc,x1,x2,y1,y2,r as ulong
 v.cls(200,0)
 let cog=cpu(movesprite,@s)
 let cog2=cpu(windowtest,@s2)
 v.setfontfamily(0)
-
+'hubset(hubset354)
 initwindows
 let test1=createwindow(320,200,$600000): position 50,15:  print test1
 windows(test1).writeln("Window test")

@@ -80,6 +80,8 @@
 ' Available standard graphic modes:
 '   - 1024x576@50 Hz borderless
 
+' The driver allows setting horizontal and vertical zoom (independent) which allows to set graphic resolution as low as 128x72 (8x zoom for 8bpp) 
+
 '  The display list
 
 ' The display list controls every line of the display. When the driver starts or setmode function is called, the new DL is created for this mode. 
@@ -287,7 +289,7 @@ byte pixelbuf
 
 long ccc[2]
 obj
-ram: "psram.spin2"
+ram: "psram4.spin2"
 
 
 '****************************************************************************************************************
@@ -1114,7 +1116,7 @@ ataripalette   file "ataripalettep2.def"
 '**********************************************************************************
 
 '                      bf.hs, hs,  bf.vis  visible, up p., vsync, down p.,  cpl, total lines, clock,       hubset                                scanlines  ud bord mode reserved
-timings         long   14,    80,  14,      1024,   6,     8,     6,        128, 576,         336956522,   %1_101101__11_0000_0110__1111_1011,   576,        0,     192, 0, 0
+timings         long   16,    80,  12,      1024,   6,     8,     6,        128, 576,         336956522,   %1_101101__11_0000_0110__1111_1011,   576,        0,     192, 0, 0
 vgacolors       byte   0, 117, 199, 151, 39, 71, 246, 10, 5, 121, 203, 155, 43, 75, 234, 15
 
 
@@ -1153,28 +1155,20 @@ hdmi            setq    #6
 
 ''--------  frame rendering main loop  ---------------------------------------------------
 
-p101            setq 	#3
+p101            setq #3
 		rdlong  vblankptr,ptra
                 setq    #47				   ' read sprite data
-	 	rdlong  sprite1pointer,spriteptr
+		rdlong  sprite1pointer,spriteptr
 		mov     spriteline,#0                      ' init the sprite line variable
-                mov     dlinum, #0
+
                 add     frames,#1			   ' increment the frame counter
                 mov     dlptr2,dlptr			   ' init the temporary DL pointer
-
+                rdfast  #64,buf1d                          ' prepare the HUB buffer for 4 scanlines
 
                 mov     linenum,#0			   ' init the current line #
                 mov     rcnt,#0			   	   ' init the DL repeat counter
                 mov     rcnt2a,affffffff 		   ' why?!                
                 
-
-
-'' ------- reload the palette. If bit31 set, don't reload, to prevent blinking while modifying the palette
-  
-                testb   paletteptr,#31 wc
-         if_nc  setq2   #255
-         if_nc  rdlong  $000, paletteptr                   'read palette
-
 '' -----   up porch (before the picture)
 
                 mov     hsync0,sync_000      	           ' init constants for sync
@@ -1182,24 +1176,27 @@ p101            setq 	#3
                 callpa  i_upporch ,#blank                  ' call the porch line i_upporch (-2) times
                 wrlong  #0,vblankptr                       ' the vblank time ends here
  
-   
- 
+                mov     dlinum, #0
                 xcont   m_bs,hsync0                        ' horizontal sync
+                
+                call    #dli' call DLI interpreter for line #0 at line #(-2) - 2 lines earlier, so it can start preloading data from PSRAM
                 xzero   m_sn,hsync1
-         	     call    #dli	                  ' call DL interpreter for line #0 at line #(-2) - 2 lines earlier, so it can start preloading data from PSRAM
+                call    #dli
                 xcont   m_bv,hsync0     
                 xcont   m_vi,hsync0
-                         rdfast  #64,buf1d                          ' prepare the HUB buffer for 4 scanlines
-
+                
                 xcont   m_bs,hsync0                        ' horizontal sync
                 xzero   m_sn,hsync1
-		call    #dli
+                call    #sprite
                 xcont   m_bv,hsync0     
                 xcont   m_vi,hsync0
-                 call    #sprite				   ' sprites for line #0
                 	
                 
-
+'' ------- reload the palette. If bit31 set, don't reload, to prevent blinking while modifying the palette
+  
+                testb   paletteptr,#31 wc
+         if_nc  setq2   #255
+         if_nc  rdlong  $000, paletteptr                   'read palette
  
 '' ------- the main screen drawing starts here
 
@@ -1208,7 +1205,7 @@ p301            xcont   m_bs,hsync0   			  ' make a right porch
                 call    #dli                              ' process the DL for line+2                
                 xcont   m_bv,hsync0
                 xcont   lutg8,#0			  ' display the line 
-                 call    #sprite                           ' process sprites for line+1             
+                call    #sprite                           ' process sprites for line-1             
               
                 add     linenum,#1                        ' increment the current line number 
                 cmp     linenum,i_totalvis  wz            ' check if all lines displayed
@@ -1238,19 +1235,23 @@ dli             cmp     rcnt,#0 wz			   ' check the DL repeat counter
                 incmod  rcnt2a,rcnt2 wcz                   ' address update counter
     if_c        add     dl,roffset                         ' if it rollovers, add the offset to the data address
                 mov     rdl,dl                             ' save the result
-
-p307	        mov     framebuf2,dl wcz                   ' move this to framebuf2. If normal DL entry, the frame buffer start will be extracted from this
+               
+p307            mov     framebuf2,dl wcz                   ' move this to framebuf2. If normal DL entry, the frame buffer start will be extracted from this
                 getnib  t1,dl,#0
-                cmp     t1,#%0010 wz			   ' 0010 - display a normal graphics line, preload it from the PSRAM
-    if_z        jmp     #preload
-    		cmp     t1,#%0000 wz			   ' 0000 - display a line from a PSRAM list
-    if_z        jmp     #preload2
-                cmp     t1,#%0001 wz			   ' 0001 - repeat
+                cmp     t1,#%0010 wz
+    if_z        call    #preload
+    if_z        ret
+                cmp     t1,#%0001 wz
     if_z        jmp     #p390
-                cmp     t1,#%0011 wz			   ' 0011 - palette reload
+                cmp     t1,#%0011 wz
     if_z        jmp     #p391  
-
-p308            ret
+    		cmp     t1,#%0000 wz
+    if_z        mov     preloadaddr,dl
+    if_z _ret_  shr     preloadaddr,#4
+    		cmp     t1,#%0100 wz
+    if_z        call    #preload2
+    if_nc_and_nz        jmp     #dli                              '' call preload until it rollovers so the full line is loaded
+                ret
    
 p390            rdlong  rdl,dlptr2                         ' read the next DL entry to repeat
                 getword rcnt,framebuf2,#1                  ' read the repeat count
@@ -1299,14 +1300,32 @@ preload         mov     buf1c,dlinum			   ' preload a line buffer #dlinum (0..3)
     _ret_       wrlong  cmd,mailbox			   ' read the PSRAM
  
  
-preload2      '  incmod  dlinum,#3
-                shr 	framebuf2,#4
-                mov 	cmd,affffffff
-                mov 	buf1,framebuf2
-                setq	#1
-    _ret_	wrlong  cmd,mailbox
-                
+preload2        ret 'todo
+' preload from addr to dlinum
 
+ 	        mov     buf1c,dlinum			   ' preload a line buffer #dlinum (0..3)
+                shl     buf1c,#10		           ' 1024 bytes per line
+                add     buf1c,buf1d			   ' add the start address (himem-debug-4096) : Todo: debug variable!
+                add     buf1c,preloadlineaddr
+                mov     buf1,buf1c
+
+                mov     cmd,preloadaddr                     ' set the address
+		mov     buf2,dl
+		shr 	buf2,#4
+    		add preloadlineaddr,buf2
+                 
+                 incmod  dlinum,#3
+
+                setnib  cmd, #%1011, #7                    ' attach the command - read burst from the external memory
+                setq    #2				   ' write 3 longs to the mailbox
+                poll1       rdlong  cmd, mailbox                ' poll mailbox for result
+            	tjs     cmd, #poll1                 ' retry until valid 
+         	wrlong  cmd,mailbox			   ' read the PSRAM
+          	cmp preloadlineaddr, a1024 wcz
+          
+         	if_ge incmod  dlinum,#3
+              	ret
+ 
 '' -------------- Draw sprites
 
 sprite          mov     spritenum,#15			' 16 sprites. Todo: this should be a parameter
@@ -1491,7 +1510,7 @@ sprite_x long 900
 sprite_y long 0
 sprite_w long 16
 sprite_h long 64
-l2 long 0
+
 t5 long 0
 t6 long 0
 t7 long 0
