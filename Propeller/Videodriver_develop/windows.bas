@@ -493,6 +493,7 @@ for i=0 to 7
   endif
 next i
 
+/'
 ' Phase 3 - delete duplicate vertices
 
 i=0
@@ -543,8 +544,8 @@ for i=maxnum to 0 step -1
 
 
     x1=windows(i).x : x2=windows(i).x+windows(i).l
-    if windows(i).deco=0 then y1=windows(i).y else y1=windows(i).y-22 '// to do: make this configurable
-    if windows(i).deco=0 then y2=windows(i).y+windows(i).h else y1=windows(i).y+windows(i).h+windows(i).dh-22 '// to do: make this configurable
+    if windows(i).deco=0 then y1=windows(i).y else y1=windows(i).y-22 'to do: make this configurable
+    if windows(i).deco=0 then y2=windows(i).y+windows(i).h else y1=windows(i).y+windows(i).h+windows(i).dh-22 'to do: make this configurable
     if x1<0 then x1=0
     if y1<0 then y1=0
     if x2>xres then x2=xres
@@ -572,7 +573,7 @@ var rectnum2=rectnum
 '  endif
 'next i   
  
-
+'/
 end sub  
 
 
