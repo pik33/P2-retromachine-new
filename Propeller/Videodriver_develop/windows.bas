@@ -49,7 +49,7 @@ class TWindow
 
   sub putpixel(xx as ulong, yy as ulong, c as ubyte)
 
-  if ((xx>=0) andalso (xx<l) andalso (yy>=0) andalso (yy<wh)) then psram.fill(canvas+(wl*yy+xx),c,1,0,1)
+  if ((xx>=0) andalso (xx<wl) andalso (yy>=0) andalso (yy<wh)) then psram.fill(canvas+(wl*yy+xx),c,1,0,1)
   end sub
   
 '----------- A line drawing family ------------------------------------------------------------------------------
