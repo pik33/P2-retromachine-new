@@ -467,7 +467,7 @@ for i=0 to 7
     if y1<0 then y1=0
     if x2>xres then x2=xres
     if y2>yres then y2=yres
-    print x1,x2,y1,y2
+ 
     
     if vcount=0 then xtable(0)=x1 : ytable(0) = y1: vcount=1 : goto 500
         
@@ -493,7 +493,8 @@ for i=0 to 7
   endif
 next i
 
-/'
+
+
 ' Phase 3 - delete duplicate vertices
 
 i=0
@@ -509,7 +510,9 @@ do
   endif
   i=i+1
 loop until i>=vcount-1
-
+ 
+print vcount
+for i=0 to vcount-1: print xtable(i),ytable(i): next i 
 
 ' Phase 4: make a rectangle list
 
@@ -521,22 +524,21 @@ for i=0 to vcount-2
       rectangles(rectnum).y1=ytable[i]
       rectangles(rectnum).x2=xtable[j+1]-1
       rectangles(rectnum).y2=ytable[i+1]-1
-      rectangles(rectnum).handle=0
+      rectangles(rectnum).handle=-1
       rectnum+=1
     endif
   next j
 next i  
 
 
-
-' Phase 5 - assign rectangles to windows - TODO 
+' Phase 5 - assign rectangles to windows ''''' todo win order has to be kept somewhere to make find easy
 
 var maxnum=-1 : var maxidx=-1
 for i=0 to 7
   if windows (i).visible<>0  then maxnum=i
 next i  
 
-
+print maxnum
 ' find rectangles in the window
 for i=maxnum to 0 step -1
   if windows(i).visible<>0 then
@@ -553,27 +555,37 @@ for i=maxnum to 0 step -1
 
   
     for j=0 to rectnum -1
-      if rectangles(j).x1>=x1 andalso rectangles(j).y1>=y1 andalso rectangles(j).x2<x2 andalso rectangles(j).y2<y2 then rectangles(j).handle=i
+      if rectangles(j).x1>=x1 andalso rectangles(j).y1>=y1 andalso rectangles(j).x2<x2 andalso rectangles(j).y2<y2 andalso rectangles(j).handle=-1 then rectangles(j).handle=i 
     next j
   endif
 next i    
 
+
+
+
+
+
+ 
 ' Phase 6 - merge adjacent rectangles
 
-var rectnum2=rectnum 
 
-'for i=0 to rectnum-2
-'  if (rectangles(i).x2+1=rectangles(i+1).x1) andalso (rectangles(i).handle=rectangles(i+1).handle) then
-'    rectangles(i).x2=rectangles(i+1).x2
-'    for j=i+1 to rectnum-1
-'      rectangles(j)=rectangles(j+1) 
-'    next j
-'    rectangles(rectnum-1).x1=0
-'    rectnum2-=1
-'  endif
-'next i   
- 
-'/
+i=0
+do
+  if (rectangles(i).x2+1=rectangles(i+1).x1) andalso (rectangles(i).handle=rectangles(i+1).handle) then
+    rectangles(i).x2=rectangles(i+1).x2
+    for j=i+1 to rectnum-1
+      rectangles(j)=rectangles(j+1) 
+    next j
+    rectangles(rectnum-1).x1=0 : rectangles(rectnum-1).x2=0 :rectangles(rectnum-1).y1=0 :rectangles(rectnum-1).y2=0 :rectangles(rectnum-1).handle=0
+    rectnum-=1
+    i-=1
+  endif
+  i=i+1
+loop until i>=rectnum-1
+
+print
+print rectnum
+for i=0 to rectnum-1: print rectangles(i).x1,rectangles(i).y1,rectangles(i).x2,rectangles(i).y2, rectangles(i).handle : next i
 end sub  
 
 

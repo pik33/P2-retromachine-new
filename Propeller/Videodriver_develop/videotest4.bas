@@ -25,8 +25,11 @@ let cog2=cpu(windowtest,@s2)
 v.setfontfamily(0)
 ''hubset(hubset354)
 initwindows
-let test1=createwindow(320,200,0,$600000)
+
 let background=createwindow(1024,576,0, $800000)
+let test1=createwindow(320,200,0,$600000)
+windows(test1).x=100: windows(test1).y=200
+
 windows(test1).writeln("Window test")
 windows(test1).show
 windows(background).show
@@ -34,8 +37,9 @@ getrects
 'print vcount
 'print rectnum
 'for i=0 to vcount: print xtable(i),ytable(i): next i
-'for i=0 to rectnum: print rectangles(i).x1,rectangles(i).y1,rectangles(i).x2,rectangles(i).y2, rectangles(i).handle : next i
+' for i=0 to rectnum-1: print rectangles(i).x1,rectangles(i).y1,rectangles(i).x2,rectangles(i).y2, rectangles(i).handle : next i
 
+do:loop
 'windows(test1).scrollup
 for i=0 to 10: waitms(5000): next i
 'do:loop
