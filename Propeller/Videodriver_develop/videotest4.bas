@@ -27,15 +27,35 @@ v.setfontfamily(0)
 initwindows
 
 let background=createwindow(1024,576,0, $800000)
+move(background,0,0,1024,576,0,0)
 let test1=createwindow(320,200,0,$600000)
-windows(test1).x=100: windows(test1).y=200
-
+move(test1,50,50,50,50,0,0)
+let test2=createwindow(320,200,0,$500000)
+move(test2,150,60,50,50,0,0)
+let test3=createwindow(320,200,0,$400000)
+move(test3,250,70,50,50,0,0)
+let test4=createwindow(320,200,0,$380000)
+move(test4,380,90,100,100,0,0)
+let test5=createwindow(320,200,0,$300000)
+move(test5,450,400,32,20,0,0)
+let test6=createwindow(320,200,0,$280000)
+move(test6,550,440,44,40,0,0)
+let test7=createwindow(320,200,0,$200000)
+move(test7,650,500,320,200,0,0)
+windows(test7).show
+windows(test6).show
+windows(test5).show
+windows(test4).show
+windows(test3).show
+windows(test2).show
 windows(test1).writeln("Window test")
 windows(test1).show
 windows(background).show
 getrects
 'print vcount
-'print rectnum
+print rectnum
+print ttm/336
+print kwas
 'for i=0 to vcount: print xtable(i),ytable(i): next i
 ' for i=0 to rectnum-1: print rectangles(i).x1,rectangles(i).y1,rectangles(i).x2,rectangles(i).y2, rectangles(i).handle : next i
 

@@ -3,20 +3,22 @@ const yres=576
 
 class TWindow
           
-  dim x,y as integer
-  dim l,h,dh as ulong                     
-  dim vcl,vch as ulong                   
-  dim vcx,vcy as ulong
-  dim canvas as ulong
-  dim deco as ulong
-  dim i,j as integer
-  dim font_ptr,font_family as ulong
-  dim blitbuf(1023) as ubyte
+  dim x,y as integer			' position on screen
+  dim l,h,dh as ulong                   ' length, height, deco height  
+  dim wl,wh as ulong                  ' on screen length and height 
+  dim vx,vy as ulong                  ' x,y offset of the window
+  dim canvas as ulong                   ' canvas pointer
+  dim deco as ulong                     ' deco pointer
+  dim i,j as integer			' helper variables local in class
+  dim font_ptr,font_family as ulong     
+  dim blitbuf(1023) as ubyte            ' local hub blit buffer
   dim cursor_x,cursor_y as ubyte
   dim write_color,write_background as ubyte
   dim ccc(1) as ulong
   dim winmailbox as ulong
   dim needclose,selected,visible,num,cog as ubyte
+  dim title$ as string
+  dim tl as integer
   
   dim psram as class using "/home/pik33/Programowanie/P2-retromachine/Propeller/Videodriver_develop/psram.spin2" ' full path needed here
   
@@ -47,7 +49,7 @@ class TWindow
 
   sub putpixel(xx as ulong, yy as ulong, c as ubyte)
 
-  if ((xx>=0) andalso (xx<l) andalso (yy>=0) andalso (yy<h)) then psram.fill(canvas+(l*yy+xx),c,1,0,1)
+  if ((xx>=0) andalso (xx<l) andalso (yy>=0) andalso (yy<wh)) then psram.fill(canvas+(wl*yy+xx),c,1,0,1)
   end sub
   
 '----------- A line drawing family ------------------------------------------------------------------------------
@@ -56,7 +58,7 @@ class TWindow
 
   if y<0 then return
   if x1>x2 then x1,x2=x2,x1
-  psram.fill(canvas+(l*y+x1),c,1+x2-x1,0,1)
+  psram.fill(canvas+(wl*y+x1),c,1+x2-x1,0,1)
   end sub
 
   sub draw(x1,y1,x2,y2,c) 							' normal line
@@ -221,7 +223,7 @@ class TWindow
   
     ccccc(0)=cc1
     ccccc(1)=cc2 
-    psram.write(addr(ccccc),canvas+((y+yy) *l)+(x shl 2),8)
+    psram.write(addr(ccccc),canvas+((y+yy) *wl)+(x shl 2),8)
 '    lpoke winmailbox+8,8
 '    lpoke winmailbox+4,addr(ccccc)
  '   lpoke winmailbox,canvas+((y+yy) *l)+(x shl 2)+$f0000000   
@@ -335,7 +337,7 @@ class TWindow
 
   sub cls(fc=154,bc=147)  
 
-  psram.fill(canvas,bc,l*h,0,1)  
+  psram.fill(canvas,bc,wl*wh,0,1)  
   setwritecolors(fc,bc)
   cursor_x=0
   cursor_y=0
@@ -350,10 +352,10 @@ class TWindow
     
   putcharxycgf(cursor_x,16*cursor_y,achar,write_color,write_background)
   cursor_x+=2
-  if cursor_x>=2*l then
+  if cursor_x>=wl/4 then
     cursor_x=0
     cursor_y+=1
-    if cursor_y>=(h/16) then scrollup() : cursor_y=(h/16)-1
+    if cursor_y>=(wh/16) then scrollup() : cursor_y=(wh/16)-1
   endif 
 360 end sub  
     
@@ -363,10 +365,10 @@ class TWindow
 
   putcharxycgf(cursor_x,16*cursor_y,achar,write_color,write_background)
   cursor_x+=2 								   ' position granularity is char/2 which makes real centered text possible
-  if cursor_x>=2*l then
+  if cursor_x>=wl/4 then
     cursor_x=0
     cursor_y+=1
-    if cursor_y>=(h/16) then scrollup() : cursor_y=(h/16)-1
+    if cursor_y>=(wh/16) then scrollup() : cursor_y=(wh/16)-1
   endif  
   end sub  
 
@@ -385,29 +387,29 @@ class TWindow
   write(text$)
   cursor_x=0
   cursor_y+=1
-  if (cursor_y>(h/16)-1) then scrollup : cursor_y=(h/16)-1
+  if (cursor_y>(wh/16)-1) then scrollup : cursor_y=(wh/16)-1
   end sub
   
 ''-----------  Scroll the window one text line up
 
   sub scrollup
 	
-  for i=0 to 16*(h/16)-17
-    psram.read1(addr(blitbuf),canvas+(i+16)*l,l)
-    psram.write(addr(blitbuf),canvas+i*l,l)
+  for i=0 to 16*(wh/16)-17
+    psram.read1(addr(blitbuf),canvas+(i+16)*wl,wl)
+    psram.write(addr(blitbuf),canvas+i*wl,wl)
   next i
-  for i=16*(h/16)-16 to 16*(h/16)-1: fastline(0,l-1,i,write_background) : next i
+  for i=16*(wh/16)-16 to 16*(wh/16)-1: fastline(0,wl-1,i,write_background) : next i
   end sub
  
 ''----------- Scroll the window one line down 
 
   sub scrolldown 
 
-  for i=16*(h/16)-17 to 0 step -1
-    psram.read1(addr(blitbuf), canvas+i*l, l)
-    psram.write(addr(blitbuf), canvas+(i+16)*l, l) 
+  for i=16*(wh/16)-17 to 0 step -1
+    psram.read1(addr(blitbuf), canvas+i*wl, wl)
+    psram.write(addr(blitbuf), canvas+(i+16)*wl, lw) 
   next i
-  for i=0 to 15 : fastline(0,l,i,write_background) : next i   
+  for i=0 to 15 : fastline(0,wl,i,write_background) : next i   
   end sub
 
 ''----------- Set cursor at the first character in a new line, scroll if needed 
@@ -423,7 +425,7 @@ class TWindow
 
   sub bksp
 
-  cursor_x-=1 : if cursor_x=255 then cursor_x=(l/8)-1
+  cursor_x-=1 : if cursor_x=255 then cursor_x=(wl/4)-1
   cursor_y-=1 : if cursor_y=255 then cursor_y=0 : scrollup
   outtextxycg(cursor_x,cursor_y,chr$(32),write_color,write_background)
   end sub
@@ -435,20 +437,49 @@ class TWindow
   sub hide
   visible=0
   end sub
+  
+
+  sub move(ax,ay,al,ah,avx,avy)
+
+  if ay>yres-22 then ay=yres-22
+  if ax>xres-22 then ax=xres-22
+
+  if al>wl then al=wl
+  if al>0 then l=al 
+  if ah>wh then ah=wh 
+  if (ah>0) andalso (ah<64) then ah=64
+  if ah>0 then h=ah
+
+var q=8*tl+96
+if (deco>0) andalso (al>0) andalso (al<q) then l=q
+
+if ax>-2048 then x=ax
+if ay>-2048 then y=ay
+if avx>-1 then vx=avx
+if avy>-1 then vy=avy
+
+end sub
 
 end class
+
+'''-------------------------------------------------------------- End of TWindow class ---------------------------------------------------------------------
 
 class TRectangle
- dim x1,x2,y1,y2,handle as short
+ dim x1,x2,y1,y2,handle,dummy as short
 end class
 
+''' ------------------------------------------------------------
+
 dim windows(7) as TWindow
+dim order(7) as ubyte
 dim points(31,1) as short
-dim rectangles(141) as TRectangle  
+dim rectangles(255) as TRectangle  
 dim rectnum as ubyte
 dim xtable(31) as short
 dim ytable(31) as short
-dim vcount as ubyte
+dim vcount, wincount as ubyte
+
+'' ---------------------------------------------------------- Getrect - split the screen to rectangles by windows --------------------------------------------------
 
 sub getrects
 
@@ -456,19 +487,17 @@ dim x1,x2,y1,y2 as short
 
 rectnum=0 			' Phase 1 - clear the rectangle list
 dim i,j as integer
-
+let ttm=getct()
 vcount=0                        ' Phase 2 - make a vertices list
 for i=0 to 7
   if windows(i).visible then
     x1=windows(i).x : x2=windows(i).x+windows(i).l
     if windows(i).deco=0 then y1=windows(i).y else y1=windows(i).y-22 '// to do: make this configurable
-    if windows(i).deco=0 then y2=windows(i).y+windows(i).h else y1=windows(i).y+windows(i).h+windows(i).dh-22 '// to do: make this configurable
+    if windows(i).deco=0 then y2=windows(i).y+windows(i).h else y1=windows(i).y+windows(i).wh+windows(i).h-22 '// to do: make this configurable
     if x1<0 then x1=0
     if y1<0 then y1=0
     if x2>xres then x2=xres
     if y2>yres then y2=yres
- 
-    
     if vcount=0 then xtable(0)=x1 : ytable(0) = y1: vcount=1 : goto 500
         
     j=0
@@ -493,26 +522,29 @@ for i=0 to 7
   endif
 next i
 
-
-
 ' Phase 3 - delete duplicate vertices
 
 i=0
 do
   if (xtable(i)=xtable(i+1)) and (ytable(i)=ytable(i+1)) then
-    for j=i+1 to vcount-1 
-      xtable(j)=xtable(j+1)
-      ytable(j)=ytable(j+1)
-    next j  
-    xtable(vcount-1)=0
-    ytable(vcount-1)=0
+    longmove(@xtable(i+1),@xtable(i+2),vcount-i-2)
+    longmove(@ytable(i+1),@ytable(i+2),vcount-i-2)
+    
+ '   for j=i+1 to vcount-1 
+ '     xtable(j)=xtable(j+1)
+ '     ytable(j)=ytable(j+1)
+ '   next j  
+ '   xtable(vcount-1)=0
+ '   ytable(vcount-1)=0
     vcount-=1
   endif
   i=i+1
 loop until i>=vcount-1
+
+
  
-print vcount
-for i=0 to vcount-1: print xtable(i),ytable(i): next i 
+''''print vcount
+'''for i=0 to vcount-1: print xtable(i),ytable(i): next i 
 
 ' Phase 4: make a rectangle list
 
@@ -531,6 +563,7 @@ for i=0 to vcount-2
 next i  
 
 
+
 ' Phase 5 - assign rectangles to windows ''''' todo win order has to be kept somewhere to make find easy
 
 var maxnum=-1 : var maxidx=-1
@@ -538,84 +571,75 @@ for i=0 to 7
   if windows (i).visible<>0  then maxnum=i
 next i  
 
-print maxnum
+''''''print maxnum
 ' find rectangles in the window
 for i=maxnum to 0 step -1
   if windows(i).visible<>0 then
-
-
-
     x1=windows(i).x : x2=windows(i).x+windows(i).l
     if windows(i).deco=0 then y1=windows(i).y else y1=windows(i).y-22 'to do: make this configurable
-    if windows(i).deco=0 then y2=windows(i).y+windows(i).h else y1=windows(i).y+windows(i).h+windows(i).dh-22 'to do: make this configurable
+    if windows(i).deco=0 then y2=windows(i).y+windows(i).h else y1=windows(i).y+windows(i).h+windows(i).h-22 'to do: make this configurable
     if x1<0 then x1=0
     if y1<0 then y1=0
     if x2>xres then x2=xres
     if y2>yres then y2=yres
-
-  
     for j=0 to rectnum -1
       if rectangles(j).x1>=x1 andalso rectangles(j).y1>=y1 andalso rectangles(j).x2<x2 andalso rectangles(j).y2<y2 andalso rectangles(j).handle=-1 then rectangles(j).handle=i 
     next j
   endif
 next i    
+'''''print rectnum
+''''for i=0 to rectnum-1: print rectangles(i).x1,rectangles(i).y1,rectangles(i).x2,rectangles(i).y2, rectangles(i).handle : next i: print rectnum 
 
-
-
-
-
-
- 
 ' Phase 6 - merge adjacent rectangles
 
-
-i=0
+i=0 : let kwas=0
 do
   if (rectangles(i).x2+1=rectangles(i+1).x1) andalso (rectangles(i).handle=rectangles(i+1).handle) then
     rectangles(i).x2=rectangles(i+1).x2
-    for j=i+1 to rectnum-1
-      rectangles(j)=rectangles(j+1) 
-    next j
-    rectangles(rectnum-1).x1=0 : rectangles(rectnum-1).x2=0 :rectangles(rectnum-1).y1=0 :rectangles(rectnum-1).y2=0 :rectangles(rectnum-1).handle=0
+    longmove(@rectangles(i+1).x1,@rectangles(i+2).x1,3*(rectnum-i-2))
     rectnum-=1
     i-=1
   endif
   i=i+1
 loop until i>=rectnum-1
-
-print
-print rectnum
-for i=0 to rectnum-1: print rectangles(i).x1,rectangles(i).y1,rectangles(i).x2,rectangles(i).y2, rectangles(i).handle : next i
+let ttm=getct()-ttm': print ttm/336
+'''print
+'''print rectnum
+'''for i=0 to rectnum-1: print rectangles(i).x1,rectangles(i).y1,rectangles(i).x2,rectangles(i).y2, rectangles(i).handle : next i
 end sub  
 
+'' ---------------------------------------------------------------------------------------------------------
 
 sub initwindows
-
-for i=0 to 7: windows(i).num=255: next i
+for i=0 to 7: windows(i).num=255 : order(i)=i : next i
+wincount=0
 end sub
 
 function createwindow(al,ah,ad,canvas) as ubyte
 
 dim i as ubyte
 
+if wincount>=8 then return 255
+
 i=0
-do while i<8 andalso windows(i).num<>255
+do while i<8 andalso windows(i).num<>255 '' find first free slot
   i+=1
 loop
 if i>=8 then return 255
 
-windows(i).h=ah
-windows(i).l=al
+order(wincount)=i  ' this will be a top window
+
+windows(i).wh=ah
+windows(i).wl=al
 windows(i).dh=22
 windows(i).x=0
 windows(i).y=0
 windows(i).canvas=canvas 'ad+22*al
 windows(i).deco=ad
-windows(i).vcl=0
-windows(i).vch=0
-windows(i).vcx=0
-windows(i).vcy=0
-windows(i).vcl=0
+windows(i).l=0
+windows(i).h=0
+windows(i).vx=0
+windows(i).vy=0
 windows(i).font_ptr=v.font_ptr
 windows(i).font_family=0
 windows(i).cursor_x=0
@@ -626,8 +650,13 @@ windows(i).winmailbox=mbox+12*i
 windows(i).needclose=0
 windows(i).selected=0
 windows(i).visible=0
-windows(i).num=i
+windows(i).num=wincount
 windows(i).cog=0
 windows(i).cls
 return i
 end function
+
+
+sub move(handle,ax,ay,al,ah,avx,avy)
+windows(handle).move(ax,ay,al,ah,avx,avy)
+end sub
