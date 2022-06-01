@@ -205,7 +205,7 @@ driver          add     ptrb,#@font-@driver     'load font into LUT %000..$17F
                 callpa  #5,#blanks              'do vertical sync blanks
                 drvnot  av_base_pin             'vertical sync off
 
-                callpa  #58,#blanks           'do top blanks
+                callpa  #26,#blanks           'do top blanks
 
                 jmp     #.field                 'loop
 '
