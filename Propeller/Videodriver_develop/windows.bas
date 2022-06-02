@@ -20,7 +20,7 @@ class TWindow
   dim title$ as string
   dim tl as integer
   
-  dim psram as class using "/home/pik33/Programowanie/P2-retromachine/Propeller/Videodriver_develop/psram.spin2" ' full path needed here
+  dim psram as class using "/home/pik33/Programowanie/P2-retromachine/Propeller/Videodriver_develop/psram4.spin2" ' full path needed here
   
 
   sub psread(hub,ram,cnt)
