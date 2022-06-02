@@ -3,7 +3,8 @@
 '********************************************
 
 CON
-  _clkfreq=  2*148_500_000
+'  _clkfreq=  338_666_667' 300000000 '2*138_500_000
+  _clkfreq=  336956522' 331_800_522' 2*115_000_000
   cols          = 240
   rows          = 90
 
@@ -12,7 +13,7 @@ CON
 
   intensity     = 128    '0..128
 
-  fpix          = 148_500_000
+ ' fpix          = 115_000_000
 
 
 VAR     cog             'status
@@ -33,16 +34,12 @@ VAR     cog             'status
 
 pub test
 start(8)
-print(65)
 
 PUB start(av_board_base_pin) : okay
 
 '' Start VGA driver cog
 
-  stop()
-
   flag := 0
-  print(0)
 
   background0_ := $000000_00
   foreground0_ := $FF8000_00
@@ -54,74 +51,6 @@ PUB start(av_board_base_pin) : okay
   okay := cog := coginit(16, @driver, @background0_) + 1
 
 
-PUB stop()
-
-'' Stop VGA driver cog
-
-  if cog
-    cogstop(cog-1)
-    pinclear(av_base_pin_ addpins 4)
-
-
-PUB print(chr)
-
-'' Print a character to screen
-''
-''      0 = clear screen
-''      1 = home
-''      2 = set X position (X follows)
-''      3 = set Y position (Y follows)
-''      4 = set background0 color (color follows)
-''      5 = set foreground0 color (color follows)
-''      6 = set background1 color (color follows)
-''      7 = set foreground1 color (color follows)
-''      8 = backspace
-''      9 = tab (8 spaces per)
-''     10 = linefeed, ignored
-''     11 = select color0
-''     12 = select color1
-''     13 = return, new line
-'' others = printable characters
-
-  case flag
-    0: case_fast chr
-         0:     bytefill(@screen, " ", screen_size)
-                col := row := 0
-         1:     col := row := 0
-         2..7:  flag := chr
-                return
-         8:     if col
-                  col--
-         9:     repeat
-                  out(" ")
-                while col & 7
-         10:    return
-         11:    color := $00
-         12:    color := $80
-         13:    newline()
-         other: out(chr)
-
-    2:    col := chr // cols
-    3:    row := chr // rows
-    4..7: background0_[flag-$04] := chr << 8
-
-  flag := 0
-
-PRI out(chr)
-
-  screen[row * cols + col] := chr ^ color
-  if ++col == cols
-    newline()
-
-PRI newline()
-
-  col := 0
-  if ++row == rows
-    row--
-    bytemove(@screen, @screen[cols], last_row)  'scroll lines
-    bytefill(@screen[last_row], " ", cols)      'clear bottom line
-'
-'
 ' Driver
 '
 DAT             org
@@ -131,11 +60,13 @@ driver          add     ptrb,#@font-@driver     'load font into LUT %000..$17F
                 rdlong  0,ptrb
 
                 rdlong  pa,#@clkfreq            'calculate streamer frequency
-                qfrac   ##fpix,pa
-                getqx   pa
-                shr     pa,#1
+            '    qfrac   ##fpix,pa
+            '    getqx   pa
+            '    shr     pa,#1
+             mov pa,##$2AAAAAAB
+           '  mov pa,##$40000000
                 setxfrq pa
-                debug   (uhex(pa))
+                debug(uhex(pa))
                 setcy   ##intensity << 24       'r      set colorspace for rgb
                 setci   ##intensity << 16       'g
                 setcq   ##intensity << 08       'b
@@ -155,7 +86,7 @@ driver          add     ptrb,#@font-@driver     'load font into LUT %000..$17F
                 wrpin   dacmode_c,av_base_pin
 
                 xor     av_base_pin,#3<<6 ^(2<<6|1)     'make pins +0..3 outputs
-                drvl    av_base_pin
+                drvh    av_base_pin
 
                 xor     av_base_pin,#4|(3<<6)   'leave av_base pointing to pin +4 (vertical sync)
 '
@@ -174,18 +105,11 @@ driver          add     ptrb,#@font-@driver     'load font into LUT %000..$17F
 
 
 .line           xcont   m_bv,#0                 'do before-visible part of scan line
-
-                rdfast  #0,screen_base          'set fifo to read from current screen row
-
+    mov aa,#$FF
                 rep     @.chr,#cols             'ready to output 8 pixels for each chr
-
-                rfbyte  pa              wc      '2      get chr
-                bitc    m_px,#16                '2      select colors using msb of chr
-                and     pa,#$7F                 '2      trim chr to 7 bits
-                add     pa,font_base            '2      add offset for top/middle/bottom lines of chr
-                rdlut   pa,pa                   '3      look up four lines of chr
-                shr     pa,font_line            '2      get line of interest into lower 8 bits
+                mov pa,  aa
                 xcont   m_px,pa                 '2 =15  output 8 single-bit pixels to streamer
+               ' xor aa,#$AA
 .chr
                 xcont   m_bs,#0                 'do before-sync part of scan line
                 xzero   m_sn,#1                 'do sync part of scan line
@@ -199,13 +123,13 @@ driver          add     ptrb,#@font-@driver     'load font into LUT %000..$17F
         if_nz   jmp     #.line                  'loop until all rows output
 
 
-                callpa  #88,#blanks            'do bottom blanks
+                callpa  #12,#blanks            'do bottom blanks
 
                 drvnot  av_base_pin             'vertical sync on
-                callpa  #44,#blanks              'do vertical sync blanks
+                callpa  #8,#blanks              'do vertical sync blanks
                 drvnot  av_base_pin             'vertical sync off
 
-                callpa  #148,#blanks           'do top blanks
+                callpa  #6,#blanks           'do top blanks
 
                 jmp     #.field                 'loop
 '
@@ -215,7 +139,7 @@ driver          add     ptrb,#@font-@driver     'load font into LUT %000..$17F
 blanks          xcont   m_bv,#0                 'do before-visible part of scan line
                 xcont   m_vi,#0                 'do visible part of scan line (blank)
                 xcont   m_bs,#0                 'do before-sync part of scan line
-                xcont   m_sn,#1                 'do sync part of scan line
+                xzero   m_sn,#1                 'do sync part of scan line
         _ret_   djnz    pa,#blanks              'loop if more blanks needed
 '
 '
@@ -224,9 +148,9 @@ blanks          xcont   m_bv,#0                 'do before-visible part of scan 
 dacmode_s       long    %0000_0000_000_1011000000000_01_00000_0         'hsync is 123-ohm, 3.3V
 dacmode_c       long    %0000_0000_000_1011100000000_01_00000_0         'R/G/B are 75-ohm, 2.0V
 
-m_bs            long    $7F010000+48            'before sync
-m_sn            long    $7F010000+32            'sync
-m_bv            long    $7F010000+80           'before visible
+m_bs            long    $7F010000+8            'before sync
+m_sn            long    $7F010000+52           'sync
+m_bv            long    $7F010000+60           'before visible
 m_vi            long    $7F010000+1920          'visible
 m_px            long    $0F0C0000+8             '8 single-bit pixels, colors in LUT $180/$181
 
@@ -234,7 +158,7 @@ rowx            long    0
 font_base       long    0
 font_line       long    0
 '
-'
+aa long 0
 ' Uninitialized data
 '
 background0     res     1

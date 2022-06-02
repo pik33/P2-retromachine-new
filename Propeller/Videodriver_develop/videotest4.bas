@@ -59,7 +59,7 @@ print kwas
 'for i=0 to vcount: print xtable(i),ytable(i): next i
 ' for i=0 to rectnum-1: print rectangles(i).x1,rectangles(i).y1,rectangles(i).x2,rectangles(i).y2, rectangles(i).handle : next i
 
-do:loop
+
 'windows(test1).scrollup
 for i=0 to 10: waitms(5000): next i
 'do:loop
