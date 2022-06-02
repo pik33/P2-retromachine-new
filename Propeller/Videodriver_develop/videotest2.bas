@@ -1,7 +1,7 @@
 #include "retromachine.bi"
 #include "windows.bas"
 const hubset338=%1_111011__11_1111_0111__1111_1011 '338_666_667 =30*44100 
-const hubset354=%1_110000__11_0110_1100__1111_1011 '354693878,   %1_110000__11_0110_1100__1111_1011
+const hubset354=%1_110000__11_0110_1100__1111_0111 '354693878,   %1_110000__11_0110_1100__1111_1011
 const HEAPSIZE=16384
 dim s(512) as ulong
 dim s2(512) as ulong
@@ -23,7 +23,7 @@ v.cls(200,0)
 let cog=cpu(movesprite,@s)
 let cog2=cpu(windowtest,@s2)
 v.setfontfamily(0)
-''hubset(hubset354)
+hubset(hubset354)
 initwindows
 let test1=createwindow(320,200,0,$600000)
 'let background=createwindow(1024,576,0, $800000)
@@ -409,10 +409,11 @@ if ypos16>=0 then v.spr16y=ypos16
 
 
 do:loop until v.vblank=0
+makelist01(framenum)
 let framenum=(framenum+delta) mod 768
 if framenum=0 then delta=1
 if framenum=703 then delta=-1
-makelist01(framenum)
+
 'windows(test1).cog=cpuid()
 'windows(test1).mailbox=mbox+12*cpuid()
 'windows(test1).writeln(decuns$(framenum))
