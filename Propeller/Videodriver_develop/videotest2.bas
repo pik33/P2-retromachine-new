@@ -23,7 +23,6 @@ v.cls(200,0)
 let cog=cpu(movesprite,@s)
 let cog2=cpu(windowtest,@s2)
 v.setfontfamily(0)
-hubset(hubset354)
 initwindows
 let test1=createwindow(320,200,0,$600000)
 'let background=createwindow(1024,576,0, $800000)

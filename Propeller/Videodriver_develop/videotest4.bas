@@ -1,7 +1,7 @@
 #include "retromachine.bi"
 #include "windows.bas"
 const hubset338=%1_111011__11_1111_0111__1111_1011 '338_666_667 =30*44100 
-const hubset354=%1_110000__11_0110_1100__1111_1011 '354693878,   %1_110000__11_0110_1100__1111_1011
+const hubset354=%1_110000__11_0110_1100__1111_0111 '354693878,   %1_110000__11_0110_1100__1111_1011
 const HEAPSIZE=16384
 dim s(512) as ulong
 dim s2(512) as ulong
@@ -23,7 +23,7 @@ v.cls(200,0)
 let cog=cpu(movesprite,@s)
 let cog2=cpu(windowtest,@s2)
 v.setfontfamily(0)
-''hubset(hubset354)
+'hubset(hubset354)
 initwindows
 
 let background=createwindow(1024,576,0, $800000)
@@ -181,72 +181,72 @@ v.spr16h=32
 v.spr16w=32
 
 
-var xpos1=10
-var ypos1=10
-var xpos2=61
-var ypos2=60
-var xpos3=112
-var ypos3=110
-var xpos4=163
-var ypos4=160
-var xpos5=214
-var ypos5=210
-var xpos6=265
-var ypos6=260
-var xpos7=316
-var ypos7=310
-var xpos8=367
-var ypos8=360
-var xpos9=19
-var ypos9=9
-var xpos10=61
-var ypos10=60
-var xpos11=112
-var ypos11=110
-var xpos12=163
-var ypos12=160
-var xpos13=214
-var ypos13=210
-var xpos14=265
-var ypos14=260
-var xpos15=316
-var ypos15=310
-var xpos16=367
-var ypos16=360
+let xpos1=10
+let ypos1=10
+let xpos2=61
+let ypos2=60
+let xpos3=112
+let ypos3=110
+let xpos4=163
+let ypos4=160
+let xpos5=214
+let ypos5=210
+let xpos6=265
+let ypos6=260
+let xpos7=316
+let ypos7=310
+let xpos8=367
+let ypos8=360
+let xpos9=19
+let ypos9=9
+let xpos10=61
+let ypos10=60
+let xpos11=112
+let ypos11=110
+let xpos12=163
+let ypos12=160
+let xpos13=214
+let ypos13=210
+let xpos14=265
+let ypos14=260
+let xpos15=316
+let ypos15=310
+let xpos16=367
+let ypos16=360
 
-var xdelta1=1
-var ydelta1=1
-var xdelta2=2
-var ydelta2=2
-var xdelta3=3
-var ydelta3=3
-var xdelta4=4
-var ydelta4=4
-var xdelta5=5
-var ydelta5=5
-var xdelta6=6
-var ydelta6=6
-var xdelta7=7
-var ydelta7=7
-var xdelta8=8
-var ydelta8=8
+let xdelta1=1
+let ydelta1=1
+let xdelta2=2
+let ydelta2=2
+let xdelta3=3
+let ydelta3=3
+let xdelta4=4
+let ydelta4=4
+let xdelta5=5
+let ydelta5=5
+let xdelta6=6
+let ydelta6=6
+let xdelta7=7
+let ydelta7=7
+let xdelta8=8
+let ydelta8=8
 
-var xdelta16=-1
-var ydelta16=-1
-var xdelta15=-2
-var ydelta15=-2
-var xdelta14=-3
-var ydelta14=-3
-var xdelta13=-4
-var ydelta13=-4
-var xdelta12=-5
-var ydelta12=-5
-var xdelta11=-6
-var ydelta11=-6
-var xdelta10=-7
-var ydelta10=-7
-var xdelta9=-8
-var ydelta9=-8
+let xdelta16=-1
+let ydelta16=-1
+let xdelta15=-2
+let ydelta15=-2
+let xdelta14=-3
+let ydelta14=-3
+let xdelta13=-4
+let ydelta13=-4
+let xdelta12=-5
+let ydelta12=-5
+let xdelta11=-6
+let ydelta11=-6
+let xdelta10=-7
+let ydelta10=-7
+let xdelta9=-8
+let ydelta9=-8
 let frames=0
 
 do
@@ -429,22 +429,11 @@ if ypos15>=0 then v.spr15y=ypos15
 if ypos16>=0 then v.spr16y=ypos16
 
 
-
-
-
 do:loop until v.vblank=0
 let framenum=(framenum+delta) mod 768
 if framenum=0 then delta=1
 if framenum=703 then delta=-1
 makelist01(framenum)
-'windows(test1).cog=cpuid()
-'windows(test1).mailbox=mbox+12*cpuid()
-'windows(test1).writeln(decuns$(framenum))
-    let xx1=getrnd() mod 320
-    let yy1=getrnd() mod 200
-    let rr=getrnd() mod 50
-    let cccc=getrnd() and 255
-'    windows(test1).fcircle(xx1,yy1,rr,cccc)
 loop
 end sub
 
