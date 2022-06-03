@@ -55,7 +55,10 @@ getrects
 'print vcount
 print rectnum
 print ttm/336
-print kwas
+dolist
+print ttm/336
+waitms(5000) : waitms(5000)
+for i=0 to 576: print i, :for j=0 to 15: print list(i,j); "  "; : next j: print : waitms(100) : next i
 'for i=0 to vcount: print xtable(i),ytable(i): next i
 ' for i=0 to rectnum-1: print rectangles(i).x1,rectangles(i).y1,rectangles(i).x2,rectangles(i).y2, rectangles(i).handle : next i
 

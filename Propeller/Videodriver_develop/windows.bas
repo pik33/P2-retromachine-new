@@ -20,7 +20,7 @@ class TWindow
   dim title$ as string
   dim tl as integer
   
-  dim psram as class using "/home/pik33/Programowanie/P2-retromachine/Propeller/Videodriver_develop/psram.spin2" ' full path needed here
+  dim psram as class using "/home/pik33/Programowanie/P2-retromachine/Propeller/Videodriver_develop/psram4.spin2" ' full path needed here
   
 
   sub psread(hub,ram,cnt)
@@ -609,7 +609,23 @@ let ttm=getct()-ttm': print ttm/336
 end sub  
 
 '' ---------------------------------------------------------------------------------------------------------
+dim list(575,60)
 
+sub dolist
+longfill(@list(0,0),0,16*576)
+let ttm=getct()
+for i=0 to rectnum-1
+  for j=rectangles(i).y1 to rectangles(i).y2
+    list(j,list(j,60))=rectangles(i).handle+1 : list(j,60)+=1
+  next j  
+next i
+let ttm=getct()-ttm
+
+end sub
+
+
+
+''--------------------------------------------------------------------------------------------------------------
 sub initwindows
 for i=0 to 7: windows(i).num=255 : order(i)=i : next i
 wincount=0
