@@ -1,6 +1,6 @@
 '********************************************************************************************
-' Displaylisted PSRAM HDMI for P2 Retromachine
-' Version 0.07 alpha - 20220328
+' Displaylisted PSRAM VGA for P2 Retromachine
+' Version 0.01 alpha - 20220604
 ' 1 cog graphics with or without border, with sprites
 ' (c) 2012-2021 Piotr Kardasz pik33@o2.pl
 ' MIT license
@@ -123,7 +123,7 @@ c_white         =   15
 
 ''---------- A constant to add to timing values for the streamer
 
-timingsxxt      =  $70810000   ' streamer imm->pins
+timingsxxt      =  $7F010000   ' streamer imm->pins
 
 var
 
@@ -149,10 +149,10 @@ long sprite_ptr
 long cog               'driver cog#
 long bordercolor       'border color
 long buflen            'buffer length in longs
-byte cursor_x          'X cursor position in text modes
-byte cursor_y          'Y cursor position
+word cursor_x          'X cursor position in text modes
+word cursor_y          'Y cursor position
 byte cursor_sh         'cursor shape, 0 to 15, 0=full rectangle..15-one line, >=16 no cursor
-byte dummyalign        'alignment dummy byte
+byte dummyalign[3]        'alignment dummy byte
 long write_color       'character color for write/writeln
 long write_background  'background color for write/writeln
 long vblank            'vblank signalling
@@ -301,9 +301,9 @@ pub dummy()
 
 '****************************************************************************************************************
 '                                                                                                             	*
-'Start the driver with graphics mode 'mode' at pins 'base'                            		rev 20220320 	*
+'Start the driver at pins 'base'                            		rev 20220320 	*
 '                                                                                                            	*
-								*
+'							*
 ' base - HDMI base pin												*
 ' mb - PSRAM mailbox pointer, 0 if no PSRAM									*
 
@@ -320,22 +320,22 @@ mailbox_ptr:=mb
 mailbox0:=mb				' PSRAM mailbox pointer
 sprite_ptr:=@spr1ptr
 
-spr1y:=600				'
-spr2y:=600				'
-spr3y:=600				'
-spr4y:=600				'
-spr5y:=600				'
-spr6y:=600				'
-spr7y:=600				'
-spr8y:=600				'
-spr9y:=600				'
-spr10y:=600				'
-spr11y:=600				'
-spr12y:=600				'
-spr13y:=600				'
-spr14y:=600				'
-spr15y:=600				'
-spr16y:=600
+spr1y:=1200				'
+spr2y:=1200				'
+spr3y:=1200				'
+spr4y:=1200				'
+spr5y:=1200				'
+spr6y:=1200				'
+spr7y:=1200				'
+spr8y:=1200				'
+spr9y:=1200				'
+spr10y:=1200				'
+spr11y:=1200				'
+spr12y:=1200				'
+spr13y:=1200				'
+spr14y:=1200				'
+spr15y:=1200				'
+spr16y:=1200
 				'
 
 emptydl[0]:=%0100_0000_0000_0000_0000_0000_0000_0111
@@ -359,7 +359,7 @@ cursor_y:=0
 
 '---------------------------- start the cog
 
-cog:=coginit(16,@hdmi, @vblank_ptr)				' start the driver cog			
+cog:=coginit(16,@driver, @vblank_ptr)				' start the driver cog			
 waitms(40)							' wait for stabilize
 return cog							' return the driver's cog #
 
@@ -393,8 +393,7 @@ t_lines:=lines/16
 buflen:=cpl*lines						' framebuffer length in longs
 buf_ptr:=$2000000-4*buflen                          	     	' todo: get a PSRAM real himem 
 mode_ptr:=@timings						' set pointers to timings
-graphmode:=1024+512+192+48							' det global variable
-makedl(graphmode)							' make a DL for the mode
+makedl()							' make a DL for the mode
 s_buf_ptr:=buf_ptr						' secondary copies of main framebuffer parameters 
 s_font_ptr:=font_ptr
 s_lines:=lines
@@ -413,10 +412,9 @@ waitms(20)							' wait
 '                                                                                                             	*
 '****************************************************************************************************************
 
-pub makedl(mode) |i,vzoom,border,psbuf,lines2
+pub makedl() |i,vzoom,border,psbuf,lines2
 
-psbuf:=$80000-s_debug-1024                                                     ' HUB line buffer on the top of HUB RAM (-16 kB if debug enabled)
-vzoom:=1<<((mode>>2) & 3)                                                      ' real vzoom from mode#
+
 repeat i from 0 to 11                                                           ' clear DL
   displaylist[i]:=0 
                         ' 
@@ -443,10 +441,16 @@ if ((x>=0) & (x<4*s_cpl) & (y>=0) & (y<s_lines))
 
 pub fastline(x1,x2,y,c)									' a fast 8bpp horizontal line
 
-if y<0
+if y<0 || y>1079
   return
+
 if x1>x2 
   x1,x2:=x2,x1
+if x1<0 
+  x1:=0
+if x1>1919
+  x1:=1919  
+  
 ram.fill(s_buf_ptr+(4*s_cpl1*y+x1),c,1+x2-x1,0,1)
 
  
@@ -644,7 +648,7 @@ repeat yy from 0 to 15
   ccc[1]:=c2 
   long[mailbox0][2]:=8
   long[mailbox0][1]:=@ccc
-  long[mailbox0]:= s_buf_ptr+((y+yy)<<10+x<<2)+$f0000000   
+  long[mailbox0]:= s_buf_ptr+((y+yy)*1920+x<<2)+$f0000000   
   repeat
   while long[mailbox0] < 0 
  
@@ -870,7 +874,7 @@ if (achar<>9) && (achar<>10)
   putcharxycgf(cursor_x,16*cursor_y,achar,write_color,write_background)
   cursor_x+=2
 
-if cursor_x>=256
+if cursor_x>=480
   cursor_x:=0
   cursor_y+=1
   if cursor_y>st_lines-1
@@ -883,7 +887,7 @@ pub putchar2(achar) | c,x,y,l,newcpl
 
 putcharxycgf(cursor_x,16*cursor_y,achar,write_color,write_background)
 cursor_x+=2
-if cursor_x>=256
+if cursor_x>=480
   cursor_x:=0
   cursor_y+=1
   if cursor_y>st_lines-1
@@ -912,23 +916,23 @@ if (cursor_y>st_lines-1)
 
 pub scrollup() | i
 	
-repeat i from 0 to 559 
-  ram.read1($80000-4096-1024-s_debug, s_buf_ptr+(i+16)*4*s_cpl1, 4*s_cpl1)
-  ram.write($80000-4096-1024-s_debug, s_buf_ptr+i*4*s_cpl1, 4*s_cpl1)
+repeat i from 0 to 1063 step 4
+  ram.read1($80000-8192-4*1920-s_debug, s_buf_ptr+(i+16)*4*s_cpl1, 4*4*s_cpl1)
+  ram.write($80000-8192-4*1920-s_debug, s_buf_ptr+i*4*s_cpl1, 4*4*s_cpl1)
 
-repeat i from 560 to 575
-   fastline(0,1023,i,write_background)   
+repeat i from 1064 to 1079
+   fastline(0,1919,i,write_background)   
  
 ''----------- Scroll the screen one line down 
 
 pub scrolldown() | i
 
-repeat i from 559 to 0
-  ram.read1($80000-4096-1024-s_debug, s_buf_ptr+i*4*s_cpl1, 4*s_cpl1)
-  ram.write($80000-4096-1024-s_debug, s_buf_ptr+(i+16)*4*s_cpl1, 4*s_cpl1)
+repeat i from 1063 to 0
+  ram.read1($80000-8192-1920-s_debug, s_buf_ptr+i*4*s_cpl1, 4*s_cpl1)
+  ram.write($80000-8192-1920-s_debug, s_buf_ptr+(i+16)*4*s_cpl1, 4*s_cpl1)
 
 repeat i from 0 to 15
-   fastline(0,1023,i,write_background)      
+   fastline(0,1919,i,write_background)      
 
 ''----------- Set cursor at the first character in a new line, scroll if needed 
 
@@ -1064,8 +1068,8 @@ if ((f & $40000000) <>0) && ((t & $40000000)<>0) ' todo: check if the fields ove
   f:=f & $FFFFFFF
   t:=t & $FFFFFFF
   repeat y from y1a to y2a
-    ram.read1($80000-16384*debugger-4096-1024, f+(y)*s1+x1a, x2a-x1a+1)
-    ram.write($80000-16384*debugger-4096-1024, t+(y1b-y1a+y)*s2+x1b, x2a-x1a+1)
+    ram.read1($80000-16384*debugger-8192-1024, f+(y)*s1+x1a, x2a-x1a+1)
+    ram.write($80000-16384*debugger-8192-1024, t+(y1b-y1a+y)*s2+x1b, x2a-x1a+1)
     
 if ((f & $40000000) <>0) && ((t & $40000000)==0)
   f:=f & $FFFFFFF
@@ -1105,8 +1109,8 @@ ataripalette   file "ataripalettep2.def"
 '
 '**********************************************************************************
 
-'                      bf.hs, hs,  bf.vis  visible, up p., vsync, down p.,  cpl, total lines, clock,       hubset                                scanlines  ud bord mode reserved
-timings         long   14,    80,  14,      1024,   6,     8,     6,        128, 576,         336956522,   %1_101101__11_0000_0110__1111_1011,   576,        0,     192, 0, 0
+'                      bf.hs, hs,  bf.vis  visible, up p., vsync, down p.,  cpl, total lines, clock,       hubset                                scanlines   streamer    reserved reserved reserved
+timings         long   112 ,  200, 312,    1920,    26,    5,     3,        240, 1080,        336956522,   %1_101101__11_0000_0110__1111_1011,   1080,        $35C07228,  192,    0,       0    		'1920x1080x50 CVT timings
 vgacolors       byte   0, 117, 199, 151, 39, 71, 246, 10, 5, 121, 203, 155, 43, 75, 234, 15
 
 
@@ -1120,28 +1124,43 @@ DAT             org
 
 ''--------  Initialization  ----------------------------------------------------------------
 
-hdmi            setq    #6
+
+driver          setq    #6
                 rdlong  vblankptr,  ptra                   ' read pointers
                 setq    #8
                 rdlong  m_bs,modeptr                       ' read timings
 
-                bitl    hbase, #31 wcz                     ' if pin 31 is set, use full strength for Adafruit Pico HDMI board
-                setcmod #$100                              ' enable HDMI mode
-                mov     t1,#448                            ' 7 << 6          
-                add     t1,hbase
-                drvl    t1                                 ' #7<<6 + hdmi_base      ' enable HDMI pins
-        if_z    wrpin   #0, t1  '#7<<6 + hdmi_base         ' for Adafruit breakout board - full logic as in Pico, the board has 220 Ohm resistors on it
-	if_nz   wrpin   ##%10110_1111_0111_10_00000_0, t1  ' #7<<6 + hdmi_base      ' a '123 ohm BITDAC for Parallax breakout board
-                setxfrq ##$0CCCCCCC+1                      ' set streamer freq to 1/10th clk
-'
-                mov 	t1,hbase			   '
-                shl 	t1,#17                             '
-                add 	lutg8,t1                           ' add the pin base to he streamer constant
-                sub 	i_upporch,#2			   ' the driver will call 2 blank lines itself to preload the buffer, so sub #2 from up porch time
+                setxfrq ##$35C07228
 
                 cogid   t1              		   ' get a cogid
+                setnib  dacmode_s,t1,#2                    ' insert cogid into dac modes
+                setnib  dacmode_c,t1,#2
+                
                 mul     t1, #12                            ' compute the offset to PSRAM mailbox 
                 add     mailbox, t1                        ' add offset to find this COG's mailbox
+
+                mov 	t1,hbase			   '
+                shl 	t1,#17                             '
+                add 	lutg8,t1                           ' add the pin base to the streamer constant
+
+                wrpin   dacmode_s,hbase  
+                drvh    hbase    
+                add     hbase,#1
+
+                wrpin   dacmode_c,hbase 
+                drvh    hbase 
+                add     hbase,#1
+                
+                wrpin   dacmode_c,hbase 
+                drvh    hbase
+                add     hbase,#1
+                
+                wrpin   dacmode_c,hbase 
+                drvh    hbase
+                add     hbase,#1               
+ 
+                drvh    hbase  
+
 
 ''--------  frame rendering main loop  ---------------------------------------------------
 
@@ -1169,25 +1188,24 @@ p101            setq 	#3
 
 '' -----   up porch (before the picture)
 
-                mov     hsync0,sync_000      	           ' init constants for sync
-                mov     hsync1,sync_001	
+	
                 callpa  i_upporch ,#blank                  ' call the porch line i_upporch (-2) times
                 wrlong  #0,vblankptr                       ' the vblank time ends here
  
    
  
-                xcont   m_bs,hsync0                        ' horizontal sync
-                xzero   m_sn,hsync1
-         	     call    #dli	                  ' call DL interpreter for line #0 at line #(-2) - 2 lines earlier, so it can start preloading data from PSRAM
-                xcont   m_bv,hsync0     
-                xcont   m_vi,hsync0
-                         rdfast  #64,buf1d                          ' prepare the HUB buffer for 4 scanlines
+                xcont   m_bs,#0                        ' horizontal sync
+                xzero   m_sn,#$FF
+                call    #dli	                  ' call DL interpreter for line #0 at line #(-2) - 2 lines earlier, so it can start preloading data from PSRAM
+                xcont   m_bv,#0     
+                xcont   m_vi,#0
+                rdfast  #120,buf1d                          ' prepare the HUB buffer for 4 scanlines
 
-                xcont   m_bs,hsync0                        ' horizontal sync
-                xzero   m_sn,hsync1
+                xcont   m_bs,#0                       ' horizontal sync
+                xzero   m_sn,#$FF
 		call    #dli
-                xcont   m_bv,hsync0     
-                xcont   m_vi,hsync0
+                xcont   m_bv,#0    
+                xcont   m_vi,#0
                  call    #sprite				   ' sprites for line #0
                 	
                 
@@ -1195,10 +1213,10 @@ p101            setq 	#3
  
 '' ------- the main screen drawing starts here
 
-p301            xcont   m_bs,hsync0   			  ' make a right porch
-                xzero   m_sn,hsync1                       ' make hsync
+p301            xcont   m_bs,#0   			  ' make a right porch
+                xzero   m_sn,#$FF                       ' make hsync
                 call    #dli                              ' process the DL for line+2                
-                xcont   m_bv,hsync0
+                xcont   m_bv,#0
                 xcont   lutg8,#0			  ' display the line 
                  call    #sprite                           ' process sprites for line+1             
               
@@ -1210,9 +1228,10 @@ p301            xcont   m_bs,hsync0   			  ' make a right porch
 
 p112            wrlong  #1,vblankptr                       ' tell the system that the vblank started
                 callpa  i_downporch ,#blank                ' bottom blanks
-                mov     hsync0,sync_222                    ' vsync on
-                mov     hsync1,sync_223
+
+                     drvnot  hbase
                 callpa  i_vsync,#blank                     ' vertical sync blanks
+                     drvnot  hbase 
                 jmp     #p101                              ' return to the main loop
 
 '' --------------- END of frame rendering loop ---------------------------------------------------------------------------
@@ -1269,22 +1288,22 @@ p391           	getnib  t1,framebuf2,#2			   ' get a bank (0..15) of 16 colors
 
 '' --------------- Blank and vsync procedures called via callpa have to be in the middle of the code ---------------------
 
-blank           xcont   m_bs,hsync0                        ' horizontal sync
-                xzero   m_sn,hsync1
-                xcont   m_bv,hsync0     
-                xcont   m_vi,hsync0
+blank           xcont   m_bs,#0                        ' horizontal sync
+                xzero   m_sn,#$FF
+                xcont   m_bv,#0   
+                xcont   m_vi,#0
         _ret_   djnz    pa,#blank
         
 '' -------------- Preload a line from PSRAM        
         
 preload         mov     buf1c,dlinum			   ' preload a line buffer #dlinum (0..3)
-                shl     buf1c,#10		           ' 1024 bytes per line
+                mul     buf1c,a1920		           ' 1024 bytes per line
                 add     buf1c,buf1d			   ' add the start address (himem-debug-4096) : Todo: debug variable!
                 mov     buf1,buf1c
                 incmod  dlinum,#3
 
                 shr     framebuf2,#4                      ' get the PSRAM start address from DL - Todo: use new DL format
-                mov     buf2,a1024
+                mov     buf2,a1920
                 mov     cmd,framebuf2                      ' set the address
                 setnib  cmd, #%1011, #7                    ' attach the command - read burst from the external memory
                 setq    #2				   ' write 3 longs to the mailbox
@@ -1321,7 +1340,7 @@ p802            mov     t5,spritenum		   	' prepare a pointer to load sprite dat
                 cmp     t2,sprite_h wcz		    	' we have now the sprite line #, check, if it is not >= sprite height
       if_gt     jmp     #p801				' if yes, go out
                 mov     t3,spriteline			' compute the line buffer addres where to put the sprite line
-                shl     t3,#10			       	' =1024*spriteline where spriteline=0..3		' 
+                mul     t3,a1920  	       	        ' =1920*spriteline where spriteline=0..3		' 
                 add     t3,buf1d			' line buffer addr
                 add     t3,sprite_x   			' add xpos - now we have the address to where wmlong the sprite
 
@@ -1329,7 +1348,7 @@ p802            mov     t5,spritenum		   	' prepare a pointer to load sprite dat
                 alts    t5,#sprite1pointer		' get the pointer to the sprite (3 longs per sprite data)
                 add     t2,0-0				' then add the offset
 
-		mov 	t7,a1023			' mask last part of the sprite if it gets out of the line
+		mov 	t7,a1919			' mask last part of the sprite if it gets out of the line
 		sub 	t7,sprite_x  			' compute how many bytes to mask
  	'	and     t7,#511				' up to 512 pixels pre sprite, avoid overwriting HW regs with [t7]
 		fges t7,#0
@@ -1367,12 +1386,6 @@ p801            djnf spritenum,#p802			' get the next sprite
 
 '' consts and vars
 
-sync_000        long    %1101010100_1101010100_1101010100_10    '
-sync_001        long    %1101010100_1101010100_0010101011_10    '        hsync
-sync_222        long    %0101010100_0101010100_0101010100_10    'vsync
-sync_223        long    %0101010100_0101010100_1010101011_10    'vsync + hsync
-
-border          long    %00000000_00011010_00101100_00000000
 
 '------ these longs will be set by setmode function
 
@@ -1392,7 +1405,7 @@ i_totalvis      long    0
 linenum         long    0
 frames          long    0
 dlinum long 0
-lutg8           long    $70880400 ' 0111_0000_1000_1000
+lutg8           long    $7F080780 ' 0111_0000_1000_1000
 
 vblankptr       long    0
 modeptr         long    0
@@ -1403,13 +1416,13 @@ mailbox         long    0
 spriteptr          long 0
 
 cmd             long    0
-buf1            long    $80000-16384-4096
+buf1            long    $80000-16384-7680
 buf2            long    1024
 dlptr2          long    1
 dl              long    1
 
 buf1c long 0
-buf1d            long    $80000-16384-4096
+buf1d            long    $80000-16384-7680
 framebuf2       long    1
 hsync0          long    1
 hsync1          long    1
@@ -1475,7 +1488,8 @@ sprite15wh      long 0
 sprite16pointer long 0
 sprite16xy      long 0
 sprite16wh      long 0
-
+dacmode_s       long    %0000_0000_000_1011000000000_01_00000_0         'hsync is 123-ohm, 3.3V
+dacmode_c       long    %0000_0000_000_1011100000000_01_00000_0         'R/G/B are 75-ohm, 2.0V
 spritenum long 0
 
 spriteline long 0
@@ -1493,4 +1507,6 @@ preloadaddr long 0
 preloadlineaddr long 0
 a1024 long 1024
 a1023 long 1023
+a1920 long 1920
+a1919 long 1919
  fit 368

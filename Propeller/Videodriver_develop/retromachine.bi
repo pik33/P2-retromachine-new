@@ -1,13 +1,14 @@
 
 
-dim v as class using "hg008.spin2"
+'dim v as class using "hg008.spin2"
+dim v as class using "vg001.spin2"
 dim psram as class using "psram.spin2"
 
 dim videocog as integer
 dim mbox as ulong
 
 sub startpsram
-psram.startx(0, 0, 12, -1)
+psram.startx(0, 0, 11, -1)
 mbox=psram.getMailbox(0)
 end sub
 
@@ -15,7 +16,7 @@ sub cls(fg=154,bg=147)
 v.cls(fg,bg)
 end sub
 
-function startvideo(mode=64, pin=0, mb=0) 'todo return a cog#
+function startvideo(mode=64, pin=8, mb=0) 'todo return a cog#
 dim videocog as ulong
 videocog=v.start(pin,mbox)
 v.setbordercolor(0,0,0)

@@ -12,19 +12,9 @@ startpsram
 startvideo
 hubset(hubset338)
 v.cls(200,0)
-let l=0
-for i=0 to $1EFFEFF step $100
-  for j=0 to 255: poke $60000+j, getrnd() mod 256 : next j
-  psram.write($60000,i,256)
-  waitms(1)
-  psram.read1($61000,i,256)
-  let k=0: for j=0 to 255: if peek($60000+j)<>peek($61000+j) then k=1
-  next j
-  print(hex$(i,8)),k
-  l=l+k
-next i
-print l,"errors"
-do:loop
+v.writeln("VGA test")
+v.putcharxycgf(400,40,65,15,0)
+waitms(5000): waitms(5000)
 pinlo(38): pinlo(39)
 list1
 maketestdl
@@ -74,7 +64,7 @@ print kwas
 
 
 'windows(test1).scrollup
-for i=0 to 10: waitms(5000): next i
+for i=0 to 4: waitms(5000): next i
 'do:loop
 
 let loopcnt=1
@@ -85,29 +75,29 @@ do
 
   for i=0 to 10000
     ccc=getrnd() and 255
-    x1=getrnd() mod 128 
-    y1=getrnd() mod 35                                
-    position 2*x1,y1: v.setwritecolors(ccc,0): v.write("Testing PSRAM 8bpp 1024x576 HDMI mode 00")
+    x1=getrnd() mod 240 
+    y1=getrnd() mod 66                                
+    position 2*x1,y1: v.setwritecolors(ccc,0): v.write("Testing PSRAM 8bpp 1920x1080 VGA mode fast write")
   next i
 
   for i=0 to 1000
     ccc=getrnd() and 255
-    x1=getrnd() mod 1024
-    y1=getrnd() mod 576
-    v.outtextxycg(x1,y1,"Testing PSRAM 8bpp 1024x576 HDMI mode 00",ccc,0)
+    x1=getrnd() mod 1920
+    y1=getrnd() mod 1080
+    v.outtextxycg(x1,y1,"Testing PSRAM 8bpp 1920x1080 VGA mode slow write",ccc,0)
   next i
   for i = 0 to 5000
     ccc=getrnd() and 255
-    x1=getrnd() mod 1024
-    x2=getrnd() mod 1024
-    y1=getrnd() mod 576
-    y2=getrnd() mod 576
+    x1=getrnd() mod 1920
+    x2=getrnd() mod 1920
+    y1=getrnd() mod 1080
+    y2=getrnd() mod 1080
     v.draw(x1,y1,x2,y2,ccc)
   next i 
 
   for i = 0 to 5000
-    x1=getrnd() mod 1024
-    y1=getrnd() mod 576
+    x1=getrnd() mod 1920
+    y1=getrnd() mod 1080
     r=getrnd() mod 100
     ccc=getrnd() and 255
     v.fcircle(x1,y1,r,ccc)   
@@ -115,16 +105,16 @@ do
 
   for i = 0 to 5000
     ccc=getrnd() and 255
-    x1=getrnd() mod 1024
-    x2=getrnd() mod 1024
-    y1=getrnd() mod 576
-    y2=getrnd() mod 576
+    x1=getrnd() mod 1920
+    x2=getrnd() mod 1920
+    y1=getrnd() mod 1080
+    y2=getrnd() mod 1080
     v.frame(x1,y1,x2,y2,ccc)
   next i  
   
   for i = 0 to 5000
-    x1=getrnd() mod 1024
-    y1=getrnd() mod 576
+    x1=getrnd() mod 1920
+    y1=getrnd() mod 1080
     r=getrnd() mod 100
     ccc=getrnd() and 255
     v.circle(x1,y1,r,ccc) 
@@ -132,9 +122,9 @@ do
   
   for i = 0 to 10000
     ccc=getrnd() and 255
-    x1=getrnd() mod 1024
+    x1=getrnd() mod 1920
     x2=getrnd() mod 200
-    y1=getrnd() mod 576
+    y1=getrnd() mod 1080
     y2=getrnd() mod 200
     v.box(x1,y1,x1+x2,y1+y2,ccc)  
   next i      
@@ -320,86 +310,86 @@ xpos16+=xdelta16
 ypos16+=ydelta16
 
 
-if xpos1>=1024-32 then xdelta1=-1
-if ypos1>=576-32 then ydelta1=-1
+if xpos1>=1920-32 then xdelta1=-1
+if ypos1>=1080-32 then ydelta1=-1
 if ypos1=0 then ydelta1=1
 if xpos1=0 then xdelta1=1
 
-if xpos2>=1024-32 then xdelta2=-1
-if ypos2>=576-32 then ydelta2=-1
+if xpos2>=1920-32 then xdelta2=-1
+if ypos2>=1080-32 then ydelta2=-1
 if ypos2<=0 then ydelta2=2
 if xpos2<=0 then xdelta2=2
 
-if xpos3>=1024-32 then xdelta3=-3
-if ypos3>=576-32 then ydelta3=-3
+if xpos3>=1920-32 then xdelta3=-3
+if ypos3>=1080-32 then ydelta3=-3
 if ypos3<=0 then ydelta3=2
 if xpos3<=0 then xdelta3=2
 
-if xpos4>=1024-32 then xdelta4=-2
-if ypos4>=576-32 then ydelta4=-2
+if xpos4>=1920-32 then xdelta4=-2
+if ypos4>=1080-32 then ydelta4=-2
 if ypos4<=0 then ydelta4=2
 if xpos4<=0 then xdelta4=2
 
-if xpos5>=1024-32 then xdelta5=-3
-if ypos5>=576-32 then ydelta5=-3
+if xpos5>=1920-32 then xdelta5=-3
+if ypos5>=1080-32 then ydelta5=-3
 if ypos5<=0 then ydelta5=4
 if xpos5<=0 then xdelta5=4
 
-if xpos6>=1024-32 then xdelta6=-4
-if ypos6>=576-32 then ydelta6=-4
+if xpos6>=1920-32 then xdelta6=-4
+if ypos6>=1080-32 then ydelta6=-4
 if ypos6<=0 then ydelta6=3
 if xpos6<=0 then xdelta6=3
 
-if xpos7>=1024-32 then xdelta7=-4
-if ypos7>=576-32 then ydelta7=-4
+if xpos7>=1920-32 then xdelta7=-4
+if ypos7>=1080-32 then ydelta7=-4
 if ypos7<=0 then ydelta7=4
 if xpos7<=0 then xdelta7=4
 
-if xpos8>=1024-32 then xdelta8=-4
-if ypos8>=576-32 then ydelta8=-4
+if xpos8>=1920-32 then xdelta8=-4
+if ypos8>=1080-32 then ydelta8=-4
 if ypos8<=0 then ydelta8=5
 if xpos8<=0 then xdelta8=5
 
 
-if xpos16>=1024-32 then xdelta16=-1
-if ypos16>=576-32 then ydelta16=-1
+if xpos16>=1920-32 then xdelta16=-1
+if ypos16>=1080-32 then ydelta16=-1
 if ypos16=0 then ydelta16=1
 if xpos16=0 then xdelta16=1
 
 
-if xpos15>=1024-32 then xdelta15=-1
-if ypos15>=576-32 then ydelta15=-1
+if xpos15>=1920-32 then xdelta15=-1
+if ypos15>=1080-32 then ydelta15=-1
 if ypos15<=0 then ydelta15=2
 if xpos15<=0 then xdelta15=2
 
 
-if xpos14>=1024-32 then xdelta14=-3
-if ypos14>=576-32 then ydelta14=-3
+if xpos14>=1920-32 then xdelta14=-3
+if ypos14>=1080-32 then ydelta14=-3
 if ypos14<=0 then ydelta14=2
 if xpos14<=0 then xdelta14=2
 
-if xpos13>=1024-32 then xdelta13=-2
-if ypos13>=576-32 then ydelta13=-2
+if xpos13>=1920-32 then xdelta13=-2
+if ypos13>=1080-32 then ydelta13=-2
 if ypos13<=0 then ydelta13=2
 if xpos13<=0 then xdelta13=2
 
-if xpos12>=1024-32 then xdelta12=-3
-if ypos12>=576-32 then ydelta12=-3
+if xpos12>=1920-32 then xdelta12=-3
+if ypos12>=1080-32 then ydelta12=-3
 if ypos12<=0 then ydelta12=4
 if xpos12<=0 then xdelta12=4
 
-if xpos11>=1024-32 then xdelta11=-3
-if ypos11>=576-32 then ydelta11=-3
+if xpos11>=1920-32 then xdelta11=-3
+if ypos11>=1080-32 then ydelta11=-3
 if ypos11<=0 then ydelta11=3
 if xpos11<=0 then xdelta11=3
 
-if xpos10>=1024-32 then xdelta10=-4
-if ypos10>=576-32 then ydelta10=-4
+if xpos10>=1920-32 then xdelta10=-4
+if ypos10>=1080-32 then ydelta10=-4
 if ypos10<=0 then ydelta10=5
 if xpos10<=0 then xdelta10=5
 
-if xpos9>=1024-32 then xdelta9=-4
-if ypos9>=576-32 then ydelta9=-4
+if xpos9>=1920-32 then xdelta9=-4
+if ypos9>=1080-32 then ydelta9=-4
 if ypos9<=0 then ydelta9=4
 if xpos9<=0 then xdelta9=4
 
@@ -443,47 +433,47 @@ if ypos16>=0 then v.spr16y=ypos16
 
 
 do:loop until v.vblank=0
-let framenum=(framenum+delta) mod 768
+let framenum=(framenum+delta) mod 1600
 if framenum=0 then delta=1
-if framenum=703 then delta=-1
+if framenum=1599 then delta=-1
 makelist01(framenum)
 loop
 end sub
 
-dim list1(575,11) as ulong
+dim list1(1080,11) as ulong
 
 sub makelist01(pos)
 
-for i=0 to 575: testlist01(i,pos): next i
+for i=0 to 1079: testlist01(i,pos): next i
 end sub
 
 sub testlist01(linenum,pos)
 
-list1(linenum,0)=$B0000000+v.buf_ptr+1024*linenum 					'read from $100000
-list1(linenum,1)=$80000-16384-4096+1024*(linenum mod 4)
+list1(linenum,0)=$B0000000+v.buf_ptr+1920*linenum 					'read from $100000
+list1(linenum,1)=$80000-16384-7680+1920*(linenum mod 4)
 list1(linenum,2)=pos+1
 list1(linenum,3)=addr(list1(linenum,4))
-if linenum<0+framenum/2 orelse linenum>199+framenum/2 then list1(linenum,3)=0: list1(linenum,2)=1024
+if linenum<0+framenum/2 orelse linenum>199+framenum/2 then list1(linenum,3)=0: list1(linenum,2)=1920
 list1(linenum,4)=$B0_60_0000+320*(linenum-framenum/2) 					'read from $100000
-list1(linenum,5)=$80000-16384-4096+1024*(linenum mod 4)+pos
+list1(linenum,5)=$80000-16384-7680+1920*(linenum mod 4)+pos
 list1(linenum,6)=320
 list1(linenum,7)=addr(list1(linenum,8))
-list1(linenum,8)=$B0000000+v.buf_ptr+1024*linenum +320+pos					'read from $100000
-list1(linenum,9)=$80000-16384-4096+1024*(linenum mod 4)+320+pos
-list1(linenum,10)=1024-320-pos
+list1(linenum,8)=$B0000000+v.buf_ptr+1920*linenum +320+pos					'read from $100000
+list1(linenum,9)=$80000-16384-7680+1920*(linenum mod 4)+320+pos
+list1(linenum,10)=1920-320-pos
 list1(linenum,11)=0
 end sub
 
 
 
-dim dl1(577)
+dim dl1(1081)
 
 sub maketestdl
-for i=0 to 575
+for i=0 to 1079
   dl1(i)=addr(list1(i,0)) shl 4
   testlist01(i,256)
 next i
-dl1(576)=0: dl1(577)=0
+dl1(1080)=0: 
 for i=0 to 255: pspoke $100000+i,i : next i
 end sub
 
