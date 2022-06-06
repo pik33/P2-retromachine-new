@@ -14,7 +14,8 @@ hubset(hubset338)
 v.cls(200,0)
 v.writeln("VGA test")
 v.putcharxycgf(400,40,65,15,0)
-waitms(5000): waitms(5000)
+for i=0 to 15: v.box(100*i,0,100*i+99,500,i) : next i
+waitms(5000): waitms(5000) : waitms(5000) : waitms(5000)
 pinlo(38): pinlo(39)
 list1
 maketestdl
