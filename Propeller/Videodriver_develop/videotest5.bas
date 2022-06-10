@@ -12,12 +12,33 @@ startpsram
 startvideo
 hubset(hubset338)
 v.cls(200,0)
-v.writeln("VGA test")
-v.putcharxycgf(400,40,65,15,0)
-for i=0 to 15: v.box(100*i,0,100*i+99,500,i) : next i
+
+for i=0 to 15: v.box(100*i,0,100*i+99,500,8+i*16) : next i
+position 0,40: print hex$(v.buf_ptr)
+
+
+'psram.gfxCopyImage(v.buf_ptr+100+192000, 1920, v.buf_ptr, 1920, 300, 300, $60000, $70000)
+' pub blit(f,x1a,y1a,x2a,y2a,s1,t,x1b,y1b,s2) | y
+
+let t1=getct():v.psblit(v.buf_ptr,000,1000,1920,180,1920, v.buf_ptr,0,0,1920) : t1=getct()-t1 : print "full blit:",t1/336
+
+
+let t1=getct():for i=0 to 1079: for j=0 to 1919: next j: next i: : t1=getct()-t1 : print t1/336
+let t1=getct()
+
+cpu asm
+  mov 495,##1080
+p2  mov 494,##1920
+p1 djnz 494,#p1
+   djnz 495,#p2
+ end asm  
+
+
+
+t1=getct()-t1 : print t1/336
 waitms(5000): waitms(5000) : waitms(5000) : waitms(5000)
 pinlo(38): pinlo(39)
-list1
+'list1
 maketestdl
 let delta=1
 let olddl=v.dl_ptr
@@ -60,6 +81,20 @@ getrects
 print rectnum
 print ttm/336
 print kwas
+dolist
+print "list: ";ttm/36
+
+for i=0 to 15
+  for j=0 to 15
+    print rtable(i,j),
+  next j
+  print
+next i    
+waitms(5000): waitms(5000) : waitms(5000) : waitms(5000)
+'psram.gfxCopyImage(dstAddr, dstPitch, srcAddr, srcPitch, byteWidth, height, hubBuffer, listPtr)
+
+
+
 'for i=0 to vcount: print xtable(i),ytable(i): next i
 ' for i=0 to rectnum-1: print rectangles(i).x1,rectangles(i).y1,rectangles(i).x2,rectangles(i).y2, rectangles(i).handle : next i
 

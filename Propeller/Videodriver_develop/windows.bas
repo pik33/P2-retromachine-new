@@ -20,7 +20,8 @@ class TWindow
   dim title$ as string
   dim tl as integer
   
-  dim psram as class using "/home/pik33/Programowanie/P2-retromachine/Propeller/Videodriver_develop/psram.spin2" ' full path needed here
+'  dim psram as class using "/home/pik33/Programowanie/P2-retromachine/Propeller/Videodriver_develop/psram.spin2" ' full path needed here
+  dim psram as class using "psram.spin2" ' full path needed here
   
 
   sub psread(hub,ram,cnt)
@@ -465,7 +466,8 @@ end class
 '''-------------------------------------------------------------- End of TWindow class ---------------------------------------------------------------------
 
 class TRectangle
- dim x1,x2,y1,y2,handle,dummy as short
+ dim whandle as ulong                           ' window canvas pointer
+ dim x1,x2,y1,y2,wx,wy,handle,dummy as short    ' x1,x2,y1,y2 screen params. wx,wy window displacement
 end class
 
 ''' ------------------------------------------------------------
@@ -596,7 +598,7 @@ i=0 : let kwas=0
 do
   if (rectangles(i).x2+1=rectangles(i+1).x1) andalso (rectangles(i).handle=rectangles(i+1).handle) then
     rectangles(i).x2=rectangles(i+1).x2
-    longmove(@rectangles(i+1).x1,@rectangles(i+2).x1,3*(rectnum-i-2))
+    longmove(@rectangles(i+1).x1,@rectangles(i+2).x1, 5*(rectnum-i-2)) ' 5 - sizeof therectangle
     rectnum-=1
     i-=1
   endif
@@ -609,18 +611,25 @@ let ttm=getct()-ttm': print ttm/336
 end sub  
 
 '' ---------------------------------------------------------------------------------------------------------
-'dim list(575,60)
+dim list(64)
+dim rtable(15,15)
 
 sub dolist
-'longfill(@list(0,0),0,16*576)
-'let ttm=getct()
-'for i=0 to rectnum-1
-'  for j=rectangles(i).y1 to rectangles(i).y2
-'    list(j,list(j,60))=rectangles(i).handle+1 : list(j,60)+=1
-'  next j  
-'next i
-'let ttm=getct()-ttm
 
+let ttm=getct()
+for i=0 to 15: for j=0 to 15: rtable(i,j)=2048: next j: next i
+
+  var k=0
+
+for i=0 to vcount-1
+  do
+  if rectangles(j).y1=ytable(i) then rtable(i,k)=j : k+=1 :  j+=1
+  loop until rectangles(j).y1>ytable(i) orelse j>=rectnum
+  if j>=rectnum then goto 630
+k=0
+next i
+
+630 let ttm=getct()-ttm
 end sub
 
 

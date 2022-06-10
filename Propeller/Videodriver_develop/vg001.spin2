@@ -99,7 +99,7 @@ CON
 
 hdmi_base       = 0           				 	'must be a multiple of 8
 _clkfreq        = 336956522    					'this is the retromachine standard main clock, PAL color frequency * 95
-debugger        = 1                                             'set this to non-zero value if you want to use BRK debugger
+debugger        = 1                                            'set this to non-zero value if you want to use BRK debugger
 
 
 ''--------- VGA DOS color definition constants. These are numbers of standard palette used (16 colors*16 luminances, 8-bit Atari based)
@@ -1068,8 +1068,8 @@ if ((f & $40000000) <>0) && ((t & $40000000)<>0) ' todo: check if the fields ove
   f:=f & $FFFFFFF
   t:=t & $FFFFFFF
   repeat y from y1a to y2a
-    ram.read1($80000-16384*debugger-8192-1024, f+(y)*s1+x1a, x2a-x1a+1)
-    ram.write($80000-16384*debugger-8192-1024, t+(y1b-y1a+y)*s2+x1b, x2a-x1a+1)
+    ram.read1($80000-16384*debugger-16384-1920, f+(y)*s1+x1a, x2a-x1a+1)
+    ram.write($80000-16384*debugger-16384-1920, t+(y1b-y1a+y)*s2+x1b, x2a-x1a+1)
     
 if ((f & $40000000) <>0) && ((t & $40000000)==0)
   f:=f & $FFFFFFF
@@ -1086,6 +1086,13 @@ if ((f & $40000000) <>0) && ((t & $40000000)<>0)
     bytemove (f+(y)*s1+x1a,t+(y1b-y1a+y)*s2+x1b,x2a-x1a+1)
 
 
+pub psblit(f,x1a,y1a,x2a,y2a,s1,t,x1b,y1b,s2) | y
+
+'' bit 30 set=psram
+
+repeat y from y1a to y2a
+  ram.read1($80000-16384*debugger-16384-1920, f+(y)*s1+x1a, x2a-x1a+1)
+  ram.write($80000-16384*debugger-16384-1920, t+(y1b-y1a+y)*s2+x1b, x2a-x1a+1)
 
 
 '**********************************************************************************
