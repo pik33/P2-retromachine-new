@@ -1,40 +1,26 @@
-const _clkfreq = 336956522
 
-dim v as class using "hg008.spin2"
-dim rm as class using "retrocog.spin2"
-dim tracker as class using "trackerplayer.spin2"
-dim paula as class using "audio093b-8-sc.spin2"
-dim sid as class using "sidcog8.spin2"
-dim psram as class using "psram.spin2"
-dim spc as class using "spccog.spin2"
-dim a6502 as class using "a6502-1.spin2"
-#include "dir.bi"
 
-dim audiocog,videocog as integer
+
+dim videocog as integer
 dim base as ulong
 dim mbox as ulong
 
+
+#define startmachine rm.start
+
 sub startpsram
-psram.startx(0, 0, 11, -1)
+psram.startx(0, 0, 12, 7)
 mbox=psram.getMailbox(0)
-end sub
-
-sub startaudio
-audiocog,base=paula.start(mbox,$75A00,$7A400)
-end sub 
-
-sub stopaudio
-cpustop(audiocog)
-audiocog=-1
 end sub
 
 sub cls(fg=154,bg=147)
 v.cls(fg,bg)
 end sub
 
-function startvideo(mode=64, pin=0, mb=0) 'todo return a cog#
+function startvideo(mode=64, pin=8, mb=0) 'todo return a cog#
 dim videocog as ulong
 videocog=v.start(pin,mbox)
+
 v.setbordercolor(0,0,0)
 v.cls(154,147)
 'for thecog=0 to 7:psram.setQos(thecog, 112 << 16) :next thecog
@@ -43,18 +29,6 @@ open SendRecvDevice(@v.putchar, nil, nil) as #0
 return videocog
 end function
 
-'function startmachine()' todo return a cog
-'c=rm.start()
-'return c
-'end function
-
-#define startmachine rm.start
-#define plot v.plot1
-
-'sub putpixel(x,y,c)
-'v030.putpixel8(x,y,c)
-'end sub
-
 function peek(addr) as ubyte
 dim r as ubyte
 asm
@@ -62,8 +36,6 @@ rdbyte r,addr
 end asm
 return r
 end function
-
-
 
 function dpeek(addr) as ushort
 dim r as ushort
