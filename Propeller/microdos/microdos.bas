@@ -92,11 +92,12 @@ do
   get #9,pos,filebuf(0),16384,r : pos+=r	
   psram.write(addr(filebuf(0)),psramptr,16384)	
   psramptr+=r 					                                         ' move the buffer to the RAM and update RAM position. Todo: this can be done all at once
-loop until r<>16384 '                          					         ' do until eof 
+loop until r<>16384 '  
+                        					         ' do until eof 
 chain "/sd/test.bin"
 cpustop(retrocog)
 cpustop(videocog)
-let loacingcog=cpu(@loadcog,@filebuf)
+let loadingcog=cpu(@loadcog,@filebuf) 
 cpustop(cpuid())
 
 '' todo here: stop all cogs except itself and psram
@@ -119,11 +120,11 @@ end function
 asm shared
 
              	org
-loadcog      	rdlong  mailbox, ptra                        ' read pointers
+loadcog      	mov mailbox,##$7F000
                 cogid   t1              		   ' get a cogid
                 mul     t1, #12                            ' compute the offset to PSRAM mailbox 
                 add     mailbox, t1                        ' add offset to find this COG's mailbox
-                
+                drvl    #38
                 
                 
                 
@@ -131,22 +132,23 @@ loadcog      	rdlong  mailbox, ptra                        ' read pointers
                 mov    psramaddr,#0
                 
 
-p101                mov     buf1,hubaddr
+p101            mov     buf1,hubaddr
                 mov     buf2,##16384
                 mov     cmd,psramaddr                      ' set the address
                 setnib  cmd, #%1011, #7                    ' attach the command - read burst from the external memory
                 setq    #2				   ' write 3 longs to the mailbox
-                wrlong  cmd,mailbox			   ' read the PSRAM
+                wrlong  cmd, mailbox			   ' read the PSRAM
 poll1           rdlong  cmd, mailbox                ' poll mailbox for result
                 tjs     cmd, #poll1                 ' retry until valid 
 
                 add psramaddr,##16384
                 add hubaddr, ##16384
-
+    
 		cmp hubaddr,##$7C000 wcz
 	if_lt	jmp #p101
-		hubset ##%0000_0001_0000_0000_0000_0000_1111_1000
-		waitx	##200000
+	'	hubset ##%0000_0001_0000_0000_0000_0000_1111_1000
+                drvh #38
+                cogstop #7
                 cogid t1
                 coginit #0,#0
                 cogstop t1

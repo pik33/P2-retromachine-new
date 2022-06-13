@@ -189,11 +189,11 @@ repeat
     b:=(-1)
 
 
-  if long[$30]==0
-    if kbdfront<>kbdtail
-      long[$30]:=kbdbuf[kbdtail]
-      kbdtail++
-      kbdtail:= kbdtail // 32
+'  if long[$30]==0
+'    if kbdfront<>kbdtail
+'      long[$30]:=kbdbuf[kbdtail]
+'      kbdtail++
+'      kbdtail:= kbdtail // 32
       
 ' if long[$34]==0
 '    if mousefront<>mousetail
