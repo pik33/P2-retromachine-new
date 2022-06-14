@@ -113,7 +113,7 @@ PUB startx(freq, burst, delay, desiredcog) : result | driverAddr
     long[@startupData][0]:=clkfreq
     long[@startupData][5]:=@deviceData
     long[@startupData][6]:=@qosData
-    long[@startupData][7]:=$7F000
+    long[@startupData][7]:=$7FF00
 
     ' setup some default bank and QoS parameter values
 
@@ -144,8 +144,8 @@ PUB stop() : i
     if drivercog <> -1
         cogstop(drivercog) ' a rather brutal stop
         repeat i from 0 to 7
-            if long[$7F000][i*3] < 0
-                long[$7F000][i*3] := -ERR_ABORTED ' abort request
+            if long[$7FF00][i*3] < 0
+                long[$7FF00][i*3] := -ERR_ABORTED ' abort request
         drivercog := -1
     if driverlock <> -1
         LOCKRET(driverlock)
@@ -167,7 +167,7 @@ PUB read1(dstHubAddr, srcAddr, count) : result | mailbox
         return ERR_INACTIVE
     if count == 0 ' don't even bother reading
         return 0
-    mailbox := $7F000 + cogid()*12     ' compute COG's mailbox address
+    mailbox := $7FF00 + cogid()*12     ' compute COG's mailbox address
     if long[mailbox] < 0
         return ERR_MAILBOX_BUSY
     long[mailbox][2] := count
@@ -194,7 +194,7 @@ PUB write(srcHubAddr, dstAddr, count) : result | mailbox
         return ERR_INACTIVE
     if count == 0 ' don't even bother writing
         return 0
-    mailbox := $7F000 + cogid()*12     ' compute COG's mailbox address
+    mailbox := $7FF00 + cogid()*12     ' compute COG's mailbox address
     if long[mailbox] < 0
         return ERR_MAILBOX_BUSY
     long[mailbox][2] := count
@@ -249,7 +249,7 @@ PUB fill(addr, pattern, count, listPtr, datasize) : r | mailbox, req
         return 0
     if drivercog == -1
         return ERR_INACTIVE
-    mailbox := $7F000 + 12*cogid() ' get mailbox base address for this COG
+    mailbox := $7FF00 + 12*cogid() ' get mailbox base address for this COG
     if long[mailbox] < 0
         return ERR_MAILBOX_BUSY
     long[mailbox][2] := count
@@ -336,7 +336,7 @@ PUB setQos(cog, qos) : result | mailbox
     if cog < 0 or cog > 7 ' enforce cog id range
         return ERR_INVALID
     long[@qosData][cog] := qos & !$1ff
-    mailbox := $7F000 + drivercog*12
+    mailbox := $7FF00 + drivercog*12
     repeat until LOCKTRY(driverlock)
     long[mailbox] := driver.R_CONFIG + cogid()
     repeat while long[mailbox] < 0
@@ -361,7 +361,7 @@ This API return the mailbox start address in HUB RAM for a given cog.
 It can also be useful for the P2 video driver.
 }}
 PUB getMailbox(cog) : result
-    return $7F000 + cog*12
+    return $7FF00 + cog*12
 
 '..............................................................................
 
@@ -386,7 +386,7 @@ PRI modifyBankParams(andmask, ormask) : result | value, i , mailbox
     if drivercog == -1
         return ERR_INACTIVE
 
-    mailbox := $7F000 + drivercog*12
+    mailbox := $7FF00 + drivercog*12
     repeat until LOCKTRY(driverlock)
     ' configure parameter(s) over all spanned banks and update local storage also
     repeat i from 0 to 1

@@ -1,0 +1,117 @@
+' A keyboard contraption cog 
+' The purpose: to read keyboard serial data from a RPi contraption keyboard interface
+' v. 0.01 pik33@o2.pl
+'
+con
+
+rxpin=16
+txpin=17
+baudrate=1920000
+
+var
+
+long kbdfront,kbdtail
+long kbdbuf[32]
+long serialstack[64]
+
+pub dummy()
+
+repeat
+'this is the object and not a program
+
+pub start() :cog
+cog:=cogspin(16,serialcog(),@serialstack)
+return cog
+
+pub readrawkey:key |result
+
+if kbdfront<>kbdtail
+  result:=kbdbuf[kbdtail]
+  kbdtail++
+  kbdtail:= kbdtail // 32
+else
+  result:=0  
+return result
+
+pub readkey:key |result
+
+if kbdfront<>kbdtail
+  result:=(kbdbuf[kbdtail] & $00007F00)>>8
+  kbdtail++
+  kbdtail:= kbdtail // 32
+else
+  result:=0  
+return result
+
+pub serialcog()| rr, mrr, srr, b, mb, midireport, kbmreport
+
+' This cog listens to the serial port at rxpin and fills a keyboard event buffer.
+
+serial_start(rxpin, txpin, baudrate)
+
+mb:=(-1)
+b:=(-1)
+
+kbdfront:=0
+kbdtail:=0
+
+repeat
+
+  rr:=rxcheck(rxpin)
+  if (rr>=$80) && (rr<>$FF) && (b==(-1))
+    b:=3
+    kbmreport:=rr<<24
+
+  elseif (b>0) && (rr>=0)
+    b--
+    kbmreport+=rr<<(b<<3)  
+
+  elseif (rr==$FF)
+    b:=0   
+
+  if b==0  
+ 
+    if (kbmreport +>= $80000000) && (kbmreport +< $87000000)  'mouse, ignore
+    b:=(-1)
+
+    if (kbmreport +>= $87000000) && (kbmreport +< $8a000000)  'keyboard
+      if kbdfront<>((kbdtail-1) //32)
+        kbdbuf[kbdfront]:=kbmreport
+        kbdfront+=1
+        kbdfront:=kbdfront // 32
+    b:=(-1)
+
+''---------------------- Serial functions from jm_serial.spin2, modified
+
+pub serial_start(rxpin, txpin, baud) | bitmode
+
+bitmode := muldiv64(clkfreq, $1_0000, baud) & $FFFFFC00       ' set bit timing
+bitmode |= 7                                                  ' set bits (8)
+pinstart(rxpin,P_HIGH_15K|P_ASYNC_RX,bitmode,0)
+pinstart(txpin,P_ASYNC_TX|P_OE,bitmode,0)
+pinhigh(rxpin)
+
+pub rxcheck(pin) : rxbyte | check
+
+'' Check for serial input
+'' -- returns -1 if nothing available
+
+  rxbyte := -1
+  check := pinr(pin)
+  if (check)
+    rxbyte := rdpin(pin) >> 24
+
+pub tx(pin,b)
+
+'' Emit byte
+
+  wypin(pin, b)
+  txflush(pin)
+
+pub txflush(pin) | check
+
+'' Wait until last byte has finished
+
+  repeat
+    check := pinr(pin)
+  while (check == 0)

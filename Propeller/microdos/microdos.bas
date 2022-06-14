@@ -1,46 +1,83 @@
-const _clkfreq = 336956522
+' MicroDOS - a binary loader for a PSRAM P2 system
+' v. 0.02- 20220614
+' Piotr Kardasz, pik33@o2.pl
+' MIT license
+' For better effect compile with -DFF_USE_LFN 
+'-----------------------------------------------------------------------------------------------
 
+const _clkfreq = 336956522 	' don't change, video drivers will set it to this
+
+const pin=8			' VGA pin
+const hpin=0			' HDMI pin
+const up_key=$51		' define your keys here
+const down_key=$50
+const w_key=$77
+const s_key=$73
+const enter_key=$0D
+const v_back_color=147		' Display colors for VGA and HDMI. Drivers use Atari type palette, 16 colors on high nibble, 16 luminances on low nibble, 32 is red, 112 is blue, 192 is green
+const v_write_color=154
+const h_back_color=147-16
+const h_write_color=154-16
+const v_vspace=40
+const h_vspace=20
+
+
+'-----------------------------------------------------------------------------------------------
 
 #include "dir.bi"
 
-dim v as class using "vg001.spin2"
-dim rm as class using "retrocog.spin2"
-dim psram as class using "psram.spin2"
+dim v as class using "vg001.spin2"		' VGA driver
+dim h as class using "hg008.spin2"		' HDMI driver
+dim psram as class using "psram.spin2"		' PSRAM driver
+
+'' All drivers are hacked for this. VGA and HDMI has to have separated buffers, PSRAM mailbuffers are moved to S7FF00 to make loading size as big as possible
+
+
+'-----------------------------------------------------------------------------------------------
+
+' Replace this with your keyboard driver. It has to provide readkey() which returns the pressed key code or zero if no key pressed
+' To do: add a standard USB keyboard driver here.
+
+dim kbd as class using "keyboard.spin2"
+
+'-----------------------------------------------------------------------------------------------
 
 dim videocog as integer
+dim hdmicog as integer
 dim base as ulong
 dim mbox as ulong
 
-'#include "retromachine.bi"
- 
-let pin=8
 dim files$(27)
 dim shortfiles$(27)
 dim filebuf(16383) as ubyte
-let title$="P2 MicroDOS v. 0.01 - 20220613"
+let title$="P2 MicroDOS v. 0.03 - 20220614"
 
-let retrocog=rm.start()
+' Start cogs
+
+let kbdcog=kbd.start()
 psram.startx(0, 0, 12, 7)
 mbox=psram.getMailbox(0)
 videocog=v.start(pin,mbox)
-v.cls(154,147)
+v.cls(v_write_color,v_back_color)
+hdmicog=h.start(hpin,mbox)
+h.cls(h_write_color,h_back_color)
 
-
-for thecog=0 to 7:psram.setQos(thecog, 112 << 16) :next thecog
-psram.setQoS(videocog, $7FFFf400)
-
-open SendRecvDevice(@v.putchar, nil, nil) as #0
+' Initialize the display
 
 waitms(100)
 v.setfontfamily(4)
-v.outtextxycz(960-16*len(title$),32,title$,154,147,4,2)
+v.outtextxycz(960-16*len(title$),v_vspace,title$,v_write_color,v_back_color,4,2)
+h.setfontfamily(4)
+h.outtextxycz(512-8*len(title$),h_vspace,title$,h_write_color,h_back_color,2,1)
 
 mount "/sd", _vfs_open_sdcard()
 chdir "/sd/microDOS"
 let currentdir$="/sd/microDOS/"
 
-let pos=96
+let pos=3*v_vspace : let hpos=3*h_vspace
 let filenum=0
+
+' Find and list filenames (*.binary)
 
 let filename$ = dir$("*", fbNormal)
 while filename$ <> "" andalso filename$ <> nil
@@ -48,117 +85,129 @@ while filename$ <> "" andalso filename$ <> nil
   if ext$=".binary" then
     files$(filenum)=currentdir$+filename$
     filename$=left$(filename$,len(filename$)-7)
-    shortfiles$(filenum)=filename$: filenum+=1
+    shortfiles$(filenum)=replacechar$(filename$,"_"," "): filenum+=1
   endif
   filename$ = dir$()
 end while
 
 let title$="W,S or up,down arrow to select, Enter to run"
-v.outtextxycz(960-16*len(title$),1080-64,title$,154,147,4,2)
+v.outtextxycz(960-16*len(title$),1080-2*v_vspace,title$,v_write_color,v_back_color,4,2)
+h.outtextxycz(512-8*len(title$),576-2*h_vspace,title$,h_write_color,h_back_color,2,1)
 
-v.outtextxycz(960-16*len(shortfiles$(0)),pos,shortfiles$(0),147,154,4,2) : pos+=32
-for i=1 to filenum-1: v.outtextxycz(960-16*len(shortfiles$(i)),pos,shortfiles$(i),154,147,4,2) : pos+=32 : next i
+h.outtextxycz(512-4*len(shortfiles$(0)),hpos,shortfiles$(0),h_back_color,h_write_color,1,1) : hpos+=h_vspace
+v.outtextxycz(960-8*len(shortfiles$(0)),pos,shortfiles$(0),v_back_color,v_write_color,2,2) : pos+=v_vspace
+for i=1 to filenum-1: h.outtextxycz(512-4*len(shortfiles$(i)),hpos,shortfiles$(i),h_write_color,h_back_color,1,1) : hpos+=h_vspace : next i
+for i=1 to filenum-1: v.outtextxycz(960-8*len(shortfiles$(i)),pos,shortfiles$(i),v_write_color,v_back_color,2,2) : pos+=v_vspace : next i
+
+' Wait for a keyboard input, highlight the selected name
 
 let filepos=0
-do: loop until rm.readkey()=0
+do: loop until kbd.readkey()=0
 do 
-let key=rm.readkey() 
-' up $51, down $50, w $77, s $73, enter $0D
-if key=$50 orelse key=$73 then
-  key=0
-  v.outtextxycz(960-16*len(shortfiles$(filepos)),96+32*filepos,shortfiles$(filepos),154,147,4,2) 
-  filepos+=1
-  if filepos>=filenum-1 then filepos=filenum-1
-  v.outtextxycz(960-16*len(shortfiles$(filepos)),96+32*filepos,shortfiles$(filepos),147,154,4,2) 
-endif  
+  let key=kbd.readkey() 
+  if key=down_key orelse key=s_key then
+    key=0
+    v.outtextxycz(960-8*len(shortfiles$(filepos)),v_vspace*(3+filepos),shortfiles$(filepos),v_write_color,v_back_color,2,2) 
+    h.outtextxycz(512-4*len(shortfiles$(filepos)), h_vspace*(3+filepos),shortfiles$(filepos),h_write_color,h_back_color,1,1) 
+    filepos+=1
+    if filepos>=filenum-1 then filepos=filenum-1
+    v.outtextxycz(960-8*len(shortfiles$(filepos)),v_vspace*(3+filepos),shortfiles$(filepos),v_back_color,v_write_color,2,2) 
+    h.outtextxycz(512-4*len(shortfiles$(filepos)), h_vspace*(3+filepos),shortfiles$(filepos),h_back_color,h_write_color,1,1) 
+  endif  
 
-if key=$51 orelse key=$77 then
-  key=0
-  v.outtextxycz(960-16*len(shortfiles$(filepos)),96+32*filepos,shortfiles$(filepos),154,147,4,2) 
-  filepos-=1
-  if filepos<0 then filepos=0
-  v.outtextxycz(960-16*len(shortfiles$(filepos)),96+32*filepos,shortfiles$(filepos),147,154,4,2) 
-endif  
+  if key=up_key orelse key=w_key then
+    key=0
+    v.outtextxycz(960-8*len(shortfiles$(filepos)),v_vspace*(3+filepos),shortfiles$(filepos),v_write_color,v_back_color,2,2) 
+    h.outtextxycz(512-4*len(shortfiles$(filepos)), h_vspace*(3+filepos),shortfiles$(filepos),h_write_color,h_back_color,1,1) 
+    filepos-=1
+    if filepos<0 then filepos=0
+    v.outtextxycz(960-8*len(shortfiles$(filepos)),v_vspace*(3+filepos),shortfiles$(filepos),v_back_color,v_write_color,2,2) 
+    h.outtextxycz(512-4*len(shortfiles$(filepos)), h_vspace*(3+filepos),shortfiles$(filepos),h_back_color,h_write_color,1,1) 
+  endif  
 
-if key=$0D then
-let title$="Loading: " + files$(filepos)
-v.box(0,1080-64,1919,1080-33,147)
-v.outtextxycz(960-16*len(title$),1080-64,title$,154,147,4,2)
-key=0
+' if enter, load the file
 
-open files$(filepos) for input as #9
-let pos=1: let r=0 : let psramptr=0
-do
-  get #9,pos,filebuf(0),16384,r : pos+=r	
-  psram.write(addr(filebuf(0)),psramptr,16384)	
-  psramptr+=r 					                                         ' move the buffer to the RAM and update RAM position. Todo: this can be done all at once
-loop until r<>16384 '  
-                        					         ' do until eof 
-chain "/sd/test.bin"
-cpustop(retrocog)
-cpustop(videocog)
-let loadingcog=cpu(@loadcog,@filebuf) 
-cpustop(cpuid())
+  if key=enter_key then
+    let title$="Loading: " + files$(filepos)
+    v.box(0,1080-64,1919,1080-33,v_back_color)
+    v.outtextxycz(960-16*len(title$),1080-2*v_vspace,title$,v_write_color,v_back_color,4,2)
+    h.box(0,576-32,1023,576-17,h_back_color)
+    h.outtextxycz(512-8*len(title$),576-2*h_vspace,title$,h_write_color,h_back_color,2,1)
+    key=0
 
-'' todo here: stop all cogs except itself and psram
-'' init a load cog
-'' shut down itself
+' now upload it to PSRAM
 
-'' the load cog
-endif  
+    open files$(filepos) for input as #9
+    let pos=1: let r=0 : let psramptr=0
+    do
+      get #9,pos,filebuf(0),16384,r : pos+=r	
+      psram.write(addr(filebuf(0)),psramptr,16384)	
+      psramptr+=r 					                                         ' move the buffer to the RAM and update RAM position. Todo: this can be done all at once
+    loop until r<>16384  orelse psramptr>=$7C000  					         ' do until eof or memory full
 
+' stop all driver cogs except PSRAM
 
+    cpustop(kbdcog)
+    cpustop(videocog)
+    cpustop(hdmicog)
+
+'start loading cog
+
+    let loadingcog=cpu(@loadcog,@filebuf) 
+
+' stop itself
+    
+    cpustop(cpuid())
+
+  endif  
 loop
 
+'--------------------------- THE END OF THE MAIN PROGRAM ------------------------------------------------------
 
+'----- addr: the helper function, return ulong instead of pointer
 
 function addr(byref v as const any) as ulong
-
 return(cast(ulong,@v))
 end function
 
-asm shared
+
+'----- the loader cog
+
+		asm shared
 
              	org
-loadcog      	mov mailbox,##$7F000
-                cogid   t1              		   ' get a cogid
-                mul     t1, #12                            ' compute the offset to PSRAM mailbox 
-                add     mailbox, t1                        ' add offset to find this COG's mailbox
-                drvl    #38
-                
-                
-                
-                mov    hubaddr,#0
-                mov    psramaddr,#0
-                
+loadcog      	cogid   t1              		' get a cogid
+                mul     t1, #12                         ' compute the offset to PSRAM mailbox 
+                add     mailbox, t1                     ' add offset to find this COG's mailbox
 
-p101            mov     buf1,hubaddr
-                mov     buf2,##16384
-                mov     cmd,psramaddr                      ' set the address
-                setnib  cmd, #%1011, #7                    ' attach the command - read burst from the external memory
-                setq    #2				   ' write 3 longs to the mailbox
-                wrlong  cmd, mailbox			   ' read the PSRAM
-poll1           rdlong  cmd, mailbox                ' poll mailbox for result
-                tjs     cmd, #poll1                 ' retry until valid 
+                mov     psramaddr,#0
 
-                add psramaddr,##16384
-                add hubaddr, ##16384
-    
-		cmp hubaddr,##$7C000 wcz
-	if_lt	jmp #p101
-	'	hubset ##%0000_0001_0000_0000_0000_0000_1111_1000
-                drvh #38
-                cogstop #7
-                cogid t1
-                coginit #0,#0
-                cogstop t1
+p101            mov     buf1,psramaddr			' psramaddr=hubaddr
+                mov     buf2,##16384			' loading size
+                mov     cmd,psramaddr                   ' set the address for reading
+                setnib  cmd, #%1011, #7                 ' attach the command - read burst
+                setq    #2			 	' write 3 longs to the mailbox
+                wrlong  cmd, mailbox			' read the PSRAM
+p102            rdlong  cmd, mailbox                	' poll mailbox for result
+                tjs     cmd, #p102                 	' retry until valid 
 
-' this cog will load data to the hub
-t1 long 0
-mailbox long $7F000
-psramaddr long 0
-hubaddr long 0
+                add 	psramaddr,##16384
+		cmp 	psramaddr,##$7C000 wcz
+	if_lt	jmp 	#p101				' loop until full hub loaded
+
+                cogstop #7				' stop psram driver
+                cogid 	t1				' get id
+                coginit #0,#0				' start the new program
+                cogstop t1				' stop the loader
+
+t1 		long 	0
+mailbox 	long 	$7FF00
+psramaddr 	long 	0
+
 cmd             long    0
 buf1            long    0
 buf2            long    1024
-end asm
+
+		end asm
+		
+'----- The end ---------------------------------------------------------------------------------------------------
