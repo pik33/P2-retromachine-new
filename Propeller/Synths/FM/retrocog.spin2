@@ -5,8 +5,8 @@
 con
 
 
-rxpin=32
-txpin=33
+rxpin=24
+txpin=25
 midiin=29
 midiout=30
 srxpin=63

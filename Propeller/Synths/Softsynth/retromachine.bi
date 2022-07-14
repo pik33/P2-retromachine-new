@@ -1,9 +1,9 @@
 const _clkfreq = 336956522
 
-dim v as class using "hg007e.spin2"
+dim v as class using "hg008.spin2"
 dim rm as class using "retrocog.spin2"
 dim audio as class using "audio-as003.spin2"
-dim psram as class using "psram4.spin2"
+dim psram as class using "psram.spin2"
 #include "dir.bi"
 
 dim audiocog,videocog as integer

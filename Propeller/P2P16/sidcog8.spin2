@@ -570,7 +570,8 @@ mixer        sar out1,#16
 scptr long 0
 scptr2 long 0
 scope long 0
-scbase long $71A00
+scbase long $75A00
+'scbase long $71A00
 
 'Masks and reference values
 startLogLevel       long START_LOG_LEVEL

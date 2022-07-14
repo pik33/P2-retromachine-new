@@ -23,8 +23,8 @@
 
 con
 
-left= 8
-right=9
+left= 14
+right=15
 
 var
 
@@ -84,8 +84,6 @@ p402	   	getbyte qq,adcptr,#3
     if_nc   	rdbyte  advalue,qq
 	    	shl     advalue,#6
  
-
-
  
             	shr     pointer00,#1
  	    	setword pointer0,pointer00,#1       
@@ -114,12 +112,8 @@ p402	   	getbyte qq,adcptr,#3
 
 	   	bitnot  ls,#15                		' convert to unsigned. 
 	   	bitnot  rs,#15		  
- getct t2
- sub t2,t1
- wrlong t2,#$40
 
   		waitse1
- getct t1
             	wypin   ls,#left       		      	' output the sample     
             	wypin   rs,#right         
 	        sub 	ptra,aptra

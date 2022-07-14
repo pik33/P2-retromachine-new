@@ -37,8 +37,13 @@ startpsram
 startvideo
 startaudio
 
+
+
 preparepanels
+
+
 kbddraw
+
 
 const envcount=19
 const wavecount=47
@@ -112,8 +117,8 @@ wavenames$(41)="sinran3  "	 	'41
 wavenames$(42)="sinus    "	 	'42
 wavenames$(43)="sub      "	 	'43
 wavenames$(44)="violin   "	 	'44
-wavenames$(45)="zacke	 "	 	'45
-wavenames$(46)="zacke2	 "	 	'46
+wavenames$(45)="zacke    "	 	'45
+wavenames$(46)="zacke2   "	 	'46
 let waveno=6
 wavedraw(waveno)
 
@@ -135,8 +140,6 @@ lpoke 64*i+base+36,addr(abss)+272*envno+16
 lpoke 64*i+base+40,envtime*10
 lpoke 64*i+base+44,$FFFFFFFF
 next i
-
-
 
 
 for i=0 to 31: channelassign(i)=0 : next i
@@ -181,7 +184,7 @@ if b3=$90 andalso b0<>0 then
   let skip=round(notes(b1)*skipv) : lpoke base+64*minc+32,skip :lpoke base+64*minc+24,b0*64 : lpoke base+64*minc+44,envsuspos shl 24 : lpoke 64*minc+base+40,52209
   lpoke base+64*minc+16,addr(bass1)+2064*waveno+16+$4000_0000: lpoke 64*minc+base+36,addr(abss)+272*envno+16: lpoke 64*minc+base+40,envtime
   waitms(1)
-  channelassign(minc)=kbdpressed: kbdpressed+=1
+  channelassign(minc)=kbdpressed: kbdpressed+=1 :print envtime
   b3=0
   goto 90
 endif
