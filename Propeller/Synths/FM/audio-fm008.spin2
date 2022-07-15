@@ -81,18 +81,10 @@ p403	      	bitl    vol0,#30 wcz            	' if bit #30 of start pointer is se
         	mov     pointer0, #0                    ' note on
         	mov     adcptr0,a58000000           	' start envelope too /2
         	mov     adcptr1,a58000000           	' start envelope too /2
-        	mov     adcptr2,a58000000           	' start envelope too /2
-        	mov     adcptr3,a58000000           	' start envelope too /2
-        	mov     adcptr4,a58000000           	' start envelope too /2
-        	mov     adcptr5,a58000000           	' start envelope too /2
                 mov     awrite,#24
 
                 mov 	envskip0,envskip01
         	mov     envskip1,envskip11
-        	mov     envskip2,envskip21
-        	mov     envskip3,envskip31
-        	mov     envskip4,envskip41
-        	mov     envskip5,envskip51
         	debug(udec(adr01,adl01))
 
 p501   	        bitl    vol0,#31 wcz 			' note off
@@ -102,53 +94,20 @@ p501   	        bitl    vol0,#31 wcz 			' note off
     if_nc	mov	envskip0,s4u1         		
                 cmp     adl14,adcptr1 wc
     if_c	mov     envskip1,s4d1
-    if_nc	mov	envskip1,s4u1         		
-                cmp     adl24,adcptr2 wc
-    if_c	mov     envskip2,s4d1
-    if_nc	mov	envskip2,s4u1         		
-                cmp     adl34,adcptr3 wc
-    if_c	mov     envskip3,s4d1
-    if_nc	mov	envskip3,s4u1         		
-                cmp     adl44,adcptr4 wc
-    if_c	mov     envskip4,s4d1
-    if_nc	mov	envskip4,s4u1         		
-                cmp     adl54,adcptr5 wc
-    if_c	mov     envskip5,s4d1
-    if_nc	mov	envskip5,s4u1         		
+    if_nc	mov	envskip1,s4u1        		
        		
                 mov 	awrite,#24
 
 p502           	add     pointer0,freq0          	  
             	add	mod0,pointer0 
             	shl     mod0,#4
-
                 qrotate a7fff,mod0        
+
    	        add     pointer1,freq1          	   
             	add	mod1,pointer1
             	shl     mod1,#4
                 qrotate a7fff,mod1
-            	   
-         	add     pointer2,freq2          	  
-            	add	mod2,pointer2
-            	shl     mod2,#4
-                qrotate a7fff,mod2   '             
-
-           	add     pointer3,freq3          	  
-            	add	mod3,pointer3 
-            	shl     mod3,#4
-                qrotate a7fff,mod3    '    
-  
-         	add     pointer4,freq4          	   
-            	add	mod4,pointer4 
-            	shl     mod4,#4
-                qrotate a7fff,mod4             
-                
-          	add     pointer5,freq5          	  
-            	add	mod5,pointer5
-            	shl     mod5,#4
-                qrotate a7fff,mod5   ''40!
  
-	
              
  '---------
  
@@ -193,200 +152,91 @@ p502           	add     pointer0,freq0
                ' 8..12
   
  
-                  fle adcptr0,a7FFFFFFF
+                 fle adcptr0,a7FFFFFFF
                  fge adcptr0,a44000000
  
        getqx spl0
  
-    '   
+       
+                mov advalue0,adcptr0       
+                shl advalue0,#1
+       qexp    advalue0             
+              getqx spl1 
+   
+   	     
 
-                 mov advalue0,adcptr0       
-                 
-                                 shl advalue0,#1
-         qexp    advalue0             
-    
-     	getqx spl1 
-               
 
-  	     
-    	     
                 skipf envskip1
 						'1up 1dn 2up 2dn 3up 3dn 4up 4dn  0	
 
 		add 	adcptr1,adr11		' 0   1   1   1	  1   1   1   1   1	
 		sub 	adcptr1,adr11 		' 1   0   
-              getqx spl2 		
 		cmp	adcptr1,adl11 wcz	' 0   0
     if_nc	mov     envskip1,envskip12     	' 0   1
     if_c        mov     envskip1,envskip12      	' 1   0
-   		add     adcptr1,adr12           ' 1   1   0   1'
+    		add     adcptr1,adr12           ' 1   1   0   1
 		sub 	adcptr1,adr12    	' 1   1   1   0
 		cmp	adcptr1,adl12 wcz	' 1   1   0   0
-   if_nc	mov     envskip1,envskip13		' 1   1   0   1	
-              getqx spl3    
-   if_c		mov     envskip1,envskip13		' 1   1   1   0
+    if_nc	mov     envskip1,envskip13		' 1   1   0   1		
+    if_c	mov     envskip1,envskip13		' 1   1   1   0
     		add     adcptr1,adr13		' 1   1           0   1
 		sub 	adcptr1,adr13		' 1   1           1   0
 		cmp	adcptr1,adl13 wcz	' 1   1           0   0
-    if_nc	mov     envskip1,s0		' 1   1           0   1
-    if_c	mov     envskip1,s0		' 1   1           1   0
-    		add     adcptr1,adr14		' 1   1			  0   1 
-             getqx spl4    			
+    if_nc	mov     envskip1,s01		' 1   1           0   1
+    if_c	mov     envskip1,s01		' 1   1           1   0
+    		add     adcptr1,adr14		' 1   1			  0   1 	
 		sub 	adcptr1,adr14		' 1   1	                  1   0
 		cmp	adcptr1,adl14 wcz	' 1   1                   0   0
-    if_nc	mov     envskip1,s0		' 1   1                   0   1 
-    if_c	mov     envskip1,s0      	' 1   1                   1   0
-    	     
-    	     
-  	 	getqx spl5    	     
+    if_nc	mov     envskip1,s01		' 1   1                   0   1 
+    if_c	mov     envskip1,s01      	' 1   1                   1   0
+
     	     
     	        fle adcptr1,a7FFFFFFF
                 fge adcptr1,a44000000
                 mov advalue1,adcptr1   
-                
-           qexp advalue1
+          shl advalue1,#1
+         qexp advalue1
 
 
-                skipf envskip2
-						'1up 1dn 2up 2dn 3up 3dn 4up 4dn  0	
 
-		add 	adcptr2,adr21		' 0   1   1   1	  1   1   1   1   1	
-		sub 	adcptr2,adr21 		' 1   0   
-		cmp	adcptr2,adl21 wcz	' 0   0
-    if_nc	mov     envskip2,envskip22     	' 0   1
-    if_c        mov     envskip2,envskip22      	' 1   0
-    		add     adcptr2,adr22           ' 1   1   0   1
-		sub 	adcptr2,adr22    	' 1   1   1   0
-		cmp	adcptr2,adl22 wcz	' 1   1   0   0
-    if_nc	mov     envskip2,envskip23		' 1   1   0   1		
-    if_c	mov     envskip2,envskip23		' 1   1   1   0
-    		add     adcptr2,adr23		' 1   1           0   1
-		sub 	adcptr2,adr23		' 1   1           1   0
-		cmp	adcptr2,adl23 wcz	' 1   1           0   0
-    if_nc	mov     envskip2,s01		' 1   1           0   1
-    if_c	mov     envskip2,s01		' 1   1           1   0
-    		add     adcptr2,adr24		' 1   1			  0   1 	
-		sub 	adcptr2,adr24		' 1   1	                  1   0
-		cmp	adcptr2,adl24 wcz	' 1   1                   0   0
-    if_nc	mov     envskip0,s01		' 1   1                   0   1 
-    if_c	mov     envskip0,s01      	' 1   1                   1   0
+        getqx advalue0
+    
 
 
-    	        fle adcptr2,a7FFFFFFF
-                fge adcptr2,a44000000
-                mov advalue2,adcptr2  
-   qexp advalue2 
-
-
-                skipf envskip3
-						'1up 1dn 2up 2dn 3up 3dn 4up 4dn  0	
-
-		add 	adcptr2,adr21		' 0   1   1   1	  1   1   1   1   1	
-		sub 	adcptr2,adr21 		' 1   0   
-		cmp	adcptr2,adl21 wcz	' 0   0
-    if_nc	mov     envskip2,envskip22     	' 0   1
-    if_c        mov     envskip2,envskip22      	' 1   0
-    		add     adcptr2,adr22           ' 1   1   0   1
-		sub 	adcptr2,adr22    	' 1   1   1   0
-		cmp	adcptr2,adl22 wcz	' 1   1   0   0
-    if_nc	mov     envskip2,envskip23		' 1   1   0   1		
-    if_c	mov     envskip2,envskip23		' 1   1   1   0
-    		add     adcptr2,adr23		' 1   1           0   1
-		sub 	adcptr2,adr23		' 1   1           1   0
-		cmp	adcptr2,adl23 wcz	' 1   1           0   0
-    if_nc	mov     envskip2,s01		' 1   1           0   1
-    if_c	mov     envskip2,s01		' 1   1           1   0
-    		add     adcptr2,adr24		' 1   1			  0   1 	
-		sub 	adcptr2,adr24		' 1   1	                  1   0
-		cmp	adcptr2,adl24 wcz	' 1   1                   0   0
-    if_nc	mov     envskip0,s01		' 1   1                   0   1 
-    if_c	mov     envskip0,s01      	' 1   1                   1   0
-
-
-    	        fle adcptr2,a7FFFFFFF
-                fge adcptr2,a44000000
-                mov advalue3,adcptr2  
- 'qexp advalue3
-                skipf envskip2
-						'1up 1dn 2up 2dn 3up 3dn 4up 4dn  0	
-
-		add 	adcptr2,adr21		' 0   1   1   1	  1   1   1   1   1	
-		sub 	adcptr2,adr21 		' 1   0   
-		cmp	adcptr2,adl21 wcz	' 0   0
-    if_nc	mov     envskip2,envskip22     	' 0   1
-    if_c        mov     envskip2,envskip22      	' 1   0
-    		add     adcptr2,adr22           ' 1   1   0   1
-		sub 	adcptr2,adr22    	' 1   1   1   0
-		cmp	adcptr2,adl22 wcz	' 1   1   0   0
-    if_nc	mov     envskip2,envskip23		' 1   1   0   1		
-    if_c	mov     envskip2,envskip23		' 1   1   1   0
-    		add     adcptr2,adr23		' 1   1           0   1
-		sub 	adcptr2,adr23		' 1   1           1   0
-		cmp	adcptr2,adl23 wcz	' 1   1           0   0
-    if_nc	mov     envskip2,s01		' 1   1           0   1
-    if_c	mov     envskip2,s01		' 1   1           1   0
-    		add     adcptr2,adr24		' 1   1			  0   1 	
-		sub 	adcptr2,adr24		' 1   1	                  1   0
-		cmp	adcptr2,adl24 wcz	' 1   1                   0   0
-    if_nc	mov     envskip0,s01		' 1   1                   0   1 
-    if_c	mov     envskip0,s01      	' 1   1                   1   0
-
-
-    	        fle adcptr2,a7FFFFFFF
-                fge adcptr2,a44000000
-                mov advalue2,adcptr2  
-     '    qexp advalue4
-      getqx   advalue0
-               skipf envskip2
-						'1up 1dn 2up 2dn 3up 3dn 4up 4dn  0	
-
-		add 	adcptr2,adr21		' 0   1   1   1	  1   1   1   1   1	
-		sub 	adcptr2,adr21 		' 1   0   
-		cmp	adcptr2,adl21 wcz	' 0   0
-    if_nc	mov     envskip2,envskip22     	' 0   1
-    if_c        mov     envskip2,envskip22      	' 1   0
-    		add     adcptr2,adr22           ' 1   1   0   1
-		sub 	adcptr2,adr22    	' 1   1   1   0
-		cmp	adcptr2,adl22 wcz	' 1   1   0   0
-    if_nc	mov     envskip2,envskip23		' 1   1   0   1		
-    if_c	mov     envskip2,envskip23		' 1   1   1   0
-    		add     adcptr2,adr23		' 1   1           0   1
-		sub 	adcptr2,adr23		' 1   1           1   0
-		cmp	adcptr2,adl23 wcz	' 1   1           0   0
-    if_nc	mov     envskip2,s01		' 1   1           0   1
-    if_c	mov     envskip2,s01		' 1   1           1   0
-    		add     adcptr2,adr24		' 1   1			  0   1 	
-		sub 	adcptr2,adr24		' 1   1	                  1   0
-		cmp	adcptr2,adl24 wcz	' 1   1                   0   0
-    if_nc	mov     envskip0,s01		' 1   1                   0   1 
-    if_c	mov     envskip0,s01      	' 1   1                   1   0
-
-
-    	        fle adcptr2,a7FFFFFFF
-                fge adcptr2,a44000000
-                mov advalue2,adcptr2  
- '  qexp advalue5
-     getqx advalue1     
-         getqx advalue2         
+        
                 shr     advalue0,#18
         	scas    advalue0,vol0
-            	scas    spl0,0-0                  	' apply volume
+           	scas    spl0,0-0                  	' apply volume
             	mov 	spl0,0-0
             	add     rs,spl0
             	bitnot  spl0,#15
                 mul     spl0,feedback0
-    
+ 
+             getqx advalue1    
+
+                shr     advalue1,#18
+        	scas    advalue1,vol1
+            	scas    spl1,0-0                  	' apply volume
+            	mov 	spl1,0-0
+            	add     rs,spl1
+            	bitnot  spl1,#15
+                mul     spl1,feedback1
+  
+   
            
                 mov     mod0,spl0
           	shl     mod0,#2
+          	
+          	mov mod1,spl1
+          	shl mod1,#2
+          	
+          	
         	setq 	awrite                      	' write new pointer and sample value to the hub
             	wrlong  pointer0,ptra
 		mov     awrite,#23
            	add 	ptra,#144   ' next channel
            	
-  '  getqx advalue3
-  '  getqx advalue4
-  '  getqx advalue5       	
+  	
            	
 getct   t2
 sub t2,t1
@@ -415,55 +265,15 @@ wrlong t2,#$70
     if_nc	mov	envskip03,s3u1   
      
                 cmp     adl11,adl14 wc
-    if_c	mov     envskip11,s1d
-    if_nc	mov	envskip11,s1u    
+    if_c	mov     envskip11,s1d1
+    if_nc	mov	envskip11,s1u1    
                 cmp     adl12,adl11 wc
-    if_c	mov     envskip12,s2d
-    if_nc	mov	envskip12,s2u    
+    if_c	mov     envskip12,s2d1
+    if_nc	mov	envskip12,s2u1    
                 cmp     adl13,adl12 wc
-    if_c	mov     envskip13,s3d
-    if_nc	mov	envskip13,s3u  
+    if_c	mov     envskip13,s3d1
+    if_nc	mov	envskip13,s3u1  
       
-                cmp     adl21,adl24 wc
-    if_c	mov     envskip21,s1d1
-    if_nc	mov	envskip21,s1u1   
-                cmp     adl22,adl21 wc
-    if_c	mov     envskip22,s2d1
-    if_nc	mov	envskip22,s2u1    
-                cmp     adl23,adl22 wc
-    if_c	mov     envskip23,s3d1
-    if_nc	mov	envskip23,s3u1   
-     
-                cmp     adl31,adl34 wc
-    if_c	mov     envskip31,s1d1
-    if_nc	mov	envskip31,s1u1    
-                cmp     adl32,adl31 wc
-    if_c	mov     envskip32,s2d1
-    if_nc	mov	envskip32,s2u1    
-                cmp     adl33,adl32 wc
-    if_c	mov     envskip33,s3d1
-    if_nc	mov	envskip33,s3u1   
-     
-                cmp     adl41,adl44 wc
-    if_c	mov     envskip41,s1d1
-    if_nc	mov	envskip41,s1u1    
-                cmp     adl42,adl41 wc
-    if_c	mov     envskip42,s2d1
-    if_nc	mov	envskip42,s2u1    
-                cmp     adl43,adl42 wc
-    if_c	mov     envskip43,s3d1
-    if_nc	mov	envskip43,s3u1    
-
-                cmp     adl51,adl54 wc
-    if_c	mov     envskip51,s1d1
-    if_nc	mov	envskip51,s1u1    
-                cmp     adl52,adl51 wc
-    if_c	mov     envskip52,s2d1
-    if_nc	mov	envskip52,s2u1    
-                cmp     adl53,adl52 wc
-    if_c	mov     envskip53,s3d1
-    if_nc	mov	envskip53,s3u1    
-
  
 p503	
     if_nz     	sub ptra,#48           

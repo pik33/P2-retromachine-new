@@ -2,7 +2,7 @@ const _clkfreq = 336956522
 
 dim v as class using "hng050a.spin2"
 dim rm as class using "midicog.spin2"
-dim audio as class using "audio-fm007.spin2"
+dim audio as class using "audio-fm008.spin2"
 #include "dir.bi"
 
 dim audiocog as integer

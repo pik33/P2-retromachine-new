@@ -11,7 +11,7 @@ mbaudrate=31250
 var
 
 long midifront,miditail
-long midibuf[128]
+long midibuf[512]
 long serialstack[64]
 
 '--------------------------------------------------------------
@@ -34,7 +34,7 @@ pub readmidi:midi |result
 if midifront<>miditail
   result:=midibuf[miditail]
   miditail++
-  miditail:= miditail // 128
+  miditail:= miditail // 512
 else
   result:=0  
 return result
@@ -83,10 +83,10 @@ repeat
       midireport+=mrr<<(mb<<3)
   
   if mb==0
-    if midifront<>((miditail-1) //128)
+    if midifront<>((miditail-1) //512)
       midibuf[midifront]:=midireport
       midifront+=1
-      midifront:=midifront // 128
+      midifront:=midifront // 512
     mb:=(-1)
 
 ''---------------------- Serial functions from jm_serial.spin2, modified
