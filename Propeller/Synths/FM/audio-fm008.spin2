@@ -201,34 +201,44 @@ p502           	add     pointer0,freq0
 
         getqx advalue0
     
-
+           
+                mov mod0,#0
+                mov mod1,#0
 
         
                 shr     advalue0,#18
         	scas    advalue0,vol0
            	scas    spl0,0-0                  	' apply volume
             	mov 	spl0,0-0
-            	add     rs,spl0
+            	scas    spl0,m06
+            	add     rs,0-0
             	bitnot  spl0,#15
-                mul     spl0,feedback0
- 
-             getqx advalue1    
-
+      
+         getqx advalue1           
+                sca     spl0,m00
+                add     mod0,0-0
+                sca     spl0,m10
+ 		add     mod1,0-0
+ 		
+ 		
                 shr     advalue1,#18
         	scas    advalue1,vol1
             	scas    spl1,0-0                  	' apply volume
             	mov 	spl1,0-0
-            	add     rs,spl1
+            	scas 	spl1,m16
+
+            	add     rs,0-0
             	bitnot  spl1,#15
-                mul     spl1,feedback1
-  
+
+                sca     spl1,m01
+                add     mod0,0-0
+                sca     spl1,m11
+ 		add     mod1,0-0 
    
            
-                mov     mod0,spl0
-          	shl     mod0,#2
-          	
-          	mov mod1,spl1
-          	shl mod1,#2
+
+          	shl     mod0,#18
+          	shl 	mod1,#18
           	
           	
         	setq 	awrite                      	' write new pointer and sample value to the hub
@@ -248,8 +258,8 @@ wrlong t2,#$70
 		bitl    vol0,#29 wcz			' program change
     if_nz	jmp #p503
     
-     debug(udec(adr01))
-           	setq	#59
+
+           	setq	#95
     		rdlong  adr01,ptra
    	        sub     ptra,#48
      		wrlong  vol0,ptra
@@ -273,8 +283,7 @@ wrlong t2,#$70
                 cmp     adl13,adl12 wc
     if_c	mov     envskip13,s3d1
     if_nc	mov	envskip13,s3u1  
-      
- 
+
 p503	
     if_nz     	sub ptra,#48           
  
@@ -376,7 +385,13 @@ adl02        	long $77FF_0000
 adl03       	long $6FFF_0000
 adl04        	long $0200_0000
 
-feedback0    	long 127
+m00      	long 0
+m01	        long 0
+m02		long 0
+m03		long 0
+m04		long 0
+m05		long 0
+m06		long 0
 sense0		long 0 
 
 '---- op 2
@@ -391,8 +406,14 @@ adl12        	long $77FF_0000
 adl13        	long $6FFF_0000
 adl14        	long $0200_0000
 
-feedback1   	long 0
-sense1		long 0 
+m10		long 0
+m11      	long 0
+m12	        long 0
+m13		long 0
+m14		long 0
+m15		long 0
+m16		long 0
+sense1		long 0  
 
 adr21        	long 0      
 adr22        	long 0
@@ -404,8 +425,14 @@ adl22        	long $77FF_0000
 adl23        	long $6FFF_0000
 adl24        	long $0200_0000
 
-feedback2 	long 0
-sense2 		long 0
+m20		long 0
+m21      	long 0
+m22	        long 0
+m23		long 0
+m24		long 0
+m25		long 0
+m26		long 0
+sense2		long 0 
 
 adr31        	long 0     ' start pointer and type at bit 31
 adr32        	long 0
@@ -417,8 +444,14 @@ adl32        	long $77FF_0000
 adl33        	long $6FFF_0000
 adl34        	long $0200_0000
 
-feedback3 	long 0
-sense3 		long 0
+m30		long 0
+m31      	long 0
+m32	        long 0
+m33		long 0
+m34		long 0
+m35		long 0
+m36		long 0
+sense3		long 0 
 
 adr41        long 0     ' start pointer and type at bit 31
 adr42        long 0
@@ -430,8 +463,14 @@ adl42        long $77FF_0000
 adl43        long $6FFF_0000
 adl44        long $0200_0000
 
-feedback4 	long 0
-sense4 		long 0
+m40		long 0
+m41      	long 0
+m42	        long 0
+m43		long 0
+m44		long 0
+m45		long 0
+m46		long 0
+sense4		long 0 
 
 adr51        long 0     ' start pointer and type at bit 31
 adr52        long 0
@@ -443,9 +482,14 @@ adl52        long $77FF_0000
 adl53        long $6FFF_0000
 adl54        long $0200_0000
 
-feedback5 	long 0
-sense5 		long 0
-
+m50		long 0
+m51      	long 0
+m52	        long 0
+m53		long 0
+m54		long 0
+m55		long 0
+m56		long 0
+sense5		long 0 
 
 envskip     long 0
 
@@ -520,7 +564,7 @@ awrite      long 23
 
 a58000000 long $5800_0000 
 a44000000 long $4400_0000
-'fit 450
+fit 400
 
 
 {{

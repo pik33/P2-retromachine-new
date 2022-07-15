@@ -52,13 +52,12 @@ const control25=$3b	' Novation Impulse button #9,
 
 dim notes(127) as single 
 dim oct(7)
-dim r1,r2,r3,r4,l1,l2,l3,l4,lv,freqc,freqf,freqmode,feedback as ulong(7)
+dim r1,r2,r3,r4,l1,l2,l3,l4,lv,freqc,freqf,freqmode,feedback,onoff,m0,m1,m2,m3,m4,m5,m6,sense as ulong(7)
 dim ffreq as single(7)
 dim slider1,slider2,slider3,slider4,slider5,slider6,slider7,slider8,slider9 as ulong
 dim knob1,knob2,knob3,knob4,knob5,knob6,knob7,knob8,knob9 as ulong
 dim switch1,switch2,switch3,switch4,switch5,switch6,switch7,switch8,switch9 as ulong
 dim operator, ctrlstate, kbdpressed, base2, change as ulong
-
 dim channelassign(31)
 dim channelnotes(31)
 dim midi as ulong
@@ -93,9 +92,13 @@ for i=0 to 7
   lv(i)=$FFFF 
 '  else lv(i)=0
  feedback(i)=0 
+ m0(i)=0: m1(i)=0: m2(i)=0 : m3(i)=0 : m4(i)=0 :m5(i)=0 :m6(i)=0
+ onoff(i)=1
  freqmode(i)=0 : freqc(i)=3 : freqf(i)=0 : ffreq(i)=((freqc(i)+1)/4.0)+freqf(i)/512.0
+ if i=0 then sense(i)=8 else sense(i)=0
 next i
 operator=0: 'change=1
+m6(0)=round(exp(127.0/11.4514))/4 
 var f#=c_1: for i=0 to 127: notes(i)=f# : f#=f#*c212: next i
 
 for i=0 to maxchannel: channelassign(i)=0 : next i
@@ -151,16 +154,22 @@ lpoke 144*i+base+140,0
 next i
 
 for i=0 to 5
-lpoke 2304+40*i+base+00,r1(i)
-lpoke 2304+40*i+base+04,$1200000
-lpoke 2304+40*i+base+08,$1200000
-lpoke 2304+40*i+base+12,$1200000 ' 0.7 ms
-lpoke 2304+40*i+base+16,$7FFF_FFFF
-lpoke 2304+40*i+base+20,$7FFF_0000
-lpoke 2304+40*i+base+24,$7FFF_0000
-lpoke 2304+40*i+base+28,$3FFF_FFFF
-lpoke 2304+40*i+base+32,0
-lpoke 2304+40*i+base+36,0
+lpoke 2304+64*i+base+00,r1(i)
+lpoke 2304+64*i+base+04,$1200000
+lpoke 2304+64*i+base+08,$1200000
+lpoke 2304+64*i+base+12,$1200000 ' 0.7 ms
+lpoke 2304+64*i+base+16,$7FFF_FFFF
+lpoke 2304+64*i+base+20,$7FFF_0000
+lpoke 2304+64*i+base+24,$7FFF_0000
+lpoke 2304+64*i+base+28,$3FFF_FFFF
+lpoke 2304+64*i+base+32,m0(i)
+lpoke 2304+64*i+base+36,m1(i)
+lpoke 2304+64*i+base+40,m2(i)
+lpoke 2304+64*i+base+44,m3(i)
+lpoke 2304+64*i+base+48,m4(i)
+lpoke 2304+64*i+base+52,m5(i)
+lpoke 2304+64*i+base+56,m6(i)
+lpoke 2304+64*i+base+60,0
 next i
  lpoke base+2160+96, lpeek(base+2160+96) + $20000000  
 '------- prepare the UI
@@ -173,30 +182,27 @@ waitms(1000)
 '---------------------------------------------------------------------------------------
 
 90 
-if change=1 then
+if change>0 then
   if ctrlstate=0 then 
- ' print operator,r1(operator)
-    r1(operator)=round(61*exp(slider1/10.0)) 
-    r2(operator)=round(61*exp(slider2/10.0))
-    r3(operator)=round(61*exp(slider3/10.0))
-    r4(operator)=round(61*exp(slider4/10.0)) 
-    l1(operator)=$43FF_FFFF-$1C+$78F1E4*slider5  
-    l2(operator)=$43FF_FFFF-$1C+$78F1E4*slider6  
-    l3(operator)=$43FF_FFFF-$1C+$78F1E4*slider7  
-    l4(operator)=$43FF_FFFF-$1C+$78F1E4*slider8
-    feedback(operator)=round(exp(knob1/11.4514))
+
     lv(operator)=$FFFF
  
-    lpoke 2304+40*operator+base+00,r1(operator)
-    lpoke 2304+40*operator+base+04,r2(operator)
-    lpoke 2304+40*operator+base+08,r3(operator)
-    lpoke 2304+40*operator+base+12,r4(operator)
-    lpoke 2304+40*operator+base+16,l1(operator)
-    lpoke 2304+40*operator+base+20,l2(operator)
-    lpoke 2304+40*operator+base+24,l3(operator)
-    lpoke 2304+40*operator+base+28,l4(operator)
-    lpoke 2304+40*operator+base+32,feedback(operator)
-    lpoke 2304+40*operator+base+36,$0
+    lpoke 2304+64*(change-1)+base+00,r1(change-1)
+    lpoke 2304+64*(change-1)+base+04,r2(change-1)
+    lpoke 2304+64*(change-1)+base+08,r3(change-1)
+    lpoke 2304+64*(change-1)+base+12,r4(change-1)
+    lpoke 2304+64*(change-1)+base+16,l1(change-1)
+    lpoke 2304+64*(change-1)+base+20,l2(change-1)
+    lpoke 2304+64*(change-1)+base+24,l3(change-1)
+    lpoke 2304+64*(change-1)+base+28,l4(change-1)
+    lpoke 2304+64*(change-1)+base+32,m0(change-1)
+    lpoke 2304+64*(change-1)+base+36,m1(change-1)
+    lpoke 2304+64*(change-1)+base+40,m2(change-1)
+    lpoke 2304+64*(change-1)+base+44,m3(change-1)
+    lpoke 2304+64*(change-1)+base+48,m4(change-1)
+    lpoke 2304+64*(change-1)+base+52,m5(change-1)
+    lpoke 2304+64*(change-1)+base+56,m6(change-1)
+ '   lpoke 2304+64*operator+base+36,$0
   
     lpoke base+2160+96, lpeek(base+2160+96) + $20000000  ' tell the audio driver to read new data
   endif
@@ -213,22 +219,50 @@ let b3=midibytes(3): let b0=midibytes(0): let b1=midibytes(1) : let b2=midibytes
 
 if b3=$B0 then 
 
-  if b1=control00 then slider1=b0: change=1 : refreshpanel(operator,0,b0)	' rate 1 at slider 1
-  if b1=control01 then slider2=b0: change=1 : refreshpanel(operator,1,b0)	' rate 2 at slider 2
-  if b1=control02 then slider3=b0: change=1 : refreshpanel(operator,2,b0)	' rate 3 at slider 3
-  if b1=control03 then slider4=b0: change=1 : refreshpanel(operator,3,b0)	' rate 4 st slider 4
-  if b1=control04 then slider5=b0: change=1 : refreshpanel(operator,4,b0)	' level 1 at slider 5
-  if b1=control05 then slider6=b0: change=1 : refreshpanel(operator,5,b0)	' level 2 at slider 6
-  if b1=control06 then slider7=b0: change=1 : refreshpanel(operator,6,b0)	' level 3 at slider 7
-  if b1=control07 then slider8=b0: change=1 : refreshpanel(operator,7,b0)	' level 4 at slider 8
-  if b1=control08 then slider9=b0 : lv(operator)=round(exp(slider9/11.4514)) : refreshpanel(operator,8,b0)' Overall operator level, change=0 as it will be serviced at the main cog 
-  if b1=control09 then knob1=b0 :  change=1: refreshpanel(operator,9,b0)	' Feedback level
-  if b1=control13 then knob5=b0 :  freqc(operator)=knob5 : refreshpanel(operator,10,b0)	:  for i=0 to 15 :  lpoke base+144*i+100+8*operator,round(notes(channelnotes(i))*ffreq(operator)*freqv) : next i         ' Frequency coarse level, serviced at the main cog
-  if b1=control14 then knob6=b0 :  freqf(operator)=knob6 : refreshpanel(operator,11,b0)	:  for i=0 to 15 :  lpoke base+144*i+100+8*operator,round(notes(channelnotes(i))*ffreq(operator)*freqv) : next i       ' Frequency fine level, serviced at the main cog
+  if b1=control00 then slider1=b0 : r1(operator)=round(61*exp(slider1/10.0)) : 	  change=operator+1 : refreshpanel(operator,0,b0)	' rate 1 at slider 1
+  if b1=control01 then slider2=b0 : r2(operator)=round(61*exp(slider2/10.0)) :    change=operator+1 : refreshpanel(operator,1,b0)	' rate 2 at slider 2
+  if b1=control02 then slider3=b0 : r3(operator)=round(61*exp(slider3/10.0)) :    change=operator+1 : refreshpanel(operator,2,b0)	' rate 3 at slider 3
+  if b1=control03 then slider4=b0 : r4(operator)=round(61*exp(slider4/10.0)) :    change=operator+1 : refreshpanel(operator,3,b0)	' rate 4 st slider 4
+  if b1=control04 then slider5=b0 : l1(operator)=$43FF_FFFF-$1C+$78F1E4*slider5 : change=operator+1 : refreshpanel(operator,4,b0)	' level 1 at slider 5
+  if b1=control05 then slider6=b0 : l2(operator)=$43FF_FFFF-$1C+$78F1E4*slider6 : change=operator+1 : refreshpanel(operator,5,b0)	' level 2 at slider 6
+  if b1=control06 then slider7=b0 : l3(operator)=$43FF_FFFF-$1C+$78F1E4*slider7 : change=operator+1 : refreshpanel(operator,6,b0)	' level 3 at slider 7
+  if b1=control07 then slider8=b0 : l4(operator)=$43FF_FFFF-$1C+$78F1E4*slider8 : change=operator+1 : refreshpanel(operator,7,b0)	' level 4 at slider 8
+  if b1=control08 then slider9=b0 : m6(operator)=round(exp(slider9/11.4514))/4  : change=operator+1 : refreshpanel(operator,8,b0)' Overall operator level, change=0 as it will be serviced at the main cog 
+  if b1=control09 then knob1=b0 :   m0(operator)=round(exp(knob1/11.4514)) :	  change=operator+1 : refreshpanel(operator,12,b0)	' Feedback level
+  if b1=control10 then knob2=b0 :   m1(operator)=round(exp(knob2/11.4514)) :      change=operator+1 : refreshpanel(operator,13,b0)	' Feedback level
+  if b1=control11 then knob3=b0 :   m2(operator)=round(exp(knob3/11.4514)) :      change=operator+1 : refreshpanel(operator,14,b0)	' Feedback level
+  if b1=control12 then knob4=b0 :   m3(operator)=round(exp(knob4/11.4514)) :      change=operator+1 : refreshpanel(operator,15,b0)	' Feedback level
+  if b1=control13 then knob5=b0 :   m4(operator)=round(exp(knob5/11.4514)) :      change=operator+1 : refreshpanel(operator,16,b0)	' Feedback level
+  if b1=control14 then knob6=b0 :   m5(operator)=round(exp(knob6/11.4514)) :      change=operator+1 : refreshpanel(operator,17,b0)	' Feedback level
+
+
+
+
+
+  if b1=control15 then knob7=b0 :  freqc(operator)=b0 : refreshpanel(operator,10,b0)	:  for i=0 to 15 :  lpoke base+144*i+100+8*operator,round(notes(channelnotes(i))*ffreq(operator)*freqv) : next i         ' Frequency coarse level, serviced at the main cog
+  if b1=control16 then knob8=b0 :  freqf(operator)=b0 : refreshpanel(operator,11,b0)	:  for i=0 to 15 :  lpoke base+144*i+100+8*operator,round(notes(channelnotes(i))*ffreq(operator)*freqv) : next i       ' Frequency fine level, serviced at the main cog
   
-  if b1=control17 then 
+  
+  
+  if b1=control25 then 
+    sense(operator)=b0
+    refreshpanel(operator,9,b0) 
+  endif  
+  
+  
+  
+  
+  if b1=control23 then 
     let oldop=operator: operator=operator+1 : if operator=2 then operator=0
     refreshpanel(operator,99,oldop) 
+  endif  
+  if b1=control17 then 
+    onoff(0)=b0/127
+    refreshpanel(0,98,onoff(0)) 
+  endif  
+  if b1=control18 then 
+    onoff(1)=b0/127
+    refreshpanel(1,98,onoff(1)) 
   endif  
 '  refreshpanel(operator)
   b3=0: b2=0: b1=0: b0=0
@@ -247,8 +281,12 @@ if b3=$90 andalso b0<>0 then
   lpoke base2+100,round(ffreq(0)*notes(b1)*freqv)         		' set a new frequency
   lpoke base2+108,round(ffreq(1)*notes(b1)*freqv)         		' set a new frequency
 '  lpoke base2+100,round(notes(b1)*freqv)         		' set a new frequency
-  lpoke base2+104,$4000_0000+(b0*lv(1))/2048				' set a new volume and trigger the note on ' todo: rest ops are to set!!!
-   lpoke base2+96,$4000_0000+(b0*lv(0))/2048				' set a new volume and trigger the note on ' todo: rest ops are to set!!!
+  lpoke base2+104,$4000_0000+(b0*onoff(1))*64			' set a new volume and trigger the note on ' todo: rest ops are to set!!!
+  let vel0=128-16*sense(0)+(b0*sense(0)/8): if vel0=128 then vel0=127
+  let vel1=128-16*sense(1)+(b0*sense(1)/8): if vel1=128 then vel1=127
+   lpoke base2+104,$4000_0000+(vel1*onoff(1))*64			' set a new volume and trigger the note on ' todo: rest ops are to set!!!
+
+   lpoke base2+96,$4000_0000+(vel0*onoff(0))*64				' set a new volume and trigger the note on ' todo: rest ops are to set!!! 128-16*sense+b0*sense)/8
   channelassign(minc)=kbdpressed: kbdpressed+=1 		' update the channel "time" (in key presses)
   b3=0
   kbdnoteon(b1)
@@ -300,13 +338,20 @@ for i=0 to 3
   v.outtextxycf(8+200*i,144,"L2 ",26+16*i) :	v.outtextxycf(32+200*i,144,v.inttostr2(slider6,3),29+16*i)
   v.outtextxycf(8+200*i,160,"L3 ",26+16*i) :	v.outtextxycf(32+200*i,160,v.inttostr2(slider7,3),29+16*i)
   v.outtextxycf(8+200*i,176,"L4 ",26+16*i) :	v.outtextxycf(32+200*i,176,v.inttostr2(slider8,3),29+16*i)
-  v.outtextxycf(72+200*i,64,"Lvl ",26+16*i) :   v.outtextxycf(112+200*i,64,v.inttostr2(slider9,3),29+16*i)
-  v.outtextxycf(72+200*i,80,"Feed",26+16*i) :   v.outtextxycf(112+200*i,80,v.inttostr2(knob1,3),29+16*i)
-  v.outtextxycf(72+200*i,96,"FrqC",26+16*i) :	v.outtextxycf(112+200*i,96,v.inttostr2(knob5,3),29+16*i)
-  v.outtextxycf(72+200*i,112,"FrqF",26+16*i) :	v.outtextxycf(112+200*i,112,v.inttostr2(knob6,3),29+16*i)
+  v.outtextxycf(72+200*i,64,"Lvl ",26+16*i) :   v.outtextxycf(104+200*i,64,v.inttostr2(m6(i)/128,3),29+16*i)
+  v.outtextxycf(72+200*i,80,"Sen",26+16*i) :    v.outtextxycf(104+200*i,80,v.inttostr2(switch9,3),29+16*i)
+  v.outtextxycf(72+200*i,96,"FrC",26+16*i) :	v.outtextxycf(104+200*i,96,v.inttostr2(knob7,3),29+16*i)
+  v.outtextxycf(72+200*i,112,"FrF",26+16*i) :	v.outtextxycf(104+200*i,112,v.inttostr2(knob8,3),29+16*i)
+  v.outtextxycf(144+200*i,64,"m1",26+16*i) :   v.outtextxycf(168+200*i,64,v.inttostr2(m0(i),3),29+16*i)
+  v.outtextxycf(144+200*i,80,"m2",26+16*i) :   v.outtextxycf(168+200*i,80,v.inttostr2(m1(i),3),29+16*i)
+  v.outtextxycf(144+200*i,96,"m3",26+16*i) :   v.outtextxycf(168+200*i,96,v.inttostr2(m2(i),3),29+16*i)
+  v.outtextxycf(144+200*i,112,"m4",26+16*i) :   v.outtextxycf(168+200*i,112,v.inttostr2(m3(i),3),29+16*i)
+  v.outtextxycf(144+200*i,128,"m5",26+16*i) :   v.outtextxycf(168+200*i,128,v.inttostr2(m4(i),3),29+16*i)
+  v.outtextxycf(144+200*i,144,"m6",26+16*i) :   v.outtextxycf(168+200*i,144,v.inttostr2(m5(i),3),29+16*i)
 
 
-  v.outtextxycf(72+200*i,176,"Freq",26+16*i) :   v.outtextxycf(112+200*i,80,v.inttostr2(knob5,3),29+16*i)
+
+  v.outtextxycf(72+200*i,176,"Freq",26+16*i) 
 
   
 next i
@@ -327,12 +372,22 @@ if ctrl=4 then v.outtextxycg(32+200*i,128,v.inttostr2(val,3),29+16*i,19+16*i)
 if ctrl=5 then v.outtextxycg(32+200*i,144,v.inttostr2(val,3),29+16*i,19+16*i)
 if ctrl=6 then v.outtextxycg(32+200*i,160,v.inttostr2(val,3),29+16*i,19+16*i)
 if ctrl=7 then v.outtextxycg(32+200*i,176,v.inttostr2(val,3),29+16*i,19+16*i)
-if ctrl=8 then v.outtextxycg(112+200*i,64,v.inttostr2(val,3),29+16*i,19+16*i)
-if ctrl=9 then v.outtextxycg(112+200*i,80,v.inttostr2(val,3),29+16*i,19+16*i)
-if ctrl=10 then v.outtextxycg(112+200*i,96,v.inttostr2(val,3),29+16*i,19+16*i) : ffreq(i)=((freqc(i)+1)/4.0)+freqf(i)/512.0 : let ffreq$=left$(str$(ffreq(i))+"        ",8) : v.outtextxycg(112+200*i,176,ffreq$,29+16*i,19+16*i)
-if ctrl=11 then v.outtextxycg(112+200*i,112,v.inttostr2(val,3),29+16*i,19+16*i) : ffreq(i)=((freqc(i)+1)/4.0)+freqf(i)/512.0 : let ffreq$=left$(str$(ffreq(i))+"        ",8) : v.outtextxycg(112+200*i,176,ffreq$,29+16*i,19+16*i)
+if ctrl=8 then v.outtextxycg(104+200*i,64,v.inttostr2(val,3),29+16*i,19+16*i)
+if ctrl=9 then v.outtextxycg(104+200*i,80,v.inttostr2(val,3),29+16*i,19+16*i)
+if ctrl=10 then v.outtextxycg(104+200*i,96,v.inttostr2(val,3),29+16*i,19+16*i) : ffreq(i)=((freqc(i)+1)/4.0)+freqf(i)/512.0 : let ffreq$=left$(str$(ffreq(i))+"        ",8) : v.outtextxycg(112+200*i,176,ffreq$,29+16*i,19+16*i)
+if ctrl=11 then v.outtextxycg(104+200*i,112,v.inttostr2(val,3),29+16*i,19+16*i) : ffreq(i)=((freqc(i)+1)/4.0)+freqf(i)/512.0 : let ffreq$=left$(str$(ffreq(i))+"        ",8) : v.outtextxycg(112+200*i,176,ffreq$,29+16*i,19+16*i)
+
+if ctrl=12 then v.outtextxycg(168+200*i,64,v.inttostr2(val,3),29+16*i,19+16*i)
+if ctrl=13 then v.outtextxycg(168+200*i,80,v.inttostr2(val,3),29+16*i,19+16*i)
+if ctrl=14 then v.outtextxycg(168+200*i,96,v.inttostr2(val,3),29+16*i,19+16*i)
+if ctrl=15 then v.outtextxycg(168+200*i,112,v.inttostr2(val,3),29+16*i,19+16*i)
+if ctrl=16 then v.outtextxycg(168+200*i,128,v.inttostr2(val,3),29+16*i,19+16*i)
+if ctrl=17 then v.outtextxycg(168+200*i,144,v.inttostr2(val,3),29+16*i,19+16*i)
+
+
 
 if ctrl=99 then v.frame(4+200*val,39,197+200*val,195,144) : v.frame(4+200*i,39,197+200*i,195,15) 
+if ctrl=98 then v.box(5+200*i,41,196+200*i,59,17+9*val+16*i) : v.outtextxycf(200*i+8,43,"Operator "+decuns$(i+1),15)
 end sub
 
 
