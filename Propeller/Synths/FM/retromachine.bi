@@ -2,7 +2,7 @@ const _clkfreq = 336956522
 
 dim v as class using "hg008.spin2"
 dim rm as class using "midicog.spin2"
-dim audio as class using "audio-fm011.spin2"
+dim audio as class using "audio-fm012.spin2"
 dim flash as class using "jm_p2_flash.spin2"
 dim psram as class using "psram.spin2"
 #include "dir.bi"

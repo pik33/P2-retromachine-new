@@ -77,7 +77,7 @@ dim ctrlstate
 
 ' ----------- start cogs'
 
-flash.start(2000) ' presets at $880000 Preset is 96 longs, add reserved to 128 longs=512 bytes=8 presets per page
+flash.start(33695) ' presets at $880000 Preset is 96 longs, add reserved to 128 longs=512 bytes=8 presets per page
 startpsram()
 startmidi()
 startvideo()

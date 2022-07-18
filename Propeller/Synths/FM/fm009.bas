@@ -5,7 +5,7 @@
 '-----------------------------------------------------------------------
 
 'sample rate=82264.77587890625
-const HEAPSIZE = 16384
+const HEAPSIZE = 32768
 #include "retromachine.bi"
 
 
@@ -178,7 +178,7 @@ waitms(1000)
 
 midi=rm.readmidi()
 if midi<>0 then position 2,35 : v.write ("Midi command: "): v.write(v.inttohex(midi,8)) 
-position 2*30,35: v.write("Channel time: "): v.write(v.inttostr2(lpeek($70),3)): v.write(" "): v.write(v.inttohex(lpeek(base+0),8)): v.write(" "):v.write(v.inttohex(lpeek(base+4),8)):v.write(" "):v.write(v.inttohex(lpeek(base+8),8))
+position 2*30,35: v.write("Channel time: "): v.write(v.inttostr2(lpeek($70),3)): v.write(" "): v.write(v.inttohex(lpeek(base+32),8)): v.write(" "):v.write(v.inttohex(lpeek(base+36),8)):v.write(" "):v.write(v.inttohex(lpeek(base+40),8))
 if midi=0 then goto 90
 let b3=midibytes(3): let b0=midibytes(0): let b1=midibytes(1) : let b2=midibytes(2)
 
@@ -331,11 +331,17 @@ if b3=$90 andalso b0<>0 then
   base2=base+144*minc
   lpoke base2+100,round(ffreq(0)*notes(b1)*freqv)      		' set a new frequency
   lpoke base2+108,round(ffreq(1)*notes(b1)*freqv)       	' set a new frequency
+  lpoke base2+116,round(ffreq(2)*notes(b1)*freqv)       	' set a new frequency
+  lpoke base2+124,round(ffreq(3)*notes(b1)*freqv)       	' set a new frequency
 '  lpoke base2+100,round(notes(b1)*freqv)         		' set a new frequency
 ' lpoke base2+104,$4000_0000+(b0*onoffb(1))*64			' set a new volume and trigger the note on ' todo: rest ops are to set!!!
   let vel0=127-senseb(0)+(b0*senseb(0)/127)
   let vel1=127-senseb(1)+(b0*senseb(1)/127)
+ let vel2=127-senseb(2)+(b0*senseb(2)/127)
+ let vel3=127-senseb(3)+(b0*senseb(3)/127)
    lpoke base2+104, (vel1*onoffb(1))*32			' set a new volume and trigger the note on ' todo: rest ops are to set!!!
+  lpoke base2+112, (vel2*onoffb(2))*32			' set a new volume and trigger the note on ' todo: rest ops are to set!!!
+  lpoke base2+120, (vel3*onoffb(3))*32			' set a new volume and trigger the note on ' todo: rest ops are to set!!!
 
    lpoke base2+96,$4000_0000+(vel0*onoffb(0))*32				' set a new volume and trigger the note on ' todo: rest ops are to set!!! 128-16*sense+b0*sense)/8
   channelassign(minc)=kbdpressed: kbdpressed+=1 		' update the channel "time" (in key presses)
