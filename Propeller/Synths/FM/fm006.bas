@@ -327,7 +327,7 @@ v.setfontfamily(4)						'
 v.outtextxycz((800-16*len(version$))/2,4,version$,92,82,2,2)
 v.setfontfamily(0)							'
 
-for i=0 to 3
+for i=0 to 1
   v.box(5+200*i,41,196+200*i,59,26+16*i)
   v.box(5+200*i,60,196+200*i,194,19+16*i)
   v.outtextxycf(8+200*i,64,"R1 ",26+16*i) :	v.outtextxycf(32+200*i,64,v.inttostr2(slider1,3),29+16*i)
@@ -358,8 +358,7 @@ next i
 v.frame(4,39,197,195,15)
 v.outtextxycf(8,43,"Operator 1 ",15)
 v.outtextxycf(8+200,43,"Operator 2 ",15)
-v.outtextxycf(8+400,43,"Operator 3 ",15)
-v.outtextxycf(8+600,43,"Operator 4 ",15)
+
 
 end sub
 
