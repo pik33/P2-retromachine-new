@@ -1,11 +1,19 @@
-dim a as ulong(4)
-dim b as ulong
 
-a(0)=1
-b=2
-if a=b then b=3
+var b=0
+var c=0
+for a=$00000000 to $7f000000 step $1000000
 
-let t=getct()
-let m0l=round(exp(123/11.4514))
-let t=getct()-t : print t/336
-print m0l
+ 
+
+asm
+   qexp a
+   getqx b
+   mov c,a
+   shl c,#1
+   qexp c
+   getqx c
+end asm
+
+print hex$(a), hex$(b), hex$(c)   
+
+next a

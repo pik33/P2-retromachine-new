@@ -55,6 +55,7 @@ spl4 long 0
 spl5 long 0
 
 
+adccng long 0
 qq          long 0
 cn          long 0
 pointer00   long 0
@@ -73,33 +74,34 @@ advalue5    long 0
 
 pointer0    long 0      
 adcptr0	    long 0
-envskip0    long 0
+adccnt0     long 0
 mod0	    long 0
 
 pointer1    long 0      
 adcptr1	    long 0
-envskip1    long 0
+adccnt1     long 0
 mod1	    long 0
 
 pointer2    long 0      
 adcptr2	    long 0
-envskip2    long 0
+adccnt2     long 0
 mod2	    long 0
 
 pointer3    long 0      
 adcptr3	    long 0
-envskip3    long 0
+adccnt3     long 0
 mod3	    long 0
 
 pointer4    long 0      
 adcptr4	    long 0
-envskip4    long 0
+adccnt4     long 0
 mod4	    long 0
 
 pointer5    long 0      
 adcptr5	    long 0
-envskip5    long 0
+adccnt5     long 0
 mod5	    long 0
+
 
 
 '------ These variables have to be loaded at note on and not saved except vol0
@@ -126,10 +128,10 @@ adr02        	long 0
 adr03        	long 0
 adr04        	long 0
 
-adl01        	long $7FFF_0000
-adl02        	long $77FF_0000
-adl03       	long $6FFF_0000
-adl04        	long $0200_0000
+adc01        	long $70
+adc02        	long $0
+adc03       	long $0
+adc04        	long $0
 
 m00      	long 0
 m01	        long 0
@@ -149,10 +151,10 @@ adr12        	long 0
 adr13        	long 0
 adr14        	long 0
 
-adl11        	long $7FFF_0000
-adl12        	long $77FF_0000
-adl13        	long $6FFF_0000
-adl14        	long $0200_0000
+adc11        	long $7FFF_0000
+adc12        	long $77FF_0000
+adc13        	long $6FFF_0000
+adc14        	long $0200_0000
 
 m10		long 0
 m11      	long 0
@@ -165,123 +167,7 @@ amsense1	long 0
 fmsense1        long 0
 ratescale1      long 0 
 
-adr21        	long 0      
-adr22        	long 0
-adr23        	long 0
-adr24        	long 0
 
-adl21        	long $7FFF_0000
-adl22        	long $77FF_0000
-adl23        	long $6FFF_0000
-adl24        	long $0200_0000
-
-m20		long 0
-m21      	long 0
-m22	        long 0
-m23		long 0
-m24		long 0
-m25		long 0
-m26		long 0
-amsense2	long 0  
-fmsense2        long 0
-ratescale2      long 0
-
-adr31        	long 0     ' start pointer and type at bit 31
-adr32        	long 0
-adr33        	long 0
-adr34        	long 0
-
-adl31        	long $7FFF_0000
-adl32        	long $77FF_0000
-adl33        	long $6FFF_0000
-adl34        	long $0200_0000
-
-m30		long 0
-m31      	long 0
-m32	        long 0
-m33		long 0
-m34		long 0
-m35		long 0
-m36		long 0
-amsense3	long 0  
-fmsense3        long 0
-ratescale3      long 0
-
-adr41        long 0     ' start pointer and type at bit 31
-adr42        long 0
-adr43        long 0
-adr44        long 0
-
-adl41        long $7FFF_0000
-adl42        long $77FF_0000
-adl43        long $6FFF_0000
-adl44        long $0200_0000
-
-m40		long 0
-m41      	long 0
-m42	        long 0
-m43		long 0
-m44		long 0
-m45		long 0
-m46		long 0
-amsense4	long 0  
-fmsense4        long 0
-ratescale4      long 0 
-
-adr51        long 0     ' start pointer and type at bit 31
-adr52        long 0
-adr53        long 0
-adr54        long 0
-
-adl51        long $7FFF_0000
-adl52        long $77FF_0000
-adl53        long $6FFF_0000
-adl54        long $0200_0000
-
-m50		long 0
-m51      	long 0
-m52	        long 0
-m53		long 0
-m54		long 0
-m55		long 0
-m56		long 0
-amsense5	long 0  
-fmsense5        long 0
-ratescale5      long 0
-
-envskip     long 0
-
-envskip01 long 0
-envskip02 long 0
-envskip03 long 0
-envskip04 long 0
-
-envskip11 long 0
-envskip12 long 0
-envskip13 long 0
-envskip14 long 0
-
-envskip21 long 0
-envskip22 long 0
-envskip23 long 0
-envskip24 long 0
-
-envskip31 long 0
-envskip32 long 0
-envskip33 long 0
-envskip34 long 0
-
-envskip41 long 0
-envskip42 long 0
-envskip43 long 0
-envskip44 long 0
-
-envskip51 long 0
-envskip52 long 0
-envskip53 long 0
-envskip54 long 0
-
-pan0        long 0 ' only output
 
 
 ' constants
@@ -296,25 +182,6 @@ affff     long $ffff
 t1 long 0
 t2 long 0
 
-s1u 		long  %111111_0_11111111_0_110010_0
-s1d 		long  %111111_0_11111111_0_101001_0
-s2u		long  %111111_0_11111001_0_011111_0
-s2d		long  %111111_0_11110100_0_111111_0
-s3u		long  %111111_0_00101111_0_111111_0
-s3d		long  %111110_0_10011111_0_111111_0
-s4u		long  %100101_0_11111111_0_111111_0
-s4d		long  %010011_0_11111111_0_111111_0
-s0		long  %111111_0_11111111_0_111111_0
-
-s1u1 		long  %1111_11111111_11110010
-s1d1 		long  %1111_11111111_11101001
-s2u1		long  %1111_11111110_01011111
-s2d1		long  %1111_11111101_00111111
-s3u1		long  %1111_11001011_11111111
-s3d1		long  %1111_10100111_11111111
-s4u1		long  %1001_01111111_11111111
-s4d1		long  %0100_11111111_11111111
-s01		long  %1111_11111111_11111111
 
 
 
@@ -334,46 +201,28 @@ audiolut org $200
 loop        	mov  	cn,#channels-1              
               	mov  	rs,#0
                         
-p401        	getct   t1
+p401        	
                 setq    #35                     	' read parameters
             	rdlong  pointer0,ptra
-
+getct   t1
 p403	      	bitl    vol0,#30 wcz            	' if bit #30 of start pointer is set, the current pointer needs resetting  
-    if_nz       jmp     #p501			 	' there is no note on, skip
+    if_nz       jmp #p501	 	' there is no note on, skip'
 
         	mov     pointer0, #0                    ' note on
         	mov     pointer1, #0                    ' note on
-        	mov     pointer2, #0                    ' note on
-        	mov     pointer3, #0                    ' note on
-        	mov     adcptr0,a58000000           	' start envelope too /2
-        	mov     adcptr1,a58000000           	' start envelope too /2
-        	mov     adcptr2,a58000000           	' start envelope too /2
-        	mov     adcptr3,a58000000           	' start envelope too /2
                 mov     awrite,#24
-
-                mov 	envskip0,envskip01
-        	mov     envskip1,envskip11
-        	mov     envskip2,envskip21
-        	mov     envskip3,envskip31
+                mov 	adccnt0,affffffff
+        	mov     adccnt1,affffffff
+        	mov 	awrite,#24
+		jmp     #p502
         	
-        	debug(udec(adr01,adl01))
-
+ 
 p501   	        bitl    vol0,#31 wcz 			' note off
-    if_nz	jmp     #p502
-                cmp     adl04,adcptr0 wc
-    if_c	mov     envskip0,s4d1
-    if_nc	mov	envskip0,s4u1         		
-                cmp     adl14,adcptr1 wc
-    if_c	mov     envskip1,s4d
-    if_nc	mov	envskip1,s4u        		
-                cmp     adl24,adcptr1 wc
-    if_c	mov     envskip2,s4d1
-    if_nc	mov	envskip2,s4u1        		
-                cmp     adl34,adcptr1 wc
-    if_c	mov     envskip3,s4d1
-    if_nc	mov	envskip3,s4u1        		
-       		
+    if_nz	jmp #p502
+                mov 	adr0,adr04
+                mov 	adr1,adr14
                 mov 	awrite,#24
+
 
 p502           	add     pointer0,freq0          	  
             	add	mod0,pointer0 
@@ -385,275 +234,56 @@ p502           	add     pointer0,freq0
             	shl     mod1,#4
                 qrotate a7fff,mod1
  
-   	        add     pointer2,freq2          	   
-            	add	mod2,pointer2
-            	shl     mod2,#4
-                qrotate a7fff,mod2
- 
-   	        add     pointer3,freq3          	   
-            	add	mod3,pointer3
-            	shl     mod3,#4
-                qrotate a7fff,mod3
- 
-             
- '---------
- 
-'envskip skip patterns
-'phase 1 up:    #%1111_11111111_11110010
-'phase 1 down:  #%1111_11111111_11101001
-'phase 2 up:    #%1111_11111110_01011111
-'phase 2 down:  #%1111_11111101_00111111
-'phase 3 up:    #%1111_11001011_11111111
-'phase 3 down:  #%1111_10100111_11111111
-'phase 4 up:    #%1001_01111111_11111111
-'phase 4 down:  #%0100_11111111_11111111
+p601		nop
+p602		nop
+		mucc    addcng,#1
+		qexp	adcptr0
 
+p611		nop
+p612		nop
+		muxc	adccng,#2
+		qexp	adcptr1
 
-
-   
-                skipf envskip0
-						'1up 1dn 2up 2dn 3up 3dn 4up 4dn  0	
-
-		add 	adcptr0,adr01		' 0   1   1   1	  1   1   1   1   1	
-		sub 	adcptr0,adr01 		' 1   0   
-		cmp	adcptr0,adl01 wcz	' 0   0
-    if_nc	mov     envskip0,envskip02     	' 0   1
-    if_c        mov     envskip0,envskip02      	' 1   0
-    		add     adcptr0,adr02           ' 1   1   0   1
-		sub 	adcptr0,adr02    	' 1   1   1   0
-		cmp	adcptr0,adl02 wcz	' 1   1   0   0
-    if_nc	mov     envskip0,envskip03		' 1   1   0   1		
-    if_c	mov     envskip0,envskip03		' 1   1   1   0
-    		add     adcptr0,adr03		' 1   1           0   1
-		sub 	adcptr0,adr03		' 1   1           1   0
-		cmp	adcptr0,adl03 wcz	' 1   1           0   0
-    if_nc	mov     envskip0,s01		' 1   1           0   1
-    if_c	mov     envskip0,s01		' 1   1           1   0
-    		add     adcptr0,adr04		' 1   1			  0   1 	
-		sub 	adcptr0,adr04		' 1   1	                  1   0
-		cmp	adcptr0,adl04 wcz	' 1   1                   0   0
-    if_nc	mov     envskip0,s01		' 1   1                   0   1 
-    if_c	mov     envskip0,s01      	' 1   1                   1   0
-
-               ' 8..12
-  
-                getqx spl0
+                getqx 	spl0
+                getqx 	spl1   
+         
+                getqx 	advalue0
+                getqx 	advalue1 
+                        
+                mov 	mod0,#0
+                mov 	mod1,#0
                 
-                fle adcptr0,a7FFFFFFF
-                fge adcptr0,a44000000
-                mov advalue0,adcptr0   
-       
-                getqx spl1   
-                 getqx spl2 
-                 getqx spl3
-                shl advalue0,#1
-          
-             	                 qexp    advalue0    
-        	
-	
-	
-                skipf envskip1
-						'1up 1dn 2up 2dn 3up 3dn 4up 4dn  0	
-		 	
-						
-
-		add 	adcptr1,adr11		' 0   1   1   1	  1   1   1   1   1	
-		sub 	adcptr1,adr11 		' 1   0   
-		cmp	adcptr1,adl11 wcz	' 0   0
-    if_nc	mov     envskip1,envskip12     	' 0   1
-    if_c        mov     envskip1,envskip12      	' 1   0
-    		add     adcptr1,adr12           ' 1   1   0   1
-    	
-    	 
-    			
-		sub 	adcptr1,adr12    	' 1   1   1   0
-		
-	
-		
-		cmp	adcptr1,adl12 wcz	' 1   1   0   0
-    if_nc	mov     envskip1,envskip13		' 1   1   0   1		
-    if_c	mov     envskip1,envskip13		' 1   1   1   0
-    		add     adcptr1,adr13		' 1   1           0   1
-		sub 	adcptr1,adr13		' 1   1           1   0
-		cmp	adcptr1,adl13 wcz	' 1   1           0   0
-    if_nc	mov     envskip1,s01		' 1   1           0   1
-    
-     
-    if_c	mov     envskip1,s01		' 1   1           1   0
-    		add     adcptr1,adr14		' 1   1			  0   1 	
-		sub 	adcptr1,adr14		' 1   1	                  1   0
-		cmp	adcptr1,adl14 wcz	' 1   1                   0   0
-    if_nc	mov     envskip1,s01		' 1   1                   0   1 
-    if_c	mov     envskip1,s01      	' 1   1                   1   0
-
-	      
-    	        fle adcptr1,a7FFFFFFF
-                fge adcptr1,a44000000
-                mov advalue1,adcptr1   
-                shl advalue1,#1
-                qexp advalue1
-
-                skipf envskip2
-						'1up 1dn 2up 2dn 3up 3dn 4up 4dn  0	
-
-		add 	adcptr2,adr21		' 0   1   1   1	  1   1   1   1   1	
-		sub 	adcptr2,adr21 		' 1   0   
-		cmp	adcptr2,adl21 wcz	' 0   0
-    if_nc	mov     envskip2,envskip22     	' 0   1
-    if_c        mov     envskip2,envskip22      	' 1   0
-    		add     adcptr2,adr22           ' 1   1   0   1
-		sub 	adcptr2,adr22    	' 1   1   1   0
-		cmp	adcptr2,adl22 wcz	' 1   1   0   0
-    if_nc	mov     envskip2,envskip23		' 1   1   0   1		
-    if_c	mov     envskip2,envskip23		' 1   1   1   0
-    		add     adcptr2,adr23		' 1   1           0   1
-		sub 	adcptr2,adr23		' 1   1           1   0
-		cmp	adcptr2,adl23 wcz	' 1   1           0   0
-    if_nc	mov     envskip2,s01		' 1   1           0   1
-    if_c	mov     envskip2,s01		' 1   1           1   0
-    		add     adcptr2,adr24		' 1   1			  0   1 	
-		sub 	adcptr2,adr24		' 1   1	                  1   0
-		cmp	adcptr2,adl24 wcz	' 1   1                   0   0
-    if_nc	mov     envskip2,s01		' 1   1                   0   1 
-    if_c	mov     envskip2,s01      	' 1   1                   1   0
-
-    	     
-    	        fle adcptr2,a7FFFFFFF
-                fge adcptr2,a44000000
-                mov advalue2,adcptr1   
-                shl advalue2,#1
-                
-                             getqx advalue0
-                               getqx advalue1 
-               qexp advalue2
-
-
-   
- 
-
-                  skipf envskip3
-						'1up 1dn 2up 2dn 3up 3dn 4up 4dn  0	
-
-		add 	adcptr3,adr31		' 0   1   1   1	  1   1   1   1   1	
-		sub 	adcptr3,adr31 		' 1   0   
-		cmp	adcptr3,adl31 wcz	' 0   0
-    if_nc	mov     envskip3,envskip32     	' 0   1
-    if_c        mov     envskip2,envskip32      	' 1   0
-    		add     adcptr3,adr32           ' 1   1   0   1
-		sub 	adcptr3,adr32    	' 1   1   1   0
-		cmp	adcptr3,adl32 wcz	' 1   1   0   0
-    if_nc	mov     envskip3,envskip33		' 1   1   0   1		
-    if_c	mov     envskip3,envskip33		' 1   1   1   0
-    		add     adcptr3,adr33		' 1   1           0   1
-		sub 	adcptr3,adr33		' 1   1           1   0
-		cmp	adcptr3,adl33 wcz	' 1   1           0   0
-    if_nc	mov     envskip3,s01		' 1   1           0   1
-    if_c	mov     envskip3,s01		' 1   1           1   0
-    		add     adcptr3,adr34		' 1   1			  0   1 	
-		sub 	adcptr3,adr34		' 1   1	                  1   0
-		cmp	adcptr3,adl34 wcz	' 1   1                   0   0
-    if_nc	mov     envskip3,s01		' 1   1                   0   1 
-    if_c	mov     envskip3,s01      	' 1   1                   1   0
-
-    	     
-    	        fle adcptr3,a7FFFFFFF
-                fge adcptr3,a44000000
-                mov advalue3,adcptr3   
-                shl advalue3,#1
-                qexp advalue3
-  
- 
-  
-      
-                   getqx advalue2  
-                        getqx advalue3
-                        
-                        
-                        
-                mov mod0,#0
-                mov mod1,#0
-               mov mod2,#0
-              mov mod3,#0
-     
-        
+                mul     advalue0,vol0
                 shr     advalue0,#18
-        	scas    advalue0,vol0
-           	scas    spl0,0-0                  	' apply volume
-            	mov 	spl0,0-0
-            	scas    spl0,m06
+           	scas    spl0,advalue0                  	' apply volume
             	add     rs,0-0
+ 
+                mul     advalue1,vol1
+                shr     advalue1,#18
+           	scas    spl1,advalue1                  	' apply volume
+            	add     rs,0-0
+ 
             	bitnot  spl0,#15
  
                 sca     spl0,m00
                 add     mod0,0-0
                 sca     spl0,m10
  		add     mod1,0-0
-                sca     spl0,m20
- 		add     mod2,0-0
-                sca     spl0,m30
-		add     mod3,0-0
- 		
- 	        shr     advalue1,#18
-         	scas    advalue1,vol1
-            	scas    spl1,0-0                  	' apply volume
-            	mov 	spl1,0-0
-            	scas 	spl1,m16
-           	add     rs,0-0
-           	bitnot  spl1,#15
-
-                sca     spl1,m01
-                add     mod0,0-0
-                sca     spl1,m11
- 		add     mod1,0-0 
-                sca     spl1,m21
- 		add     mod2,0-0 
-                sca     spl1,m31
- 		add     mod3,0-0 
-   
- 	        shr     advalue2,#18
-         	scas    advalue2,vol2
-            	scas    spl2,0-0                  	' apply volume
-            	mov 	spl2,0-0
-            	scas 	spl2,m26
-           	add     rs,0-0
-           	bitnot  spl2,#15
-
-                sca     spl2,m02
-                add     mod0,0-0
-                sca     spl2,m12
- 		add     mod1,0-0 
-                sca     spl2,m22
- 		add     mod2,0-0 
-                sca     spl2,m32
- 		add     mod3,0-0 
+'      
+            	bitnot  spl1,#15
  
- 	        shr     advalue3,#18
-         	scas    advalue3,vol3
-            	scas    spl3,0-0                  	' apply volume
-            	mov 	spl3,0-0
-            	scas 	spl3,m36
-           	add     rs,0-0
-           	bitnot  spl3,#15
-
-                sca     spl3,m03
+                sca     spl0,m01
                 add     mod0,0-0
-                sca     spl3,m13
- 		add     mod1,0-0 
-                sca     spl3,m23
- 		add     mod2,0-0 
-                sca     spl3,m33
- 		add     mod3,0-0 
-          
+                sca     spl0,m11
+ 		add     mod1,0-0
+'                
 
           	shl     mod0,#18
           	shl 	mod1,#18
-          	shl 	mod2,#18
-          	shl 	mod3,#18
-     	
-          	
+'          	
         	setq 	awrite                      	' write new pointer and sample value to the hub
             	wrlong  pointer0,ptra
-		mov     awrite,#23
+		mov     awrite,#35
            	add 	ptra,#144   ' next channel
            	
   	
@@ -666,58 +296,19 @@ wrlong t2,#$70
 ' now all channels processed
 
 		bitl    vol0,#29 wcz			' program change
-    if_nz	jmp #p503
+    if_nz	jmp 	#p503
     
 
-           	setq	#107
-    		rdlong  adr01,ptra
-   	        sub     ptra,#48
-     		wrlong  vol0,ptra
-
-                cmp     adl01,adl04 wc
-    if_c	mov     envskip01,s1d1
-    if_nc	mov	envskip01,s1u1    
-                cmp     adl02,adl01 wc
-    if_c	mov     envskip02,s2d1
-    if_nc	mov	envskip02,s2u1    
-                cmp     adl03,adl02 wc
-    if_c	mov     envskip03,s3d1
-    if_nc	mov	envskip03,s3u1   
-     
-                cmp     adl11,adl14 wc
-    if_c	mov     envskip11,s1d1
-    if_nc	mov	envskip11,s1u1    
-                cmp     adl12,adl11 wc
-    if_c	mov     envskip12,s2d1
-    if_nc	mov	envskip12,s2u1    
-                cmp     adl13,adl12 wc
-    if_c	mov     envskip13,s3d1
-    if_nc	mov	envskip13,s3u1 
-    
-    
-                cmp     adl21,adl24 wc
-    if_c	mov     envskip21,s1d1
-    if_nc	mov	envskip21,s1u1    
-                cmp     adl22,adl21 wc
-    if_c	mov     envskip22,s2d1
-    if_nc	mov	envskip22,s2u1   
-                cmp     adl23,adl22 wc
-    if_c	mov     envskip23,s3d1
-    if_nc	mov	envskip23,s3u1  
-    
-                cmp     adl31,adl34 wc
-    if_c	mov     envskip31,s1d1
-    if_nc	mov	envskip31,s1u1    
-                cmp     adl32,adl31 wc
-    if_c	mov     envskip32,s2d1
-    if_nc	mov	envskip32,s2u1    
-                cmp     adl33,adl32 wc
-    if_c	mov     envskip33,s3d1
-    if_nc	mov	envskip33,s3u1  
+           	setq	#35   '108
+   		rdlong  adr01,ptra
+ 	        sub     ptra,#48
+  		wrlong  vol0,ptra
 
 
-p503	
-    if_nz     	sub ptra,#48           
+    
+
+p503	debug(uhex(ptra))
+   if_nz        sub ptra,#48           
  
  '---------
  
