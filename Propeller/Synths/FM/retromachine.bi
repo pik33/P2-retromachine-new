@@ -33,60 +33,7 @@ mbox=psram.getMailbox(0)
 end sub
 
 #define startmidi rm.start
-
-function peek(addr) as ubyte
-dim r as ubyte
-asm
-rdbyte r,addr
-end asm
-return r
-end function
-
-function dpeek(addr) as ushort
-dim r as ushort
-asm
-rdword r,addr
-end asm
-return r
-end function
-
-function lpeek(addr) as ulong
-dim r as ulong
-asm
-rdlong r,addr
-end asm
-return r
-end function
-
-function slpeek(addr) as integer
-dim r as integer
-asm
-rdlong r,addr
-end asm
-return r
-end function
-
-sub poke(addr as ulong,value as ubyte)
-asm
-wrbyte value, addr
-end asm
-end sub
-
-sub dpoke(addr as ulong,value as ushort)
-asm
-wrword value, addr
-end asm
-end sub
-
-sub lpoke(addr as ulong,value as ulong)
-asm
-wrlong value, addr
-end asm
-end sub
-
-function addr(byref v as const any) as ulong
-return(cast(ulong,@v))
-end function
+#define addr varptr
 
 sub position(x,y)
 v.setcursorpos(x,y)
