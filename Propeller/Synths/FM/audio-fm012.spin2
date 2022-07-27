@@ -51,8 +51,6 @@ spl0 long 0
 spl1 long 0
 spl2 long 0
 spl3 long 0
-spl4 long 0
-spl5 long 0
 
 
 adccng long 0
@@ -61,12 +59,11 @@ cn          long 0
 pointer00   long 0
 ls          long 0    
 rs          long 0
-advalue0     long 0
-advalue1     long 0
+advalue0    long 0
+advalue1    long 0
 advalue2    long 0
-advalue3     long 0
-advalue4     long 0
-advalue5    long 0
+advalue3    long 0
+
 
 ' channel parameter block:
 
@@ -92,16 +89,6 @@ adcptr3	    	long 0
 adccnt3     	long 0
 mod3	    	long 0
 
-pointer4    	long 0      
-adcptr4	    	long 0
-adccnt4     	long 0
-mod4	    	long 0
-
-pointer5    	long 0      
-adcptr5	    	long 0
-adccnt5     	long 0
-mod5	    	long 0
-
 state	  	long 0
 
 '------ These variables have to be loaded at note on and not saved except vol0 - 12 longs
@@ -114,10 +101,6 @@ vol2 		long 0
 freq2		long 0
 vol3		long 0
 freq3		long 0
-vol4		long 0
-freq4		long 0
-vol5		long 0
-freq5		long 0
 
 ' ------ These variables are common for all channels to be loaded at sound change, This needs to be additionally triggered.
 
@@ -137,8 +120,6 @@ m00      	long 0
 m01	        long 0
 m02		long 0
 m03		long 0
-m04		long 0
-m05		long 0
 output0		long 0
 amsense0	long 0  
 fmsense0        long 0
@@ -160,8 +141,6 @@ m10		long 0
 m11      	long 0
 m12	        long 0
 m13		long 0
-m14		long 0
-m15		long 0
 output1		long 0
 amsense1	long 0  
 fmsense1        long 0
@@ -183,8 +162,6 @@ m20		long 0
 m21      	long 0
 m22	        long 0
 m23		long 0
-m24		long 0
-m25		long 0
 output2		long 0
 amsense2	long 0  
 fmsense2        long 0
@@ -206,59 +183,10 @@ m30		long 0
 m31      	long 0
 m32	        long 0
 m33		long 0
-m34		long 0
-m35		long 0
 output3		long 0
 amsense3	long 0  
 fmsense3        long 0
 ratescale3      long 0 
-
-'---- op 4
- 
-adr41        	long 0      
-adr42        	long 0
-adr43        	long 0
-adr44        	long 0
-
-adc41        	long 0
-adc42        	long 0
-adc43        	long 0
-adc44        	long 0
-
-m40		long 0
-m41      	long 0
-m42	        long 0
-m43		long 0
-m44		long 0
-m45		long 0
-output4		long 0
-amsense4	long 0  
-fmsense4        long 0
-ratescale4      long 0 
-
-'---- op 5
- 
-adr51        	long 0      
-adr52        	long 0
-adr53        	long 0
-adr54        	long 0
-
-adc51        	long 0
-adc52        	long 0
-adc53        	long 0
-adc54        	long 0
-
-m50		long 0
-m51      	long 0
-m52	        long 0
-m53		long 0
-m54		long 0
-m55		long 0
-output5		long 0
-amsense5	long 0  
-fmsense5        long 0
-ratescale5      long 0 
-
 
 
 ' constants
@@ -266,7 +194,7 @@ ratescale5      long 0
 dac         	long 	%10111_00000000_01_00011_0     'pwm dac
 affffffff   	long 	$FFFF_FFFF   
 a7fffffff   	long 	$7FFF_FFFF   
-aptra	    	long 	145*channels
+aptra	    	long 	100*channels
 a7fff     long $7fff
 affff     long $ffff
 
@@ -307,10 +235,10 @@ audiolut org $200
 loop        	mov  	cn,#channels-1              
               	mov  	rs,#0
                         
-p401        	
-                setq    #36                     	' read parameters
+p401        	getct   t1
+                setq    #24                     	' read parameters
             	rdlong  pointer0,ptra			' note on will be set via the controller by setting state to 1
-getct   t1
+
 
 p601		nop
 p602		nop
@@ -342,96 +270,55 @@ p622		nop
             	shl     mod2,#4
                 qrotate a7fff,mod2
 
-'-------- 3 operators, 40 cycles from op#0 qexp
-
+p631		nop
+p632		nop
+		muxc    adccng,#1
+		qexp	adcptr3 
+		
+         	add     pointer3,freq3          	' compute operator samples 
+            	add	mod3,pointer3 
+            	shl     mod3,#4
+ 		getqx  	advalue0            	
+            	
 		mov 	mod0,#0
 		mov 	mod1,#0
 		mov 	mod2,#0	
 
- 		getqx  	advalue0
+		getqx	spl0    
+		        	
 		mul 	advalue0,vol0
-		shr 	advalue0,#18
-		getqx	spl0
+		shr 	advalue0,#18  
+		mov 	mod3,#0          	
+
+            	getqx  	advalue1            	
+
 		scas 	spl0,advalue0
             	mov     rs0,0-0
-            	bitnot  spl0,#15 		
+            	bitnot  spl0,#15 
             	
-            	getqx  	advalue1
+		getqx	spl1  
+		          	
 		mul 	advalue1,vol1
-		shr 	advalue1,#18
-		getqx	spl1
+		shr 	advalue1,#18            	
+            	
+             	getqx  	advalue2
+             	
 		scas 	spl1,advalue1
             	mov     rs1,0-0
-            	bitnot  spl1,#15
-            	
-            	getqx  	advalue2
+            	bitnot  spl1,#15             	
+
+  	 	getqx	spl2       
 		mul 	advalue2,vol2
-		shr 	advalue2,#18
-		getqx	spl2
+		shr 	advalue2,#18 	 
+		
+ 		getqx  	advalue3
+ 		
 		scas 	spl2,advalue2
             	mov     rs2,0-0
-            	bitnot  spl2,#15
-
-'------------ repeat for ops 3-5
-		
-p631		nop
-p632		nop
-		muxc    adccng,#1
-		qexp	adcptr0 
-		
-         	add     pointer0,freq0          	' compute operator samples 
-            	add	mod0,pointer0 
-            	shl     mod0,#4
-                qrotate a7fff,mod0    		
- 
-p641		nop
-p642		nop
-		muxc	adccng,#2
-		qexp	adcptr1
-		
-		add     pointer1,freq1          	   
-            	add	mod1,pointer1
-            	shl     mod1,#4
-                qrotate a7fff,mod1
-		
-p651		nop
-p652		nop
-		muxc	adccng,#4
-		qexp	adcptr2       
-
-   	        add     pointer2,freq2          	   
-            	add	mod2,pointer2
-            	shl     mod2,#4
-                qrotate a7fff,mod2		
+            	bitnot  spl2,#15      		
+	 	      	           	            	
+                qrotate a7fff,mod3    		                
                 
- 		mov 	mod3,#0
-		mov 	mod4,#0
-		mov 	mod5,#0	
-
- 		getqx  	advalue3
-		mul 	advalue3,vol3
-		shr 	advalue3,#18
-		getqx	spl3
-		scas 	spl3,advalue3
-            	mov     rs3,0-0
-            	bitnot  spl3,#15 		
-            	
-            	getqx  	advalue4
-		mul 	advalue4,vol4
-		shr 	advalue4,#18
-		getqx	spl4
-		scas 	spl4,advalue4
-            	mov     rs4,0-0
-            	bitnot  spl4,#15
-            	
-            	getqx  	advalue5
-		mul 	advalue5,vol5
-		shr 	advalue5,#18
-		getqx	spl5
-		scas 	spl5,advalue5
-            	mov     rs5,0-0
-            	bitnot  spl5,#15               
- 
 ' compute modulators
 
                 sca     spl0,m00
@@ -441,13 +328,9 @@ p652		nop
                 sca     spl0,m20
  		add     mod2,0-0
                 sca     spl0,m30
- 		add     mod3,0-0
-                sca     spl0,m40
- 		add     mod4,0-0
-                sca     spl0,m50
- 		add     mod5,0-0
-'      
-                sca     spl2,m01
+ 		add     mod3,0-0                
+
+                sca     spl1,m01
                 add     mod0,0-0
                 sca     spl1,m11
  		add     mod1,0-0
@@ -455,11 +338,7 @@ p652		nop
  		add     mod2,0-0
                 sca     spl1,m31
  		add     mod3,0-0
-                sca     spl1,m41
- 		add     mod4,0-0
-                sca     spl1,m51
- 		add     mod5,0-0              
- 		
+
                 sca     spl2,m02
                 add     mod0,0-0
                 sca     spl2,m12
@@ -468,11 +347,23 @@ p652		nop
  		add     mod2,0-0
                 sca     spl2,m32
  		add     mod3,0-0
-                sca     spl2,m42
- 		add     mod4,0-0
-                sca     spl2,m52
- 		add     mod5,0-0    
- 		
+
+		scas 	rs0,output0
+		add 	rs,0-0
+		scas 	rs1,output1
+		add 	rs,0-0
+		
+		getqx	spl3
+		mul 	advalue3,vol3
+		shr 	advalue3,#18 	
+		scas 	spl3,advalue3
+            	mov     rs3,0-0
+            	bitnot  spl3,#15  
+
+		
+		scas 	rs2,output2
+		add 	rs,0-0
+
                 sca     spl3,m03
                 add     mod0,0-0
                 sca     spl3,m13
@@ -480,57 +371,21 @@ p652		nop
                 sca     spl3,m23
  		add     mod2,0-0
                 sca     spl3,m33
- 		add     mod3,0-0
-                sca     spl3,m43
- 		add     mod4,0-0
-                sca     spl3,m53
- 		add     mod5,0-0     		
- 		
-                sca     spl4,m04
-                add     mod0,0-0
-                sca     spl4,m14
- 		add     mod1,0-0
-                sca     spl4,m24
- 		add     mod2,0-0
-                sca     spl4,m34
- 		add     mod3,0-0
-                sca     spl4,m44
- 		add     mod4,0-0
-                sca     spl4,m54
- 		add     mod5,0-0                  
- 		
- 		sca     spl5,m05
-                add     mod0,0-0
-                sca     spl5,m15
- 		add     mod1,0-0
-                sca     spl5,m25
- 		add     mod2,0-0
-                sca     spl5,m35
- 		add     mod3,0-0
-                sca     spl5,m45
- 		add     mod4,0-0
-                sca     spl5,m55
- 		add     mod5,0-0     		
-		 		
-
-		scas 	rs0,output0
-		add 	rs,0-0
-		scas 	rs1,output1
-		add 	rs,0-0
-		scas 	rs2,output2
-		add 	rs,0-0
+ 		add     mod3,0-0		
+            	
 		scas 	rs3,output3
 		add 	rs,0-0
-		scas 	rs4,output4
-		add 	rs,0-0
-		scas 	rs5,output5
-		add 	rs,0-0
-		
+
+
+
+
+
+
 	
 
-        	setq 	#24                     	' write new pointer and sample value to the hub
+        	setq 	#16                     	' write new pointer and sample value to the hub
             	wrlong  pointer0,ptra
-           	add 	ptra,#145   ' next channel
+           	add 	ptra,#100   ' next channel
            	
   	
            	
