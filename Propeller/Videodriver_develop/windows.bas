@@ -275,9 +275,10 @@ class TWindow
           
 '' ----- String output using above          
 
-  sub outtextxycg(x,y,text as const ubyte pointer,f,b)  
+  sub outtextxycg(x,y,text$,f,b)  
 
-  var i=0 : do while peek(text+i)<>0 : putcharxycg(x+8*i,y,peek(text+i),f,b) : i+=1: loop
+  
+  for i=0 to len(text$)-1 : putcharxycg(x+8*i,y,peek(lpeek(addr(text$))+i),f,b) : next i
   end sub
 
   sub outtextxycg8(x,y,text$,f,b)  
@@ -375,10 +376,10 @@ class TWindow
 
 ''--------- Output a string at the cursor position, move the cursor  
 
-  sub write(text as const ubyte pointer) 
+  sub write(text$) 
 
 
-  var i=0 : do while peek(text+i)<>0 : putchar2(peek(text+i)) : i+=1 : loop
+  var i=0 : do while peek(lpeek(addr(text$))+i)<>0 : putchar2(peek(lpeek(addr(text$))+i)) : i+=1 : loop
   end sub
 
 ''--------- Output a string at the cursor position x,y, move the cursor to the next line -
