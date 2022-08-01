@@ -1256,9 +1256,6 @@ p307	        mov     framebuf2,dl wcz                   ' move this to framebuf2
     if_z        jmp     #preload2
                 cmp     t1,#%0001 wz			   ' 0001 - repeat
     if_z        jmp     #p390
- '               cmp     t1,#%0011 wz			   ' 0011 - palette reload
-  '  if_z        jmp     #p391  
-
 p308            ret
    
 p390            rdlong  rdl,dlptr2                         ' read the next DL entry to repeat
@@ -1271,15 +1268,6 @@ p390            rdlong  rdl,dlptr2                         ' read the next DL en
                 shl     roffset,#6                         ' and make it ready to add to the DL entry (address=20 upper bits)
                 jmp     #dli                               ' now start repeating 
  
-'' --------  Reload palette. To do 
-
-p391           '	getnib  t1,framebuf2,#2			   ' get a bank (0..15) of 16 colors
-         '	shl     t1,#4				   ' compute the LUT address
-        '	shr     framebuf2,#12			   ' compute the HUB address of 16 new colors
-         	'setq2   #15				   ' load 16 entries
-         '	altd    t1                                 ' from t1 LUT address
-        '	rdlong  $000, framebuf2         	
-        '	jmp     #dli                
       
 '' --------------- A display list interpreter end ------------------------------------------------------------------------    
 
@@ -1339,39 +1327,36 @@ p802            mov     t5,spritenum		   	' prepare a pointer to load sprite dat
 
 		mov     t2,linenum			' display line # to check if sprite has to be displayed
   		subs    t2,sprite_y wcz                 ' check if the sprite has to be displayed
-      if_c      jmp     #p801				' if not, go out
+     	if_c 	jmp     #p801				' if not, go out
                 cmp     t2,sprite_h wcz		    	' we have now the sprite line #, check, if it is not >= sprite height
-      if_gt     jmp     #p801				' if yes, go out
+      	if_gt   jmp     #p801				' if yes, go out
                 mov     t3,spriteline			' compute the line buffer addres where to put the sprite line
                 shl     t3,#12			       	' =4096*spriteline where spriteline=0..3		' 
                 add     t3,buf1d			' line buffer addr
-                add     t3,sprite_x   			' add xpos - now we have the address to where wmlong the sprite
-
+                
+  		testb	sprite_x,#31 wc 		' check if sprite pos <0
+      	if_nc   add     t3,sprite_x   			' if not, add xpos, else xpos=0 - now we have the address to where wmlong the sprite
                 mul 	t2,sprite_w			' compute the offset to the sprite line data
+   	if_c	add     sprite_w,sprite_x		' if sprite_x negative, shotren the width
+   	if_c	sub 	t2,sprite_x			' and add the offset (sub negative) to the sprite data offset
                 alts    t5,#sprite1pointer		' get the pointer to the sprite (3 longs per sprite data)
                 add     t2,0-0				' then add the offset
+				
+ 		mov 	t4,sprite_x	'
+		add	t4,sprite_w
+		sub     t4,a4096 wcz			' check if the sprite goes right off the screen
 
-                
- '		cmps 	sprite_x,#0 wcz'
-'	if_lt	subs	t2,sprite_x
-'	if_lt	adds	sprite_w,sprite_x
-'	if_lt   mov 	sprite_x,#0
-	
-'		mov 	t4,sprite_x	
-'		add	t4,sprite_w
-'		sub     t4,a4096 wcz
-'	if_c	add	sprite_w,t4	
-					
+	if_nc	sub	sprite_w,t4			' if yes, make it narrower
+
 		mov 	t6,sprite_w
-		shr	t6,#2
+		shr	t6,#2				' bytes to longs
 		sub     t6,#1				' longs to move for the full sprite width, -1 (setq adds 1)
-	
-		debug(udec(t6))
+
                 setq   	t6
                 rdlong  368,t2				' read sprite data to the cog
 
                 setq   t6				' write the sprite data to the line buffer
-                wmlong  368,t3
+                wmlong  368,t3				
                 
 p801            djnf spritenum,#p802			' get the next sprite
                 incmod spriteline,#3			' prepare to fill the next line
@@ -1396,7 +1381,6 @@ m_bs            long    0        'blanks before sync
 m_sn            long    0        'sync
 m_bv            long    0        'blanks before visible
 m_vi            long    0        'visible pixels #
-'m_border        long    0        'left/right borders
 i_upporch       long    0        'up porch lines
 i_vsync         long    0        'vsync lines
 i_downporch     long    0        'down porch lines

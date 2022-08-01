@@ -28,16 +28,16 @@ cls(15,0)
 
 v.spr1ptr=@mouse
 
-v.spr1x=100
-v.spr1y=100
+v.spr1x=-5
+v.spr1y=10
 v.spr1w=32
 v.spr1h=32
 v.spr2ptr=@balls
 
-v.spr2x=200
-v.spr2y=200
-v.spr2w=32
-v.spr2h=32
+';v.spr2x=200
+';v.spr2y=200
+'v.spr2w=32
+'v.spr2h=32
 
 open "/sd/screen.raw" for input as #8
 let pos=1
