@@ -5,8 +5,8 @@ unit Unit1;
 interface
 
 uses
-  Classes, SysUtils, Forms, Controls, Graphics, Dialogs, ExtCtrls, Buttons,
-  StdCtrls, retro;
+  Classes, SysUtils, Forms, Controls, stdctrls, Graphics, Dialogs, ExtCtrls, Buttons,
+   retro;
 
 type
 
@@ -16,10 +16,12 @@ type
     BitBtn1: TBitBtn;
     Button1: TButton;
     Button2: TButton;
+    Button3: TButton;
     Image1: TImage;
     procedure BitBtn1Click(Sender: TObject);
     procedure Button1Click(Sender: TObject);
     procedure Button2Click(Sender: TObject);
+    procedure Button3Click(Sender: TObject);
   private
 
   public
@@ -93,8 +95,8 @@ begin
 filename:='mouse.def' ;
 fh:=filecreate(filename) ;
 
-for y:=0 to 15 do
-    for x:=0 to 15 do
+for y:=0 to 31 do
+    for x:=0 to 31 do
       begin
       idx:=32*y+x;
       luma:=((mysz[idx] and $ff)*0.3+ ((mysz[idx] shr 8) and $ff)*0.2+((mysz[idx] shr 16) and $ff)*0.3)/256 ;
@@ -103,6 +105,28 @@ for y:=0 to 15 do
       filewrite(fh,luma16,1);    //    filewrite(fh,luma16,1);
       end;
 fileclose(fh);
+end;
+
+procedure TForm1.Button3Click(Sender: TObject);
+
+var n,x,y,z,idx:cardinal;
+  luma:double;
+  luma16,chroma:cardinal ;
+  fh:cardinal;
+  filename:string;
+
+begin
+  filename:='mouse32.def';
+  fh:=filecreate(filename) ;
+
+  for y:=0 to 31 do
+      for x:=0 to 31 do
+        begin
+        idx:=32*y+x;
+        luma16:=mysz[idx] shl 8;
+        filewrite(fh,luma16,4);    //    filewrite(fh,luma16,1);
+        end;
+  fileclose(fh);
 end;
 
 end.
