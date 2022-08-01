@@ -22,6 +22,7 @@ type
     procedure Button1Click(Sender: TObject);
     procedure Button2Click(Sender: TObject);
     procedure Button3Click(Sender: TObject);
+    procedure Button4Click(Sender: TObject);
   private
 
   public
@@ -127,6 +128,33 @@ begin
         filewrite(fh,luma16,4);    //    filewrite(fh,luma16,1);
         end;
   fileclose(fh);
+end;
+
+procedure TForm1.Button4Click(Sender: TObject);
+
+  var n,x,y,z,idx:cardinal;
+    luma:double;
+    luma16,chroma:cardinal ;
+    fh:cardinal;
+    filename:string;
+
+  begin
+
+  filename:='balls32.def' ;
+  fh:=filecreate(filename) ;
+  for n:=0 to 15 do
+    for y:=0 to 31 do
+   //   for z:=0 to 1 do
+      for x:=0 to 31 do
+        begin
+        idx:=1024*n+32*y+x;
+   //     image1.canvas.pixels[x+32*n,y]:=balls[idx] ;
+        luma:=balls[idx] shl 8;
+         filewrite(fh,luma,4);    //    filewrite(fh,luma16,1);
+
+        end;
+    fileclose(fh);
+
 end;
 
 end.

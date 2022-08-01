@@ -149,7 +149,7 @@ procedure TForm1.Button4Click(Sender: TObject);
         begin
         idx:=1024*n+32*y+x;
    //     image1.canvas.pixels[x+32*n,y]:=balls[idx] ;
-        luma:=balls[idx] shl 8;
+        luma16:=balls[idx] shl 8;
          filewrite(fh,luma16,4);    //    filewrite(fh,luma16,1);
 
         end;
