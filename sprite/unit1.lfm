@@ -1,62 +1,81 @@
 object Form1: TForm1
   Left = 1002
-  Height = 719
+  Height = 905
   Top = 363
-  Width = 979
+  Width = 1232
   Caption = 'Form1'
-  ClientHeight = 719
-  ClientWidth = 979
-  DesignTimePPI = 85
+  ClientHeight = 905
+  ClientWidth = 1232
+  DesignTimePPI = 107
   LCLVersion = '2.2.0.4'
   object Image1: TImage
-    Left = 43
-    Height = 517
-    Top = 36
-    Width = 779
+    Left = 54
+    Height = 651
+    Top = 45
+    Width = 981
   end
   object BitBtn1: TBitBtn
-    Left = 129
-    Height = 26
-    Top = 604
-    Width = 67
+    Left = 162
+    Height = 33
+    Top = 760
+    Width = 84
     Caption = 'BitBtn1'
     OnClick = BitBtn1Click
     TabOrder = 0
   end
   object Button1: TButton
-    Left = 240
-    Height = 22
-    Top = 609
-    Width = 67
+    Left = 302
+    Height = 28
+    Top = 767
+    Width = 84
     Caption = 'Button1'
     OnClick = Button1Click
     TabOrder = 1
   end
   object Button2: TButton
-    Left = 343
-    Height = 22
-    Top = 608
-    Width = 67
+    Left = 432
+    Height = 28
+    Top = 765
+    Width = 84
     Caption = 'Button2'
     OnClick = Button2Click
     TabOrder = 2
   end
   object Button3: TButton
-    Left = 445
-    Height = 22
-    Top = 609
-    Width = 67
+    Left = 560
+    Height = 28
+    Top = 767
+    Width = 84
     Caption = 'Button3'
     OnClick = Button3Click
     TabOrder = 3
   end
   object Button4: TButton
-    Left = 57
-    Height = 22
-    Top = 604
-    Width = 67
+    Left = 72
+    Height = 28
+    Top = 760
+    Width = 84
     Caption = 'Button4'
     OnClick = Button4Click
     TabOrder = 4
+  end
+  object Button5: TButton
+    Left = 689
+    Height = 28
+    Top = 785
+    Width = 84
+    Caption = 'Button5'
+    OnClick = Button5Click
+    TabOrder = 5
+  end
+  object Memo1: TMemo
+    Left = 1040
+    Height = 444
+    Top = 64
+    Width = 167
+    Lines.Strings = (
+      'Memo1'
+    )
+    TabOrder = 6
   end
 end

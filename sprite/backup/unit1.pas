@@ -17,12 +17,16 @@ type
     Button1: TButton;
     Button2: TButton;
     Button3: TButton;
+    Button4: TButton;
+    Button5: TButton;
     Image1: TImage;
+    Memo1: TMemo;
     procedure BitBtn1Click(Sender: TObject);
     procedure Button1Click(Sender: TObject);
     procedure Button2Click(Sender: TObject);
     procedure Button3Click(Sender: TObject);
     procedure Button4Click(Sender: TObject);
+    procedure Button5Click(Sender: TObject);
   private
 
   public
@@ -149,11 +153,33 @@ procedure TForm1.Button4Click(Sender: TObject);
         begin
         idx:=1024*n+32*y+x;
    //     image1.canvas.pixels[x+32*n,y]:=balls[idx] ;
-        luma:=balls[idx] shl 8;
-         filewrite(fh,luma,4);    //    filewrite(fh,luma16,1);
+        luma16:=balls[idx] shl 8;
+         filewrite(fh,luma16,4);    //    filewrite(fh,luma16,1);
 
         end;
     fileclose(fh);
+
+end;
+
+function fixhr(a:double):int64;
+
+begin
+result:=round(a*(1 shl 32));
+end
+
+procedure TForm1.Button5Click(Sender: TObject);
+begin
+
+memo1.lines.add(inttostr(fixhr(0.50190991877167369479/2 )));
+memo1.lines.add(inttostr(fixhr(0.51763809020504152469/2 )));
+memo1.lines.add(inttostr(fixhr(0.55168895948124587824/2 )));
+memo1.lines.add(inttostr(fixhr(0.61038729438072803416/2 )));
+memo1.lines.add(inttostr(fixhr(0.70710678118654752439/2 )));
+memo1.lines.add(inttostr(fixhr(0.87172339781054900991/2 )));
+memo1.lines.add(inttostr(fixhr(1.18310079157624925896/4 )));
+memo1.lines.add(inttostr(fixhr(1.93185165257813657349/4 )));
+
+
 
 end;
 
