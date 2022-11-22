@@ -40,33 +40,28 @@
 ' - sid: main, video, kbm, psram, sid, sid-loop, 6502 	= 7 cogs
 ' - dmp: main, video, kbm, psram, sid, sid-loop       	= 6 cogs
 
-
-const scope_ptr=$71A00
-const audiocache_ptr=$76400
-
-
 '--------------------------------------------------------------------------------------------------------------
 
-#include "retromachine_v.bi"                     ' initialization, classes and auxilliary stuff
+#include "retromachine.bi"                     ' initialization, classes and auxilliary stuff
 
 ' ------------------------ Constant and addresses -------------------------------------------------------------
 
 const HEAPSIZE = 16384
-const version$="Prop2play v.0.29"
+const version$="Prop2play v.0.30"
 const statusline$=" Propeller2 multiformat player v. 0.29 --- 2022.05.10 --- pik33@o2.pl --- use a serial terminal or a RPi KBM interface to control --- arrows up,down move - pgup/pgdn or w/s move 10 positions - enter selects - tab switches panels - +,- controls volume - 1..4 switch channels on/off - 5,6 stereo separation - 7,8,9 sample rate - a,d SID speed - x,z SID subtune - R rescans current directory ------"
 const hubset338=%1_111011__11_1111_0111__1111_1011 '338_666_667 =30*44100 
 const hubset336=%1_101101__11_0000_0110__1111_1011 '336_956_522 =paula*95
 'const hubset338=%1_110000__11_0110_1100__1111_1011 ' to test at 354
 'const hubset336=%1_110000__11_0110_1100__1111_1011
 
-
+const scope_ptr=$75A00
 
 const  dirpanelx1=  5,  dirpanely1=60,  dirpanelx2=357,  dirpanely2=235
 const filepanelx1=363, filepanely1=60, filepanelx2=719, filepanely2=403
 
-declare a6502buf alias $60000 as ubyte($10FFF) '64000 doesnt work, why?
-declare mainstack alias $71000 as ubyte(2559)
-declare filebuf alias $72400 as ubyte(16383)
+declare a6502buf alias $64000 as ubyte($10FFF) '64000 doesnt work, why?
+declare mainstack alias $75000 as ubyte(2559)
+declare filebuf alias $76400 as ubyte(16383)
 
 ' ----------------------- Global vars -------------------------------------------------------------------------
 
@@ -115,17 +110,14 @@ dim mousex,mousey,mousek,mousewheel,mouseclick
 
 channelvol(0)=1 : channelvol(1)=1 : channelvol(2)=1 : channelvol(3)=1    
 mainvolume=127 : mainpan=2048  ' vol: 1..128..(255)  pan 0 (mono)..8192 (full)
-startmachine
+'startmachine
 startpsram
 startvideo
-startaudio
-
-
+cls(154,147)
+'startaudio
+do:loop
 'v.cursoroff
 makedl
-
-
-
 lpoke addr(sl),len(statusline$)  ' cannot assign to sl, but still can lpoke :) 
 framenum=0
 for i=0 to 3 : oldtrigs(i)=0 : next i
@@ -178,12 +170,9 @@ v.spr16w=32
 v.spr16x=512
 v.spr16y=288
 
-
-
 '' --------------------------------- THE MAIN LOOP --------------------------------------------------------------------------------------
 
 do
-  let time11=getct()-time11 : position 0,41: v.write(v.inttostr2(time11/336,8))
   do
     let mouse1=rm.readmouse()
     if mouse2(3)=$81 then mousex=mouse2(2)+128*mouse2(1)
@@ -196,18 +185,14 @@ do
     if mouse2(3)=$83 andalso mouse2(2)=$7F then mousewheel=1 
     
   loop until mouse1=0  
-  waitvbl  
-  'scope
-  let time11=getct()
-  if modplaying=1 then scrollinfo
-  scope												' display scope
-  bars							  	                                ' synchronize with vblanks
+  waitvbl  							  	                        ' synchronize with vblanks
   if modplaying=0 then framenum+=1 : scrollstatus((framenum) mod (8*sl))                        ' if not playing module let main loop scroll the status line
   if dmpplaying or modplaying or sidplaying then displaysamples
+  if modplaying=1 then scrollinfo
+  scope												' display scope
+  bars												' display bars
 
- 												' display bars
-
-''  position 0,0: print decuns$(mousex,4), decuns$(mousey,4)
+  position 0,0: print decuns$(mousex,4), decuns$(mousey,4)
 '' --------------------------------  Getting the .wav file data in the main loop as no other cogs can acces the file system ------------
 
   if waveplaying=1 then
@@ -828,12 +813,11 @@ sub scope
 
 dim ii as integer
 var ttt=getct()
-position 0,42: v.setwritecolors(framenum,0):v.write("Scope called")
 v.box(5,428,523,554,176)          
 v.fastline(8,520,491,177)                                                                                                                               ' clear the panel
 qq1=dpeek(scope_ptr):qq1+=dpeek(scope_ptr+2) 
 							                                          ' try to trigger the scope at zero					
-var iii=1': do : var oldqq1=qq1: qq1=dpeek(scope_ptr+4*iii):qq1+=dpeek(scope_ptr+4*iii+2) : iii+=1: loop until iii>=128  orelse (oldqq1<65536 andalso qq1>65536)   ' if not succeed with first 128 of 640 samples, there is no samples left for triggering
+var iii=1: do : var oldqq1=qq1: qq1=dpeek(scope_ptr+4*iii):qq1+=dpeek(scope_ptr+4*iii+2) : iii+=1: loop until iii>=128  orelse (oldqq1<65536 andalso qq1>65536)   ' if not succeed with first 128 of 640 samples, there is no samples left for triggering
 for ii=iii to iii+511 																		  ' display 512 samples																	
   qq1=dpeek(scope_ptr+4*ii)																	  ' left	
   qq1+=dpeek(scope_ptr+4*ii+2)																	  ' right
@@ -1056,16 +1040,16 @@ sub highlight(hpanel,hpos,hhigh)
 
 if hpanel=0 then
 
-  var back=pspeek(v.buf_ptr+1920*(16*hpos+65)+13) 
+  var back=pspeek(v.buf_ptr+1024*(16*hpos+65)+13) 
   
   if ((hhigh=1) and (back<196)) or ((hhigh=0) and (back>=196)) then
 
     c=0
     for j=64+16*hpos to 79+16*hpos
-      psram.read1($76800,v.buf_ptr+1920*j+12,340)
+      psram.read1($7a800,v.buf_ptr+1024*j+12,340)
       i=336
       v0=0
-      v1=$76800
+      v1=$7a800
 
  		asm
 
@@ -1094,22 +1078,22 @@ p001  		mov v0,v1
   		
   		end asm
 
-      psram.write($76800,v.buf_ptr+1920*j+12,340)  
+      psram.write($7a800,v.buf_ptr+1024*j+12,340)  
       next j
     endif  
   endif
 
 if hpanel=1 then
 
-  back=pspeek(v.buf_ptr+1920*(16*hpos+65)+373) 
+  back=pspeek(v.buf_ptr+1024*(16*hpos+65)+373) 
   
   if ((hhigh=1) and (back<36)) or ((hhigh=0) and (back>=36)) then
     c=0
     for j=64+16*hpos to 79+16*hpos
-      psram.read1($76800,v.buf_ptr+1920*j+372,340)
+      psram.read1($7a800,v.buf_ptr+1024*j+372,340)
       i=336
       v0=0
-      v1=$76800
+      v1=$7a800
 
  		asm
 
@@ -1138,7 +1122,7 @@ p002  		mov v0,v1
   		
   		end asm
 
-      psram.write($76800,v.buf_ptr+1920*j+372,340)  
+      psram.write($7a800,v.buf_ptr+1024*j+372,340)  
       next j
     endif  
   endif
@@ -1259,8 +1243,8 @@ for i=c+2 to 2*c+1
   v.outtextxycg(0,16*(i-1),sn$(i-c-1),154,147)
 next i
 v.s_cpl=oldcpl:v.s_cpl1=oldcpl1:v.s_buf_ptr=oldbufptr: v.s_lines=oldlines: v.setfontfamily(0)
-if c>16 then v.blit($40_720_000,0,0,255,255,256,$4000_0000+v.buf_ptr,744,144,1920)
-if c<=16 then v.blit($40_720_000,0,0,255,16*c-1,256,$4000_0000+v.buf_ptr,744,144,1920)
+if c>16 then v.blit($40_720_000,0,0,255,255,256,$4000_0000+v.buf_ptr,744,144,1024)
+if c<=16 then v.blit($40_720_000,0,0,255,16*c-1,256,$4000_0000+v.buf_ptr,744,144,1024)
 
 end sub
 
@@ -1344,7 +1328,7 @@ end sub
 
 
 sub makedl
-newdl(0)=1063<<20+(0)<<16+%0001+ (0+(v.cpl1<<2)) <<4             
+newdl(0)=559<<20+(0)<<16+%0001+ (0+(v.cpl1<<2)) <<4             
 newdl(1)=v.buf_ptr<<4+%10  
 for i=2 to 17: newdl(i)=$7000002+2*65536*(i-2) :next i
 for i=18 to 32: newdl(i)=$7000002 : next i
@@ -1354,13 +1338,10 @@ end sub
 
 sub scrollinfo
 
-let testtime=getct()
 if c>16 then 
   let from=(framenum mod (16*c+16))*256
-  v.blit($40_720_000+from,0,0,255,255,256,$4000_0000+v.buf_ptr,744,144,1920)
+  v.blit($40_720_000+from,0,0,255,255,256,$4000_0000+v.buf_ptr,744,144,1024)
 endif  
-testtime=(getct()-testtime)/336
-position 0,40: v.write(v.inttostr(testtime))
 end sub
 
 '------ SID registers decoder borrowed here from SIDCog so it doesn't need to do this in the cog code ----- rev 20220408 ---------------
@@ -2017,25 +1998,3 @@ balls3 file "balls11.def"
 balls4 file "balls14.def"
 mouse  file "mouse.def"
 end asm
-
-
-
-sub test6502
-dim j$
-
-a6502buf($4102)=0
-for i=0 to 21: read j$: print val%(j$) :next i 'a6502buf($4000+i)=val(j$) : next i
-for i=1 to 21: print hex$(a6502buf($4000+i),2), : next i
-let tt1=getct()
-jsr6502(0,$4000)
-do: loop until a6502buf($4102)=$12
-let tt1=getct()-tt1
-print tt1
-
-
-end sub
-
-
-data  $A2, $10, $A0, $FF, $AD, $00, $41, $8D
-data  $01, $41, $88, $D0, $F7, $CA, $D0, $F2
-data  $A9, $12, $8D, $02, $41, $60

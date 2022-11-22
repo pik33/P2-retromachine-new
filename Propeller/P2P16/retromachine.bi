@@ -1,6 +1,6 @@
 const _clkfreq = 336956522
 
-dim v as class using "hg008.spin2"
+dim v as class using "ht009.spin2"
 dim rm as class using "retrocog.spin2"
 dim tracker as class using "trackerplayer.spin2"
 dim paula as class using "audio093b-8-sc.spin2"
@@ -35,11 +35,11 @@ end sub
 function startvideo(mode=64, pin=0, mb=0) 'todo return a cog#
 dim videocog as ulong
 videocog=v.start(pin,mbox)
-v.setbordercolor(0,0,0)
-v.cls(154,147)
-'for thecog=0 to 7:psram.setQos(thecog, 112 << 16) :next thecog
+'v.setbordercolor(0,0,0)
+'v.cls(154,147)
+for thecog=0 to 7:psram.setQos(thecog, 112 << 16) :next thecog
 psram.setQoS(videocog, $7FFFf400) 
-open SendRecvDevice(@v.putchar, nil, nil) as #0
+'open SendRecvDevice(@v.putchar, nil, nil) as #0
 return videocog
 end function
 
