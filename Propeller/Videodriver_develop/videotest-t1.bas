@@ -2,7 +2,7 @@ const _clkfreq=336_956_522
 
 mount "/sd", _vfs_open_sdcard() 
 
-dim v as class using "ht009.spin2"
+dim v as class using "ht011.spin2"
 dim psram as class using "psram.spin2"
 dim onesprite as ubyte(4095)
 dim s as ulong(128)
@@ -14,14 +14,14 @@ sub position(x,y)
 v.setcursorpos(x,y)
 end sub
 
-dim videocog as ulong
+dim videocog,p as ulong
 dim mbox as ulong
 dim ccc,x1,y1,x2,y2,r as ulong
 
 psram.startx(0, 0, 11, -1)
 mbox=psram.getMailbox(0)
 
-let pin=0 : videocog=v.start(pin,mbox)
+let pin=0 : videocog,p=v.start(pin,mbox)
 for thecog=0 to 7:psram.setQos(thecog, 112 << 16) :next thecog
 psram.setQoS(videocog, $7FFFf400) 
 open SendRecvDevice(@v.putchar, nil, nil) as #0
@@ -54,11 +54,21 @@ for i=0 to 575
 next i
 close #8 
 
+
+'open "/sd/hdmi32.drv" for output as #8
+'for i=0 to 4095
+'  dim b as ubyte
+'  b=peek(p+i)
+'  put #8,i+1,b,1
+'next i
+'close #8  
+
 v.blit($4000_0000+v.buf_ptr,0,0,1023,575,4096,$4100_0000,0,0,4096) 
 v.outtextxycf(0,0,"1024x576 True Color HDMI driver",15)   
-waitms(5000)    
-waitms(5000)    
-
+  
+for i=0 to 15: print hex$(peek($70000+i),2), : next i
+do:loop:waitms(5000)    
+waitms(5000)  
 do
 
   for i=1 to 200: v.setwritecolors (getrnd()<<8, 0) : print i: next i : waitms(1000)
