@@ -1,0 +1,386 @@
+{{
+  Sample code for performance reading and writing of 4-bit wide PSRAM ICs using the Prop2
+      Makes use of a "smartpin" for SPI clock gen and a "streamer" DMA engine for 4-bit data transfers.
+      Tester program demos the read/write routines.
+
+  This code was tested with the Parallax Edge EC32MB card and another prototype add-on for
+  the Prop2 Eval Boards.  Both products use the AP Memory APS6404L PSRAMs.
+
+  A PSRAM is a DRAM packaged with minimal pin count.  They have a SPI like synchronous bus interface.
+  The smallest 4-bit parts come in an 8-pin package with six active pins: CE, CLK and four data pins.
+  The interface is command switchable between full-duplex 1-bit serial (SPI) and half-duplex
+  4-bit parallel (QPI).
+
+
+  Released 24 July 2022
+  Written by Evan Hillas with knowledge gained from many on the Propeller 2 forum - forums.parallax.com
+  Reference material - https://forums.parallax.com/discussion/173000/propeller-2-users-get-started-here/p1
+  My life made easier by Flexspin/Loadp2 combo - https://github.com/totalspectrum/spin2cpp/releases
+}}
+
+CON 
+    _xtlfreq = 20_000_000
+    _clkfreq = 4_000_000
+    BAUD = 230_400
+
+
+    PSRAM_DATA_PINS = 40 | (3<<6)    'Edge EC32MB bits 0..3
+    PSRAM_CLK_PIN = 56
+    PSRAM_CE_PIN = 57
+
+    SPI_CLKMODE3 = 1    ' 0 for cmode0 (CPOL=0,CPHA=0), 1 for cmode3 (CPOL=1,CPHA=1)
+
+    CLK_REGD = 1   '    clock pin:  0 for unregistered, 1 for registered
+    TX_REGD = 1    ' tx data pins:  0 for unregistered, 1 for registered
+    RX_REGD = 1    ' rx data pins:  0 for unregistered, 1 for registered
+
+    CLK_DIV = 2    ' 2..8 sysclock divider for SPI clock gen
+    TX_ADV = 0     ' advance/retard (sysclocks) of tx data phase relationship to the SPI clock
+
+    BLOCKSIZE = PAGESIZE    ' single block crossing page boundaries only rated (APS6404L) to 84 MHz SPI clock
+'    BLOCKSIZE = 600
+
+
+OBJ
+    lib: "stdlib"
+
+
+PUB  tester() | mhz, addr, percent,t1,t2
+    send:=@lib.putch
+    lib.baudinit( BAUD )
+
+    init_smartpins4()
+    send( "DATA_PINS = ",lib.udec(PSRAM_DATA_PINS & $3f), " addpins ",lib.udec(PSRAM_DATA_PINS>>6) )
+    send( "    CE_PIN = ",lib.udec(PSRAM_CE_PIN),"    CLK_PIN = ",lib.udec(PSRAM_CLK_PIN),13,10 )
+    send( "SPI cmode=", SPI_CLKMODE3 ? "3" : "0" )
+    send( "  CLK_REGD = ",CLK_REGD+"0","  TX_REGD = ",TX_REGD+"0","  RX_REGD = ",RX_REGD+"0",13,10 )
+    send( "SPI clock ratio: ",lib.udec(CLK_DIV)," (sysclock/",lib.udec(CLK_DIV),")",13,10 )
+    send( "Test data length: 100 x ",lib.udec(BLOCKSIZE)," = ",lib.udec(100 * BLOCKSIZE)," bytes",13,10 )
+
+    send( 13,10,"        Frequency dependent lag compensation",13,10,"Sysclock      0    1    2    3    4    5",13,10 )
+
+    repeat mhz from 60 to 400 step 1
+        waitms( 10 )
+        lib.pllset( mhz * 1_000_000 )
+        lib.baudinit( BAUD )
+        send( lib.udecn(clkfreq/1_000_000, 1000)," MHz    " )
+
+        repeat io_delay from 0 to 5
+            percent := 0
+            repeat addr from 99*BLOCKSIZE to 0 step -BLOCKSIZE    ' 100 kB, assuming 1 kB block size
+                randfill( @txdata, BLOCKSIZE )
+                'tx_bytes1( CMD_WRITE1, addr, @txdata, BLOCKSIZE )
+                t1:=getct
+                tx_bytes4( addr, @txdata, BLOCKSIZE )
+                t1:=getct-t1
+                'copy( @txdata, @rxdata, BLOCKSIZE )
+                'rx_bytes1( CMD_FREAD1, addr, @rxdata, BLOCKSIZE )
+                t2:=getct
+                rx_bytes4( addr, @rxdata, BLOCKSIZE )
+                t2:=getct-t2
+                percent += compare( @txdata, @rxdata, BLOCKSIZE )
+                if not percent
+                    quit    ' move on if first block is a total wash
+            send( lib.udecn(percent +/ BLOCKSIZE, 100),"% " )    ' 100% = 100 kB / 1024, rounded down
+        send(lib.udecn(t1, 100),"% " )   
+        send(lib.udecn(t2, 100),"% " )   
+        repeat t1 from 0 to 15
+           send(lib.hex(rxdata[t1],2)," " )   
+        send( 13,10 )
+
+    waitms( 20 )
+    lib.pllset( 4_000_000 )
+    lib.baudinit( BAUD )
+    send( "Done",13,10 )
+
+
+
+PRI  copy( src, dest, size )
+    repeat size>>2
+        long[dest] := long[src]
+        src += 4
+        dest += 4
+
+
+PRI  randfill( dest, size )
+    repeat size>>2
+        long[dest] := getrnd()
+        dest += 4
+
+
+PRI  compare( src1, src2, size ) : good
+    good := 0
+    repeat size>>2
+        if long[src1] == long[src2]
+            good += 4
+        src1 += 4
+        src2 += 4
+
+
+DAT
+    io_delay    byte    1
+
+    txdata      byte    0[BLOCKSIZE]
+    rxdata      byte    0[BLOCKSIZE]
+
+
+
+CON
+    CMD_WRITE1 = $02
+    CMD_FREAD1 = $0b
+    CMD_WRITE4 = $38
+    CMD_FREAD4 = $eb
+
+    CMD_RESET_EN  = $66
+    CMD_RESET     = $99
+    CMD_READ_ID   = $9f
+    CMD_ENTER_QPI = $35
+    CMD_EXIT_QPI  = $f5
+
+    PAGESIZE = 1024     ' as specified in APS6404L PSRAM datasheet
+    DELAY_FREAD1 = 8    ' as specified in APS6404L PSRAM datasheet
+    DELAY_FREAD4 = 6    ' as specified in APS6404L PSRAM datasheet
+
+    TX_ALIGN = CLK_DIV + CLK_REGD - TX_REGD - (1 ^ SPI_CLKMODE3) * CLK_DIV>>1
+    RX_ALIGN = CLK_DIV - RX_REGD + TX_REGD
+    M_LEADIN = X_IMM_32X1_1DAC1 | 13 + TX_ADV + TX_ALIGN
+    M_NCO = $8000_0000 +/ CLK_DIV + ($8000_0000 +// CLK_DIV > 0 ? 1 : 0)    ' round up
+    M_CA1 = X_IMM_32X1_1DAC1 | (PSRAM_DATA_PINS & $3f)<<17 | X_PINS_ON | X_ALT_ON | 32  ' SPI_DI is first pin
+    M_CA4 = X_IMM_8X4_1DAC4 | (PSRAM_DATA_PINS & $3c)<<17 | X_PINS_ON | X_ALT_ON | 8
+    M_TX1 = X_RFBYTE_1P_1DAC1 | (PSRAM_DATA_PINS & $3f)<<17 | X_PINS_ON | X_ALT_ON  ' SPI_DI is first pin
+    M_TX4 = X_RFBYTE_4P_1DAC4 | (PSRAM_DATA_PINS & $3c)<<17 | X_PINS_ON | X_ALT_ON
+    M_RX1 = X_1P_1DAC1_WFBYTE | (PSRAM_DATA_PINS & $3f + 1)<<17 | X_PINS_ON | X_ALT_ON  ' SPI_DO is second pin
+    M_RX4 = X_4P_1DAC4_WFBYTE | (PSRAM_DATA_PINS & $3c)<<17 | X_PINS_ON | X_ALT_ON
+
+
+PUB  init_smartpins4() | idx
+
+    pinh( (PSRAM_CE_PIN & $38) | 7<<6 )    ' CE's group of 8 pins
+    wrpin( PSRAM_CE_PIN, P_SYNC_IO )
+
+    pinf( PSRAM_DATA_PINS )
+    wrpin( PSRAM_DATA_PINS, TX_REGD ? P_SYNC_IO : 0 )    ' at sysclock/1, data pins should be registered to minimise relative skew
+
+    pinf( PSRAM_CLK_PIN )
+    idx := P_PULSE | P_OE
+    if SPI_CLKMODE3
+        idx |= P_INVERT_OUTPUT    ' SPI CPOL=1
+    if CLK_REGD
+        idx |= P_SYNC_IO
+    wrpin( PSRAM_CLK_PIN, idx )
+    wxpin( PSRAM_CLK_PIN, CLK_DIV | (CLK_DIV>>1 + SPI_CLKMODE3 & CLK_DIV)<<16 )    ' set period and duty
+
+' Clear any prior unintended state, like wrapping mode
+    tx_cmd4( CMD_EXIT_QPI )
+    tx_cmd1( CMD_RESET_EN )
+    tx_cmd1( CMD_RESET )
+
+    rx_bytes1( CMD_READ_ID, 0, @rxdata, 8 )
+    send( 13,10," Chip ID is: " )
+    repeat idx from 0 to 7
+        send( " ",lib.hex(rxdata[idx],2) )
+    send(13,10)
+
+    tx_cmd1( CMD_ENTER_QPI )    ' Set QPI mode
+
+
+
+PUB  tx_cmd4( cmd )
+
+    org
+                setxfrq ##$8000_0000        ' set sysclock/1 for lead in timing
+
+                xinit   ##M_LEADIN, #0      ' lead-in timing, at sysclock/1
+                setq    ##M_NCO             ' streamer transfer rate
+                xcont   ##M_CA4, cmd        ' tx Command only
+                drvl    #PSRAM_DATA_PINS    ' active for tx CA phase
+                drvl    #PSRAM_CE_PIN
+                dirh    #PSRAM_CLK_PIN      ' start smartpin internally cycling at SPI clock rate
+                wypin   #2, #PSRAM_CLK_PIN  ' 2 SPI clocks for Command only
+
+                waitx   #2 * CLK_DIV - 4
+                dirl    #PSRAM_CLK_PIN      ' reset smartpin
+                dirl    #PSRAM_DATA_PINS    ' tristate the databus upon completion
+                drvh    #PSRAM_CE_PIN
+    end
+
+
+PUB  tx_bytes4( paddr, haddr, len ) | m_dat
+
+    m_dat := M_TX4 | len<<1
+    len := 8 + len<<1   ' number of QPI clock cycles
+    org
+                rdfast  ##$8000_0000, haddr ' non-blocking FIFO prefetch from haddr (byte granular)
+                setxfrq ##$8000_0000        ' set sysclock/1 for lead in timing
+                movbyts paddr, #$1b         ' big-endian
+                setbyte paddr, #CMD_WRITE4, #0      ' insert Command into CA word
+
+                xinit   ##M_LEADIN, #0      ' lead-in timing, at sysclock/1
+                setq    ##M_NCO             ' streamer transfer rate
+                xcont   ##M_CA4, paddr      ' tx Command and Address (byte granular address)
+                drvl    #PSRAM_DATA_PINS    ' active for tx CA phase
+                drvl    #PSRAM_CE_PIN
+                dirh    #PSRAM_CLK_PIN      ' start smartpin internally cycling at SPI clock rate
+                wypin   len, #PSRAM_CLK_PIN ' SPI clocks for CA phase and data phase
+
+                xcont   m_dat, #0           ' tx data from FIFO
+
+                ' Possible spare time here for other maintanence.  But this is CE low time, so don't over do it
+
+                waitxfi                     ' wait until streamer is done
+                dirl    #PSRAM_CLK_PIN      ' reset smartpin
+                dirl    #PSRAM_DATA_PINS    ' tristate the databus upon completion
+                drvh    #PSRAM_CE_PIN
+    end
+
+
+PUB  rx_bytes4( paddr, haddr, len ) | m_dat, delay, rxreg
+
+    m_dat := M_RX4 | len<<1
+    rxreg := RX_REGD ? P_SYNC_IO : 0
+    len := 8 + DELAY_FREAD4 + len<<1   ' number of QPI clock cycles
+    delay := DELAY_FREAD4 * CLK_DIV - 2 + RX_ALIGN + io_delay   ' RAM fetch latency + frequency dependent I/O latency
+    org
+                wrfast  ##$8000_0000, haddr ' FIFO writes hubRAM beginning at haddr (byte granular)
+                setxfrq ##$8000_0000        ' set sysclock/1 for lead in timing
+                movbyts paddr, #$1b         ' big-endian
+                setbyte paddr, #CMD_FREAD4, #0      ' insert Command into CA word
+
+                xinit   ##M_LEADIN, #0      ' lead-in timing, at sysclock/1
+                setq    ##M_NCO             ' streamer transfer rate
+                xcont   ##M_CA4, paddr      ' tx Command and Address (byte granular address)
+                drvl    #PSRAM_DATA_PINS    ' active for tx CA phase
+                drvl    #PSRAM_CE_PIN
+                dirh    #PSRAM_CLK_PIN      ' start smartpin internally cycling at SPI clock rate
+                wypin   len, #PSRAM_CLK_PIN ' SPI clocks for CA phase, RAM latency, and data phase
+
+                waitx   #8 * CLK_DIV - 5 + TX_ALIGN
+                dirl    #PSRAM_DATA_PINS    ' tristate for rx data phase, at very end of CA phase
+                wrpin   rxreg, #PSRAM_DATA_PINS    'set/unset registration during Fast Read's fetch delay
+                waitx   delay               ' align streamer timing with incoming rx data
+                xinit   m_dat, #0           ' rx data to FIFO
+
+                ' Possible spare time here for other maintanence.  But this is CE low time, so don't over do it
+
+                waitxfi                     ' wait until streamer is done
+                dirl    #PSRAM_CLK_PIN      ' reset smartpin
+                drvh    #PSRAM_CE_PIN
+    end
+    wrpin( PSRAM_DATA_PINS, TX_REGD ? P_SYNC_IO : 0 )
+
+
+
+PUB  tx_cmd1( cmd )
+
+    org
+                setxfrq ##$8000_0000        ' set sysclock/1 for lead in timing
+
+                xinit   ##M_LEADIN, #0      ' lead-in timing, at sysclock/1
+                setq    ##M_NCO             ' streamer transfer rate
+                xcont   ##M_CA1, cmd        ' tx Command only
+                drvl    #PSRAM_DATA_PINS & $3f    ' active for tx CA phase  ' SPI_DI is first pin
+                drvl    #PSRAM_CE_PIN
+                dirh    #PSRAM_CLK_PIN      ' start smartpin internally cycling at SPI clock rate
+                wypin   #8, #PSRAM_CLK_PIN  ' 8 SPI clocks for Command only
+
+                waitx   #8 * CLK_DIV - 4
+                dirl    #PSRAM_CLK_PIN      ' reset smartpin
+                dirl    #PSRAM_DATA_PINS    ' tristate the databus upon completion
+                drvh    #PSRAM_CE_PIN
+    end
+
+
+PUB  tx_bytes1( cmd, paddr, haddr, len ) | m_dat
+
+    m_dat := M_TX1 | len<<3
+    len := 32 + len<<3   ' number of SPI clock cycles
+    org
+                rdfast  ##$8000_0000, haddr ' non-blocking FIFO prefetch from haddr (byte granular)
+                setxfrq ##$8000_0000        ' set sysclock/1 for lead in timing
+                movbyts paddr, #$1b         ' big-endian
+                setbyte paddr, cmd, #0      ' insert Command into CA word
+
+                xinit   ##M_LEADIN, #0      ' lead-in timing, at sysclock/1
+                setq    ##M_NCO             ' streamer transfer rate
+                xcont   ##M_CA1, paddr      ' tx Command and Address (byte granular address)
+                drvl    #PSRAM_DATA_PINS & $3f    ' active for tx CA phase  ' SPI_DI is first pin
+                drvl    #PSRAM_CE_PIN
+                dirh    #PSRAM_CLK_PIN      ' start smartpin internally cycling at SPI clock rate
+                wypin   len, #PSRAM_CLK_PIN ' SPI clocks for CA phase and data phase
+
+                xcont   m_dat, #0           ' tx data from FIFO
+
+                ' Possible spare time here for other maintanence.  But this is CE low time, so don't over do it.
+
+                waitxfi                     ' wait until streamer is done
+                dirl    #PSRAM_CLK_PIN      ' reset smartpin, just the right number of clock pulses
+                dirl    #PSRAM_DATA_PINS    ' tristate the databus upon completion
+                drvh    #PSRAM_CE_PIN
+    end
+
+
+PUB  rx_bytes1( cmd, paddr, haddr, len ) | m_dat, delay, rxreg
+
+    m_dat := M_RX1 | len<<3
+    rxreg := RX_REGD ? P_SYNC_IO : 0
+    if cmd == CMD_FREAD1
+        len := 32 + DELAY_FREAD1 + len<<3   ' number of SPI clock cycles
+        delay := DELAY_FREAD1 * CLK_DIV + RX_ALIGN + io_delay   ' RAM fetch latency + frequency dependent I/O latency
+    else
+        len := 32 + len<<3   ' number of SPI clock cycles
+        delay := RX_ALIGN + io_delay   ' frequency dependent I/O latency
+    org
+                wrfast  ##$8000_0000, haddr ' FIFO writes hubRAM beginning at haddr (byte granular)
+                setxfrq ##$8000_0000        ' set sysclock/1 for lead in timing
+                movbyts paddr, #$1b         ' big-endian
+                setbyte paddr, cmd, #0      ' insert Command into CA word
+
+                xinit   ##M_LEADIN, #0      ' lead-in timing, at sysclock/1
+                setq    ##M_NCO             ' streamer transfer rate
+                xcont   ##M_CA1, paddr      ' tx Command and Address (byte granular address)
+                drvl    #PSRAM_DATA_PINS & $3f    ' active for tx CA phase  ' SPI_DI is first pin
+                drvl    #PSRAM_CE_PIN       ' tightly follows streamer to signal CA start
+                dirh    #PSRAM_CLK_PIN      ' start smartpin internally cycling at SPI clock rate
+                wypin   len, #PSRAM_CLK_PIN ' SPI clocks for CA phase, RAM latency, and data phase
+
+                waitx   #32 * CLK_DIV - 5 + TX_ALIGN
+                wrpin   rxreg, #PSRAM_DATA_PINS    ' set/unset registration, at very end of CA phase
+'                drvh    #PSRAM_DATA_PINS & $3f  '*** debug line, remove and reinstate above line when done testing ***
+                waitx   delay               ' align streamer timing with incoming rx data
+                xinit   m_dat, #0           ' rx data to FIFO
+
+                ' Possible spare time here for other maintanence.  But this is CE low time, so don't over do it.
+
+                waitxfi                     ' wait until streamer is done
+                dirl    #PSRAM_CLK_PIN      ' reset smartpin
+                drvh    #PSRAM_CE_PIN
+    end
+    wrpin( PSRAM_DATA_PINS, TX_REGD ? P_SYNC_IO : 0 )
+
+
+
+CON { license }
+
+{{
+
+  Terms of Use: MIT License
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy
+  of this software and associated documentation files (the "Software"), to deal
+  in the Software without restriction, including without limitation the rights
+  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  copies of the Software, and to permit persons to whom the Software is
+  furnished to do so, subject to the following conditions:
+
+  The above copyright notice and this permission notice shall be included in all
+  copies or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+  SOFTWARE.
+
+}}
