@@ -319,7 +319,6 @@ pub dummy()
 
 pub rd_block_2(fa,b,ha) |a,bb,i,j
 
-
 pinh(59)
 pinh(60)
 pinh(61)
@@ -344,9 +343,7 @@ repeat j from 0 to b-1
     pinl(60)
     pinh(60)
     bb:=(bb << 1) | pinread(58)
-
   byte[ha+j]:=bb
-
 pinh (61)
 
   
