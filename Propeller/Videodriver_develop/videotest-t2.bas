@@ -1,7 +1,50 @@
 const _clkfreq=336_956_522
+const   spi_cs = 61                                              ' serial flash
+const   spi_ck = 60   
+const   spi_di = 59 ' P2 -> flash  
+const   spi_do = 58 ' flash -> P2    
+
+mount "/sd", _vfs_open_sdcard() 
 
 for i=$70000 to $71000: poke i,0: next i
+'for i=0 to 15 : rd_block_2($820000+256*i,256,$70000+256*i) :next i
 
+
+sub rd_block_2(fa,b,ha)
+
+dim a,bb as ulong
+
+pinhi 59
+pinhi 60
+pinhi 61
+pinfloat 58
+waitms(10)
+a=$03000000+fa
+pinlo 61 'cs
+for i=0 to 31
+  const asm
+  rol a,#1 wc
+  if_c drvh #59
+  if_nc drvl #59
+  end asm 
+  pinlo 60
+  pinhi 60
+next i
+    pinlo 60
+    pinhi(60)  
+for j=0 to b-1
+  bb=0
+  for i=0 to 7
+    pinlo 60
+    pinhi(60)
+    bb=(bb shl 1) or pinread(58)
+
+  next i
+  poke ha+j,bb
+next j
+pinhi 61
+end sub  
+  
 dim v as class using "ht012.spin2"
 dim psram as class using "psram.spin2"
 dim onesprite as ubyte(4095)
@@ -22,7 +65,7 @@ psram.startx(0, 0, 11, -1)
 mbox=psram.getMailbox(0)
 
 let pin=0 
-videocog,p=v.start(pin,mbox)
+videocog=v.start(pin,mbox)
 for thecog=0 to 7:psram.setQos(thecog, 112 << 16) :next thecog
 psram.setQoS(videocog, $7FFFf400) 
 open SendRecvDevice(@v.putchar, nil, nil) as #0
@@ -43,7 +86,7 @@ let t=getcnt()-t
 print t/336
 waitms(5000)
 
-mount "/sd", _vfs_open_sdcard() 
+
 open "/sd/screen.raw" for input as #8
 let pos=1
 dim pixel as ulong
@@ -69,10 +112,10 @@ close #8
 v.blit($4000_0000+v.buf_ptr,0,0,1023,575,4096,$4100_0000,0,0,4096) 
 v.outtextxycf(0,0,"1024x576 True Color HDMI driver",15)   
   
-'for j=0 to 255
-'for i=0 to 15: print hex$(peek($70000+i+16*j),2), : next i: print : waitms(100) :next j
+for j=0 to 31
+for i=0 to 15: print hex$(peek($70000+i+16*j),2), : next i: print : waitms(100) :next j
 waitms(5000)    
-waitms(5000)  
+waitms(5000)  : do:loop
 do
 
   for i=1 to 200: v.setwritecolors (getrnd()<<8, 0) : print i: next i : waitms(1000)
@@ -469,7 +512,123 @@ do:loop until v.vblank=0
 loop
 end sub
 
+sub rd_block(addr, n, p_dest) 
 
+dim x,i as ulong
+addr=(addr shr 16) + (addr and $FF00) +((addr shl 16) and $FF0000) +$30000000
+spi_cmd (addr)
+for i=0 to n-1
+  x=spi_datain()
+  poke p_dest+i,x
+next i
+ 
+end sub
+
+
+function spi_datain() as ulong
+
+dim r as ulong
+
+       asm
+       mov r,#0
+       rep      @p11,#8			'ready to input a byte
+       drvh	#spi_ck			'drive clock pin high
+       drvl	#spi_ck			'drive clock pin low
+       testp	#spi_do		wc	'sample data-out pin ('testp' is from before 'drvh')
+       rcl	r,#1			'save data bit
+p11    nop
+
+       end asm
+return r
+end function
+
+sub spi_cmd(arg)
+
+dim a as ulong
+        arg=$03820000
+
+        asm
+        mov  	pa,#32 	
+        drvh    #spi_cs
+        nop	
+        nop 
+        drvl	#spi_cs			'cs pin low
+
+p12     rol	arg,#1		wc	'get bit to send'
+        drvc	#spi_di			'drive data-in pin to bit
+        drvh	#spi_ck			'drive clock pin high
+        drvl	#spi_ck			'drive clock pin low
+        djnz	pa,#p12		        'loop to output bits, return when done		
+        end asm	
+        
+end sub 
+
+sub flash_start(khz) 
+dim m,x as ulong
+
+'' Configure SPI for coms with flash
+'' -- khz is clock frequency in kilohertz
+
+  pinh(spi_cs)                                                   ' deselect flash
+
+  m = P_SYNC_RX                                                ' spi rx mode
+  m = m or ((spi_ck-spi_do) and %111) shl 24                           ' add SCK offset (B pin)
+  x = %0_00000 or (8-1)                                         ' sample ahead of b pin rise, 8 bits
+  pinstart(spi_do, m, x, 0)                                     ' configure smart pin
+  pinf(spi_do)                                                  ' reset/disable until used
+
+  m = P_SYNC_TX or P_OE                                         ' spi tx mode
+  m = ((spi_ck-spi_di) and %111) shl 24                           ' add SCK offset (B pin)
+  x = %1_00000 or (8-1)                                         ' start/stop mode, 8 bits
+  pinstart(spi_di, m, x, 0)                                     ' activate smart pin
+  pinf(spi_di)                                                  ' reset/disable until used
+
+  m = P_PULSE or P_OE        
+  x = $00040008                                   ' spi clock mode
+                  
+  pinstart(spi_ck, m, x, 0)
+end sub  
+
+sub rd_block_old (a , n, p_dest) 
+
+dim x as ulong
+
+'' Read n bytes from address in flash
+'' -- output is to buffer at p_dest
+
+ asm
+                add       a , ##$3000000                          ' add command to address
+                rev       a                                   ' reverse for S/P LSBFIRST output
+                drvl      #spi_cs                                ' select flash
+                nop
+
+set_addr        wxpin     #%1_11111, #spi_di                    ' 32 bit output
+                wypin     a , #spi_di                    ' set address for read
+                drvl      #spi_di                               ' arm SPI TX
+                wypin     #32, #spi_ck                          ' clock 32 bits out
+                nop                                             ' give clock time to start
+p1               testp     #spi_ck                       wc      ' wait for clocking to finish
+    if_nc       jmp       #p1
+                fltl      #spi_di                              ' disable SPI TX
+
+get_byte       fltl      #spi_do                               ' reset/clear SDI
+                wxpin     #(8-1), #spi_di                       ' read 8 bits
+                drvl      #spi_do                               ' arm SPI RX
+                wypin     #8, #spi_ck                          ' clock 8 bits in
+                nop                                             ' give clock time to start
+p2                testp     #spi_ck                       wc      ' wait for clocking to finish
+    if_nc       jmp       #p2
+                rdpin     x, #spi_do                            ' get the value
+                rev       x                                     ' restore MSBFIRST order
+                zerox     x, #7                                 ' clean up (redundant?)
+                wrbyte    x, p_dest                             ' write to hub
+                add       p_dest, #1                            ' bump hub pointer
+                djnz      n, #get_byte                         ' continue until done
+   		drvh      #spi_cs
+
+                                 ' done, deselect
+  end asm
+  end sub
 
 asm shared
 mouse file "mouse32.def"

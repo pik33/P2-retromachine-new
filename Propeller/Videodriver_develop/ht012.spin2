@@ -98,10 +98,10 @@
 
 CON
 
-  SF_CS  = 61  { O }                                            ' serial flash
-  SF_SCK = 60  { O }
-  SF_SDO = 59  { O }
-  SF_SDI = 58  { I }
+  spi_cs  = 61  { O }                                            ' serial flash
+  spi_ck = 60  { O }
+  spi_do = 59  { O }
+  spi_di = 58  { I }
   RD_DATA      = $03
   
 hdmi_base       = 0           				 	'must be a multiple of 8
@@ -317,7 +317,40 @@ pub dummy()
 '****************************************************************************************************************
 
 
-pub rd_block(addr, n, p_dest) | x
+pub rd_block_2(fa,b,ha) |a,bb,i,j
+
+
+pinh(59)
+pinh(60)
+pinh(61)
+pinfloat(58)
+waitms(10)
+a:=$03000000+fa
+pinl(61) 'cs
+repeat i from 0 to 31
+  org
+  rol a,#1 wc
+  if_c drvh #59
+  if_nc drvl #59
+  end 
+  pinl(60)
+  pinh(60)
+
+pinl(60)
+pinh(60)  
+repeat j from 0 to b-1
+  bb:=0
+  repeat i from 0 to 7
+    pinl(60)
+    pinh(60)
+    bb:=(bb << 1) | pinread(58)
+
+  byte[ha+j]:=bb
+
+pinh (61)
+
+  
+pub rd_block_old (addr, n, p_dest) | x
 
 '' Read n bytes from address in flash
 '' -- output is to buffer at p_dest
@@ -325,7 +358,6 @@ pub rd_block(addr, n, p_dest) | x
   org
                 setbyte   addr, #RD_DATA, #3                    ' add command to address
                 rev       addr                                  ' reverse for S/P LSBFIRST output
-
                 drvl      #SF_CS                                ' select flash
                 nop
 
@@ -351,46 +383,62 @@ pub rd_block(addr, n, p_dest) | x
                 wrbyte    x, p_dest                             ' write to hub
                 add       p_dest, #1                            ' bump hub pointer
                 djnz      n, #.get_byte                         ' continue until done
-     	drvh      #SF_CS     
-  '             drvh	  #SF_SCK
+ ' 		drvh      #sf_cs
+
                                  ' done, deselect
   end
   
-pub flash_start(khz) | m, x
+pub rd_block(addr, n, p_dest) | x,i
 
-'' Configure SPI for coms with flash
-'' -- khz is clock frequency in kilohertz
+'' Read n bytes from address in flash
+'' -- output is to buffer at p_dest
 
-  pinh(SF_CS)                                                   ' deselect flash
+addr:=addr+$03000000
 
-  m := P_SYNC_RX                                                ' spi rx mode
-  m |= ((SF_SCK-SF_SDI) & %111) << 24                           ' add SCK offset (B pin)
-  x := %0_00000 | (8-1)                                         ' sample ahead of b pin rise, 8 bits
-  pinstart(SF_SDI, m, x, 0)                                     ' configure smart pin
-  pinf(SF_SDI)                                                  ' reset/disable until used
+asm
+  rev addr
+endasm
+  
+spi_cmd (addr,32)
 
-  m := P_SYNC_TX | P_OE                                         ' spi tx mode
-  m |= ((SF_SCK-SF_SDO) & %111) << 24                           ' add SCK offset (B pin)
-  x := %1_00000 | (8-1)                                         ' start/stop mode, 8 bits
-  pinstart(SF_SDO, m, x, 0)                                     ' activate smart pin
-  pinf(SF_SDO)                                                  ' reset/disable until used
-
-  m := P_PULSE | P_OE                                           ' spi clock mode
-  x.word[0] := 2 #> (clkfreq / (khz * 1_000)) <# $FFFF          ' ticks in period
-  x.word[1] := x.word[0] >> 1                                   ' ticks in low cycle (50%)
-  pinstart(SF_SCK, m, x, 0)
+repeat i from 0 to n-1
+  x:=spi_datain()
+  byte[p_dest+i]:=x
+  
 
 
-pub flash_stop
+pub spi_datain() : r
 
-pinclear(SF_SDI)
-pinclear(SF_SDO)
-pinclear(SF_SCK)
-pinclear(SF_CS)
+       asm
+       mov r,#0
+       rep @.in,#8			'ready to input a byte
+       drvh	#spi_ck			'drive clock pin high
+       drvl	#spi_ck			'drive clock pin low
+       testp	#spi_do		wc	'sample data-out pin ('testp' is from before 'drvh')
+       rcl	r,#1			'save data bit
+.in 
+       endasm
 
 
+pub spi_cmd(arg,bits) | a
 
-pub start(base,mb):result,ptr | flashaddr,buffer,f2,b2,i
+        asm
+        mov  	pa,bits			'ready to send 8 bits
+        mov 	a, #32
+        sub 	a, bits
+        drvh	#spi_cs			'cs pin high
+        rol	arg, a			'msb-justify byte
+        drvl	#spi_cs			'cs pin low
+
+p1      rol	pb,#1		wc	'get bit to send'
+        drvc	#spi_di			'drive data-in pin to bit
+        drvh	#spi_ck			'drive clock pin high
+        drvl	#spi_ck			'drive clock pin low
+        djnz	pa,#p1		'loop to output bits, return when done		
+	
+        endasm	
+
+pub start(base,mb):result | flashaddr,buffer,f2,b2,i
 
 '--------------------------- initialize pointers and variables
 
@@ -416,7 +464,6 @@ spr13y:=600				'
 spr14y:=600				'
 spr15y:=600				'
 spr16y:=600
-				'
 
 emptydl[0]:=%0100_0000_0000_0000_0000_0000_0000_0111
 emptydl[1]:=0
@@ -438,25 +485,18 @@ cursor_x:=0							' place the cursor at 0:0
 cursor_y:=0
 
 '---------------------------- start the cog
-flash_start(20000)
-flashaddr:=$820000
-buffer:=$70000
-f2:=flashaddr
-b2:=buffer
-repeat 16
-  rd_block (f2,256,b2)
+'flash_start(336_956_522/4)
 
-  buffer+=256
-  flashaddr+=256
-  f2:=flashaddr
-  b2:=buffer
-flash_stop()
+repeat i from 0 to 15
+  rd_block_2 ($820000+256*i,256,$70000+256*i)
+
+
 
 cog:=coginit(16,$70000, @vblank_ptr)				' start the driver cog			
 waitms(40)							' wait for stabilize
 
 
-return cog,@hdmi							' return the driver's cog #
+return cog							' return the driver's cog #
 
 
 pub kwas |i,j
@@ -1037,7 +1077,7 @@ if (cursor_y>st_lines-1)
 ''-----------  Scroll the screen one line up
 
 pub scrollup() | i
-	
+
 repeat i from 0 to 559 
   ram.read1($80000-16384-4096-s_debug, s_buf_ptr+(i+16)*4096, 4096)
   ram.write($80000-16384-4096-s_debug, s_buf_ptr+i*4096, 4096)
