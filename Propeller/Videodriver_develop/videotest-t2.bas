@@ -10,7 +10,7 @@ for i=$70000 to $71000: poke i,0: next i
 'for i=0 to 15 : rd_block_2($820000+256*i,256,$70000+256*i) :next i
 
 
-sub rd_block_2(fa,b,ha)
+/'sub rd_block_2(fa,b,ha)
 
 dim a,bb as ulong
 
@@ -44,7 +44,7 @@ for j=0 to b-1
 next j
 pinhi 61
 end sub  
-  
+ '/ 
 dim v as class using "ht012.spin2"
 dim psram as class using "psram.spin2"
 dim onesprite as ubyte(4095)
