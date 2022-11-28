@@ -306,17 +306,16 @@ ram: "psram.spin2"
 pub dummy()
 '' this is not a main program.
 
+
+
 '****************************************************************************************************************
 '                                                                                                             	*
-'Start the driver at pins 'base' with mailbox mb	                            		rev 20220801 	*
-'                                                                                                            	*
-'                                                								*
-' base - HDMI base pin												*
-' mb - PSRAM mailbox pointer, 32-bit PSRAM is mandatory here							*
+'Read data from the flash. This allows reading PASM code and data for the driver       		rev 20221128 	*
+'fa - flash address, b - bytes to read, ha - hub address                                                        *                                              								*
 '                                                                                                               *
 '****************************************************************************************************************
 
-pub rd_block_3(fa,b,ha) | bb,i      'fa - flash address, b - bytes to read, ha - hub address
+pub rd_block(fa,b,ha) | bb,i     
 
        org
        drvh   #59                   ' prop->flash
@@ -333,7 +332,7 @@ p1     rol    fa,#1 wc
        djnz   i,#p1
        drvl   #60
        drvh   #60
- nop
+       nop                          ' without this nop the first bit is not correct
 p3     mov    i,#8                  ' read b bytes
 p2     drvl   #60
        drvh   #60
@@ -345,127 +344,52 @@ p2     drvl   #60
        djnz   b,#p3
        drvh   #61                   ' disable chip select
        end
+
+pub rd_block2(fa,b,ha) | bb,i     
+
+       org
+       drvh   #59                   ' prop->flash
+       drvh   #60                   ' clock
+       drvh   #61                   ' cs
+       fltl   #58                   ' flash->prop
+       add    fa,##$03000000        ' 03-read
+       drvl   #61                   ' select the flash
+       mov    i,#32                 ' send the command
+p1     rol    fa,#1 wc
+       drvc   #59
+       drvl   #60
+       drvh   #60
+       djnz   i,#p1
+       drvl   #60
+       drvh   #60
+       shr b,#2                         ' without this nop the first bit is not correct
+p3     mov    i,#32                  ' read b bytes
+p2     drvl   #60
+       drvh   #60
+       testp  #58 wc
+       rcl    bb,#1
+       djnz   i,#p2  
+       movbyts bb,#%00011011     
+       wrlong bb,ha
+       add    ha,#4
+       djnz   b,#p3
+       drvh   #61                   ' disable chip select
+       end
+
+
+
+'****************************************************************************************************************
+'                                                                                                             	*
+'Start the driver at pins 'base' with mailbox mb	                            		rev 20220801 	*
+'                                                                                                            	*
+'                                                								*
+' base - HDMI base pin												*
+' mb - PSRAM mailbox pointer, 32-bit PSRAM is mandatory here							*
+'                                                                                                               *
+'****************************************************************************************************************
+
+
        
-
-
-
-pub rd_block_2(fa,b,ha) |a,bb,i,j
-
-pinh(59)
-pinh(60)
-pinh(61)
-pinfloat(58)
-waitms(10)
-a:=$03000000+fa
-pinl(61) 'cs
-repeat i from 0 to 31
-  org
-  rol a,#1 wc
-  if_c drvh #59
-  if_nc drvl #59
-  end 
-  pinl(60)
-  pinh(60)
-
-pinl(60)
-pinh(60)  
-repeat j from 0 to b-1
-  bb:=0
-  repeat i from 0 to 7
-    pinl(60)
-    pinh(60)
-    bb:=(bb << 1) | pinread(58)
-  byte[ha+j]:=bb
-pinh (61)
-
-  
-pub rd_block_old (addr, n, p_dest) | x
-
-'' Read n bytes from address in flash
-'' -- output is to buffer at p_dest
-
-  org
-                setbyte   addr, #RD_DATA, #3                    ' add command to address
-                rev       addr                                  ' reverse for S/P LSBFIRST output
-                drvl      #SF_CS                                ' select flash
-                nop
-
-.set_addr       wxpin     #%1_11111, #SF_SDO                    ' 32 bit output
-                wypin     addr, #SF_SDO                         ' set address for read
-                drvl      #SF_SDO                               ' arm SPI TX
-                wypin     #32, #SF_SCK                          ' clock 32 bits out
-                nop                                             ' give clock time to start
-                testp     #SF_SCK                       wc      ' wait for clocking to finish
-    if_nc       jmp       #$-1
-                fltl      #SF_SDO                               ' disable SPI TX
-
-.get_byte       fltl      #SF_SDI                               ' reset/clear SDI
-                wxpin     #(8-1), #SF_SDI                       ' read 8 bits
-                drvl      #SF_SDI                               ' arm SPI RX
-                wypin     #8, #SF_SCK                           ' clock 8 bits in
-                nop                                             ' give clock time to start
-                testp     #SF_SCK                       wc      ' wait for clocking to finish
-    if_nc       jmp       #$-1
-                rdpin     x, #SF_SDI                            ' get the value
-                rev       x                                     ' restore MSBFIRST order
-                zerox     x, #7                                 ' clean up (redundant?)
-                wrbyte    x, p_dest                             ' write to hub
-                add       p_dest, #1                            ' bump hub pointer
-                djnz      n, #.get_byte                         ' continue until done
- ' 		drvh      #sf_cs
-
-                                 ' done, deselect
-  end
-  
-pub rd_block(addr, n, p_dest) | x,i
-
-'' Read n bytes from address in flash
-'' -- output is to buffer at p_dest
-
-addr:=addr+$03000000
-
-asm
-  rev addr
-endasm
-  
-spi_cmd (addr,32)
-
-repeat i from 0 to n-1
-  x:=spi_datain()
-  byte[p_dest+i]:=x
-  
-
-
-pub spi_datain() : r
-
-       asm
-       mov r,#0
-       rep @.in,#8			'ready to input a byte
-       drvh	#spi_ck			'drive clock pin high
-       drvl	#spi_ck			'drive clock pin low
-       testp	#spi_do		wc	'sample data-out pin ('testp' is from before 'drvh')
-       rcl	r,#1			'save data bit
-.in 
-       endasm
-
-
-pub spi_cmd(arg,bits) | a
-
-        asm
-        mov  	pa,bits			'ready to send 8 bits
-        mov 	a, #32
-        sub 	a, bits
-        drvh	#spi_cs			'cs pin high
-        rol	arg, a			'msb-justify byte
-        drvl	#spi_cs			'cs pin low
-
-p1      rol	pb,#1		wc	'get bit to send'
-        drvc	#spi_di			'drive data-in pin to bit
-        drvh	#spi_ck			'drive clock pin high
-        drvl	#spi_ck			'drive clock pin low
-        djnz	pa,#p1		'loop to output bits, return when done		
-	
-        endasm	
 
 pub start(base,mb):result | flashaddr,buffer,f2,b2,i
 
@@ -516,8 +440,8 @@ cursor_y:=0
 '---------------------------- start the cog
 'flash_start(336_956_522/4)
 
-repeat i from 0 to 15
-  rd_block_3 ($820000+256*i,256,$70000+256*i)
+'repeat i from 0 to 15
+rd_block  ($820000,4096,$70000)
 
 
 
@@ -1676,3 +1600,47 @@ a1024 long 1024
 a4096 long 4096
 a1023 long 1023
  fit 368
+ 
+{{ 
+dat
+ ' pr0=fa
+ ' pr1=b
+ ' pr2=ha
+ ' pr3=i
+ ' pr4=bb
+ 
+       orgh   $7C000
+       drvh   #59                   ' prop->flash
+       drvh   #60                   ' clock
+       drvh   #61                   ' cs
+       fltl   #58                   ' flash->prop
+       add    pr0,##$03000000        ' 03-read
+       drvl   #61                   ' select the flash
+       mov    pr3,#32                 ' send the command
+p11    rol    pr0,#1 wc
+       drvc   #59
+       drvl   #60
+       drvh   #60
+       djnz   pr3,#p11
+       drvl   #60
+       drvh   #60
+       nop                          ' without this nop the first bit is not correct
+p13    mov    pr3,#8                  ' read b bytes
+p12    drvl   #60
+       drvh   #60
+       testp  #58 wc
+       rcl    pr4,#1
+       djnz   pr3,#p12       
+       wrbyte pr4,pr2
+       add    pr2,#1
+       djnz   pr1,#p13
+ _ret_ drvh   #61                   ' disable chip select
+       
+       orgh   $7C080
+fa     long 0
+b      long 0
+ha     long 0
+bb     long 0
+i      long 0       
+       end 
+}}

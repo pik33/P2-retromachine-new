@@ -6,46 +6,7 @@ const   spi_do = 58 ' flash -> P2
 
 mount "/sd", _vfs_open_sdcard() 
 
-for i=$70000 to $71000: poke i,0: next i
-'for i=0 to 15 : rd_block_2($820000+256*i,256,$70000+256*i) :next i
-
-
-/'sub rd_block_2(fa,b,ha)
-
-dim a,bb as ulong
-
-pinhi 59
-pinhi 60
-pinhi 61
-pinfloat 58
-waitms(10)
-a=$03000000+fa
-pinlo 61 'cs
-for i=0 to 31
-  const asm
-  rol a,#1 wc
-  if_c drvh #59
-  if_nc drvl #59
-  end asm 
-  pinlo 60
-  pinhi 60
-next i
-    pinlo 60
-    pinhi(60)  
-for j=0 to b-1
-  bb=0
-  for i=0 to 7
-    pinlo 60
-    pinhi(60)
-    bb=(bb shl 1) or pinread(58)
-
-  next i
-  poke ha+j,bb
-next j
-pinhi 61
-end sub  
- '/ 
-dim v as class using "ht012.spin2"
+dim v as class using "ht013.spin2"
 dim psram as class using "psram.spin2"
 dim onesprite as ubyte(4095)
 dim s as ulong(128)
@@ -99,6 +60,16 @@ for i=0 to 575
   next j
 next i
 close #8 
+_umount( "/sd" ) 
+pinclear(61)
+pinclear(60)
+pinclear(59)
+pinclear(58)
+i=getct()
+v.rd_block2 ($820000,16,$60000)
+i=(getct()-i)/336
+print i
+
 
 
 'open "/sd/hdmi32.drv" for output as #8
@@ -110,10 +81,12 @@ close #8
 'close #8  
 
 v.blit($4000_0000+v.buf_ptr,0,0,1023,575,4096,$4100_0000,0,0,4096) 
-v.outtextxycf(0,0,"1024x576 True Color HDMI driver",15)   
+'v.outtextxycf(0,0,"1024x576 True Color HDMI driver",15)   
   
 for j=0 to 31
-for i=0 to 15: print hex$(peek($70000+i+16*j),2), : next i: print : waitms(100) :next j
+for i=0 to 15: print hex$(peek($70000+i+16*j),2);" ";hex$(peek($60000+i+16*j),2) , : next i: print : next j
+
+
 waitms(5000)    
 waitms(5000)  : do:loop
 do
