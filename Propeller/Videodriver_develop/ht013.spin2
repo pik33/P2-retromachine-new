@@ -318,64 +318,81 @@ pub dummy()
 pub rd_block(fa,b,ha) | bb,i     
 
        org
-       drvh   #59                   ' prop->flash
-       drvh   #60                   ' clock
-       drvh   #61                   ' cs
-       fltl   #58                   ' flash->prop
-       add    fa,##$03000000        ' 03-read
-       drvl   #61                   ' select the flash
-       mov    i,#32                 ' send the command
-p1     rol    fa,#1 wc
-       drvc   #59
-       drvl   #60
-       drvh   #60
-       djnz   i,#p1
-       drvl   #60
-       drvh   #60
-       nop                          ' without this nop the first bit is not correct
-p3     mov    i,#8                  ' read b bytes
-p2     drvl   #60
-       drvh   #60
-       testp  #58 wc
-       rcl    bb,#1
-       djnz   i,#p2       
-       wrbyte bb,ha
-       add    ha,#1
-       djnz   b,#p3
-       drvh   #61                   ' disable chip select
-       end
+        drvh    #60                   ' clock
+        drvh    #61                   ' cs
+        drvh    #59                   ' prop->flash
+        fltl    #58                   ' flash->prop
+
+' tx command "read data"
+        add     fa, ##$03000000       ' 03-read
+        outl    #61                   ' select the flash
+
+        rep     @p1, #32
+        rol     fa, #1   wc
+        outnot  #60
+        outc    #59
+        outnot  #60
+p1
+
+' rx the data
+        nop            ' clock spacer
+        outnot  #60
+        fltl    #59                   ' prop->flash
+        outnot  #60
+p3
+        rep     @p2, #8
+        outnot  #60
+        rcl     fa, #1
+        outnot  #60
+        testp   #58   wc
+p2
+        rcl     fa, #1
+        wrbyte  fa, ha
+        add     ha, #1
+        djnz    b, #p3
+
+        drvh    #61                   ' disable chip select
+        end
 
 pub rd_block2(fa,b,ha) | bb,i     
 
-       org
-       drvh   #59                   ' prop->flash
-       drvh   #60                   ' clock
-       drvh   #61                   ' cs
-       fltl   #58                   ' flash->prop
-       add    fa,##$03000000        ' 03-read
-       drvl   #61                   ' select the flash
-       mov    i,#32                 ' send the command
-p1     rol    fa,#1 wc
-       drvc   #59
-       drvl   #60
-       drvh   #60
-       djnz   i,#p1
-       drvl   #60
-       drvh   #60
-       shr b,#2                         ' without this nop the first bit is not correct
-p3     mov    i,#32                  ' read b bytes
-p2     drvl   #60
-       drvh   #60
-       testp  #58 wc
-       rcl    bb,#1
-       djnz   i,#p2  
-       movbyts bb,#%00011011     
-       wrlong bb,ha
-       add    ha,#4
-       djnz   b,#p3
-       drvh   #61                   ' disable chip select
-       end
+        org
+        drvh    #60                   ' clock
+        drvh    #61                   ' cs
+        drvh    #59                   ' prop->flash
+        fltl    #58                   ' flash->prop
 
+' tx command "read data"
+        add     fa, ##$03000000       ' 03-read
+        outl    #61                   ' select the flash
+
+        rep     @p1, #32
+        rol     fa, #1   wc
+        outnot  #60
+        outc    #59
+        outnot  #60
+p1
+
+' rx the data
+        shr b,#2           ' clock spacer
+        outnot  #60
+        fltl    #59                   ' prop->flash
+        outnot  #60
+p3
+        rep     @p2, #32
+        outnot  #60
+        rcl     fa, #1
+        outnot  #60
+        testp   #58   wc
+p2
+        rcl     fa, #1
+        movbyts fa,#%00011011
+        wrlong  fa, ha
+        add     ha, #4
+        djnz    b, #p3
+
+        drvh    #61                   ' disable chip select
+        end
 
 
 '****************************************************************************************************************

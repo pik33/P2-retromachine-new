@@ -1,0 +1,45 @@
+dat      
+        orgh $7C000
+        
+        drvh    #60                   ' clock
+        drvh    #61                   ' cs
+        drvh    #59                   ' prop->flash
+        fltl    #58                   ' flash->prop
+
+' tx command "read data"
+        add     pr0, ##$03000000       ' 03-read
+        outl    #61                   ' select the flash
+
+        rep     @p1, #32
+        rol     pr0, #1   wc
+        outnot  #60
+        outc    #59
+        outnot  #60
+p1
+
+' rx the data
+        shr pr1,#2           ' clock spacer
+        outnot  #60
+        fltl    #59                   ' prop->flash
+        outnot  #60
+p3
+        rep     @p2, #32
+        outnot  #60
+        rcl     pr0, #1
+        outnot  #60
+        testp   #58   wc
+p2
+        rcl     pr0, #1
+        movbyts pr0,#%00011011
+        wrlong  pr0, pr2
+        add     pr2, #4
+        djnz    pr1, #p3
+
+ _ret_        drvh    #61                   ' disable chip select
+        end
+        
+        
+	orgh  $7C080
+fa	long 0
+b	long $1234
+ha 	long 0
