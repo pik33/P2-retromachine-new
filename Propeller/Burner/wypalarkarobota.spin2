@@ -1,0 +1,226 @@
+' Flash Demo
+' Run on P2 EVAL board with FLASH Dip Switch set ON
+' Run this code, then within 2 seconds open Parallax Serial Terminal (or equivalent) at 115200 baud
+
+CON
+
+  CLK_FREQ = 285_000_000        ' system freq as a constant
+  _clkfreq = CLK_FREQ
+    
+  BR_TERM = 230_400             ' terminal baud rate
+
+  FLASH_ADR = $180000
+
+  MAXCHK = 255         
+
+
+OBJ
+
+  com : "jm_serial.spin2"
+  spi : "jm_p2_flash.spin2"
+
+
+VAR
+
+  long buffer,b2
+  long flashaddr,f2
+  long map[16*64]
+  byte mapnames[16*16]
+  
+PUB main() | i
+  pinl(56)
+  pinl(57)
+  com.start(BR_TERM)
+  spi.start(2000)
+  waitms(2000) ' 2 second pause; allow user to open serial debug terminal
+  
+  
+buffer:=@audio1
+repeat i from 0 to $FF
+  com.dec (word[buffer+2*i])
+  com.tx (" ")
+
+  
+ 
+
+repeat i from 0 to $7F
+  com.dec (i)
+  com.tx (" ")
+  flashaddr:=$F00000+$1000*i
+  com.hex (flashaddr)
+  com.tx (" ")
+  spi.erase(flashaddr,$20,1) 
+  waitms(10) 
+   
+    
+flashaddr:=$F00000
+buffer:=@audio1
+f2:=flashaddr
+b2:=buffer
+repeat 256
+  spi.wr_block (f2,256,b2)
+  waitms(10)
+  buffer+=256
+  flashaddr+=256
+  f2:=flashaddr
+  b2:=buffer  
+  
+flashaddr:=$F10000
+buffer:=@audio2
+f2:=flashaddr
+b2:=buffer
+repeat 256
+  spi.wr_block (f2,256,b2)
+  waitms(10)
+  buffer+=256
+  flashaddr+=256
+  f2:=flashaddr
+  b2:=buffer  
+  
+  
+flashaddr:=$F20000
+buffer:=@audio3
+f2:=flashaddr
+b2:=buffer
+repeat 256
+  spi.wr_block (f2,256,b2)
+  waitms(10)
+  buffer+=256
+  flashaddr+=256
+  f2:=flashaddr
+  b2:=buffer      
+  
+flashaddr:=$F30000
+buffer:=@audio4
+f2:=flashaddr
+b2:=buffer
+repeat 256
+  spi.wr_block (f2,256,b2)
+  waitms(10)
+  buffer+=256
+  flashaddr+=256
+  f2:=flashaddr
+  b2:=buffer    
+  
+flashaddr:=$F40000
+buffer:=@audio5
+f2:=flashaddr
+b2:=buffer
+repeat 256
+  spi.wr_block (f2,256,b2)
+  waitms(10)
+  buffer+=256
+  flashaddr+=256
+  f2:=flashaddr
+  b2:=buffer   
+  
+{{
+repeat i from 0 to $1F
+  com.dec (i)
+  com.tx (" ")
+  flashaddr:=$FE0000+$1000*i
+  com.hex (flashaddr)
+  com.tx (" ")
+  spi.erase(flashaddr,$20,1) 
+  waitms(10) 
+
+inittestmap()
+flashaddr:=$FE0000
+buffer:=@mapnames
+f2:=flashaddr
+b2:=buffer
+spi.wr_block (f2,256,b2)
+waitms(10)
+flashaddr:=$FE1000
+buffer:=@map
+f2:=flashaddr
+b2:=buffer
+repeat 16
+  spi.wr_block (f2,256,b2)
+  waitms(10)
+  buffer+=256
+  flashaddr+=256
+  f2:=flashaddr
+  b2:=buffer   
+}}
+' let the 8 slots for audio starts from F0 0000 to F7FFFF
+
+' let the maps blocks starts from f80000 to ffffff these are 32 blocks
+' read: find the first empty block, if f80000 then read from ffe000, if ffe000 empty, initialize at f80000
+' write: find the first empty block. if f80000, erase ffe000 else erase previous, write the block
+' block contents: counters x8=32 bytes, mapnames 16x16=256 bytes, maps: 4k @ second block 
+' if not
+'' one map is 16x64x4 - we need 2 blocks
+'' start
+
+
+pub inittestmap() |i
+
+repeat i from 0 to 1023
+  map[i]:=0
+repeat i from 0 to 255
+  mapnames[i]:=$20  
+
+map[00]:=$01_644E20 'track right 24576 pulses
+map[01]:=$03_641000 'find a wall within 4096 pulses
+map[02]:=$04_000055 '- rotate left 85
+map[03]:=$01_6402BC '- track right 700
+map[04]:=$04_000055 '- rotate left 85
+map[05]:=$02_aa14b4 '- track left 5300/1700
+map[06]:=$05_000055 '- rotate right 85
+map[07]:=$06_000DAC '- go straight 3500
+
+map[08]:=$01_462904 '- track right 10500
+map[08]:=$07_0003E9 '- track right 10500
+
+
+map[09]:=$06_0003E8 '- go 1000
+'map[09]:=$99_000004 '- go 1000
+
+
+map[10]:=$04_0000B4 '- rotate left 180
+map[11]:=$06_0004b0 '- go 1200
+map[12]:=$02_462904 '- track left 11000
+map[13]:=$06_000bb8 '- go straight 3000
+map[14]:=$03_781000 '- find wall
+map[15]:=$05_00005A '- rotate right 90
+map[16]:=$02_643a98 '- track left 15000
+map[17]:=$04_0000B4 '- rotate left 180
+map[18]:=$99_000000 '- restart
+map[19]:=$98_000000 '- end of map
+ 
+mapnames[0]:="P"
+mapnames[1]:="r"
+mapnames[2]:="z"
+mapnames[3]:="y"
+mapnames[4]:="k"
+mapnames[5]:=31
+mapnames[6]:="a"
+mapnames[7]:="d"
+mapnames[8]:="o"
+mapnames[9]:="w"
+mapnames[10]:="a"
+mapnames[11]:=" "
+mapnames[12]:="m"
+mapnames[13]:="a"
+mapnames[14]:="p"
+mapnames[15]:="a"
+ 
+
+dat
+
+
+audio1 
+       long 31060
+       file "gotowy.pcm"      '31060
+audio2 long 50950 
+       file "przeszkoda.pcm"  '50950
+       
+audio3 long 29548
+       file "pilot.pcm"       '29548
+       
+audio4 long 22270
+       file "bateria.pcm"     '22270
+       
+audio5 long 44100
+       file "operator.pcm"    '44100

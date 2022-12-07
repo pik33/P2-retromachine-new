@@ -458,7 +458,7 @@ cursor_y:=0
 'flash_start(336_956_522/4)
 
 'repeat i from 0 to 15
-rd_block  ($820000,4096,$70000)
+rd_block  ($830000,4096,$70000)
 
 
 

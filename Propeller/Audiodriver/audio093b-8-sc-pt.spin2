@@ -84,6 +84,8 @@ repeat iii from 0 to 7
   word[base+32*iii+22]:=8192
   word[base+32*iii+24]:=400+2*iii
   word[base+32*iii+26]:=2
+  long[base+32*iii+28]:=$40000000
+
   long [base+32*iii+8]:=@null | $C0000000
 
 cog:=coginit(16,@audio,@mailboxaddr)
@@ -465,4 +467,3 @@ pointer00 long 0
 dat
 null                    long    0,0           ' for channel reset
 'sinewave               file    "sinus.s2"    ' for testing
-
