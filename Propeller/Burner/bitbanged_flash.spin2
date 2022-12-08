@@ -1,8 +1,24 @@
-con   _clkfreq = 300000000
+con   _clkfreq = 200000000
+var
+byte testbytes1[256]
+byte testbytes2[256]
+byte testbytes3[256]
 
-pub test
-erase($830000)
-
+pub test() |i
+repeat i from 0 to 255
+  testbytes1[i]:=i
+  testbytes2[i]:=0
+  testbytes3[i]:=0
+  
+  
+erase($130000)
+rd_block($130000,256,@testbytes2[0])
+repeat i from 0 to 255
+  debug(uhex(i,testbytes2[i]))
+write($130000,256,@testbytes1[0])
+rd_block($130000,256,@testbytes3[0])
+repeat i from 0 to 255
+  debug(uhex(i, testbytes3[i]))
 
 pub rd_block(fa,b,ha) | bb,i     
 
@@ -157,16 +173,17 @@ p6	nop
         outh  #60
 p1      nop
 
-p3      rdbyte  fa,ha
-        shl     fa,#24
-        rep     @p2,#8
+p3      rdbyte  pr0,ha
+        shl     pr0,#24
         
-        rol     fa, #1   wc
-        outl  #60
-        outc    #59
-        outh  #60
-        add     ha,#1
-p2      djnz b,#p3
+        rep     @p2,#8
+       
+          rol     pr0, #1   wc
+          outl  #60
+          outc    #59
+          outh  #60
+p2          add     ha,#1
+       djnz b,#p3
         outh #61
         
         waitx ##30000000

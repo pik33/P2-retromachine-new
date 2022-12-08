@@ -1,0 +1,133 @@
+' A simple bitbanged SPI Mode 3 flash driver
+' v. 0.02 - 2022.12.08
+' Piotr Kardasz pik33@o2.pl with a help from the P2 community
+
+' read a block (256 bytes) from the flash
+' fa - flash address, ha - hub address
+
+pub read_block(fa,ha) | bb,i     
+
+        org
+        drvh    #60                   ' clock
+        drvh    #61                   ' cs
+        drvh    #59                   ' prop->flash
+        fltl    #58                   ' flash->prop
+
+        add     fa, ##$03000000       ' 03-read
+        outl    #61                   ' select the flash
+
+        rep     @p1, #32              ' send command+address
+        rol     fa, #1   wc
+        outl  	#60
+        outc    #59
+        outh  	#60
+
+p1      mov 	pr0,#64               ' read 64 longs 
+        outl    #60
+        fltl    #59                   ' prop->flash
+        outh    #60
+
+p3      rep     @p2, #32
+        outl    #60
+        rcl     fa, #1
+        outh    #60
+        testp   #58   wc
+
+p2      rcl     fa, #1
+        movbyts fa,#%00011011
+        wrlong  fa, ha
+        add     ha, #4
+        djnz    pr0, #p3
+
+        drvh    #61                   ' disable chip select
+        end
+
+pub erase_block(fa)
+
+        org
+        drvh    #60                   ' clock
+        drvh    #61                   ' cs
+        drvh    #59                   ' prop->flash
+        fltl    #58                   ' flash->prop
+
+        mov     pr0,##$06000000        ' write enable
+        outl	#61
+        rep     @p6,#8
+        rol     pr0,#1 wc
+        outl    #60
+        outc    #59
+        outh    #60
+p6	nop
+	outh #61
+
+        waitx ##$30000        
+        
+        add     fa, ##$20000000      ' 20-erase 4k block
+        and     fa, ##$FFFFF000      ' address has to be block aligned 
+        outl    #61                  ' select the flash
+
+        rep     @p1, #32
+        rol     fa, #1   wc
+        outl  #60
+        outc    #59
+        outh  #60
+p1      nop
+        outh  #61
+        waitx ##$30000000        
+
+        fltl    #59                   ' prop->flash
+        end
+ 
+ 
+pub write_block(fa,ha)
+
+        org
+        drvh    #60                   ' clock
+        drvh    #61                   ' cs
+        drvh    #59                   ' prop->flash
+        fltl    #58                   ' flash->prop
+
+        mov     pr0,##$06000000
+        outl	#61
+        rep     @p6,#8
+        rol     pr0,#1 wc
+        outl    #60
+        outc    #59
+        outh    #60
+p6	nop
+	outh    #61
+
+        waitx ##$300000    
+
+            ' flash->prop
+
+' tx command "write"
+        add     fa, ##$02000000       ' 20-erase 4k block
+        outl    #61                   ' select the flash
+
+        rep     @p1, #32
+        rol     fa, #1   wc
+        outl  #60
+        outc    #59
+        outh  #60
+p1      nop
+
+p3      rdbyte  pr0,ha
+        shl     pr0,#24
+        
+        rep     @p2,#8
+       
+          rol     pr0, #1   wc
+          outl  #60
+          outc    #59
+          outh  #60
+p2          add     ha,#1
+       djnz b,#p3
+        outh #61
+        
+        waitx ##30000000
+
+        fltl    #59                   ' prop->flash
+        drvh    #60
+
+        end
