@@ -1,0 +1,201 @@
+con   _clkfreq = 300000000
+
+pub test
+erase($830000)
+
+
+pub rd_block(fa,b,ha) | bb,i     
+
+       org
+        drvh    #60                   ' clock
+        drvh    #61                   ' cs
+        drvh    #59                   ' prop->flash
+        fltl    #58                   ' flash->prop
+
+' tx command "read data"
+        add     fa, ##$03000000       ' 03-read
+        outl    #61                   ' select the flash
+
+        rep     @p1, #32
+        rol     fa, #1   wc
+        outnot  #60
+        outc    #59
+        outnot  #60
+p1
+
+' rx the data
+        nop            ' clock spacer
+        outnot  #60
+        fltl    #59                   ' prop->flash
+        outnot  #60
+p3
+        rep     @p2, #8
+        outnot  #60
+        rcl     fa, #1
+        outnot  #60
+        testp   #58   wc
+p2
+        rcl     fa, #1
+        wrbyte  fa, ha
+        add     ha, #1
+        djnz    b, #p3
+
+        drvh    #61                   ' disable chip select
+        end
+
+pub rd_block2(fa,b,ha) | bb,i     
+
+        org
+        drvh    #60                   ' clock
+        drvh    #61                   ' cs
+        drvh    #59                   ' prop->flash
+        fltl    #58                   ' flash->prop
+
+' tx command "read data"
+        add     fa, ##$03000000       ' 03-read
+        outl    #61                   ' select the flash
+
+        rep     @p1, #32
+        rol     fa, #1   wc
+        outnot  #60
+        outc    #59
+        outnot  #60
+p1
+
+' rx the data
+        shr b,#2           ' clock spacer
+        outnot  #60
+        fltl    #59                   ' prop->flash
+        outnot  #60
+p3
+        rep     @p2, #32
+        outnot  #60
+        rcl     fa, #1
+        outnot  #60
+        testp   #58   wc
+p2
+        rcl     fa, #1
+        movbyts fa,#%00011011
+        wrlong  fa, ha
+        add     ha, #4
+        djnz    b, #p3
+
+        drvh    #61                   ' disable chip select
+        end
+
+pub erase(fa)
+
+
+        org
+        drvh    #60                   ' clock
+        drvh    #61                   ' cs
+        drvh    #59                   ' prop->flash
+        fltl    #58                   ' flash->prop
+
+        mov    pr0,##$06000000
+        outl	#61
+        rep @p6,#8
+        rol pr0,#1 wc
+        outl #60
+        outc #59
+        outh #60
+p6	nop
+	outh #61
+
+        waitx ##$300000        
+        
+
+' tx command "erase"
+
+        add     fa, ##$20000000      ' 20-erase 4k block
+        and     fa, ##$FFFFF000      ' address has to be block aligned 
+        outl    #61                   ' select the flash
+
+        rep     @p1, #32
+        rol     fa, #1   wc
+        outl  #60
+        outc    #59
+        outh  #60
+p1      nop
+        outh  #61
+        waitx ##$30000000        
+
+        fltl    #59                   ' prop->flash
+        end
+ 
+ 
+pub write(fa,b,ha)
+
+        org
+        drvh    #60                   ' clock
+        drvh    #61                   ' cs
+        drvh    #59                   ' prop->flash
+        fltl    #58                   ' flash->prop
+
+        mov    pr0,##$06000000
+        outl	#61
+        rep @p6,#8
+        rol pr0,#1 wc
+        outl #60
+        outc #59
+        outh #60
+p6	nop
+	outh #61
+
+        waitx ##$300000    
+
+            ' flash->prop
+
+' tx command "write"
+        add     fa, ##$02000000       ' 20-erase 4k block
+        outl    #61                   ' select the flash
+
+        rep     @p1, #32
+        rol     fa, #1   wc
+        outl  #60
+        outc    #59
+        outh  #60
+p1      nop
+
+p3      rdbyte  fa,ha
+        shl     fa,#24
+        rep     @p2,#8
+        
+        rol     fa, #1   wc
+        outl  #60
+        outc    #59
+        outh  #60
+        add     ha,#1
+p2      djnz b,#p3
+        outh #61
+        
+        waitx ##30000000
+
+        fltl    #59                   ' prop->flash
+        drvh    #60
+
+        end 
+ 
+pub write_enable() 
+
+        org
+        drvh    #60                   ' clock
+        drvh    #61                   ' cs
+        drvh    #59                   ' prop->flash
+        fltl    #58                   ' flash->prop
+
+' tx command "write enable"
+        mov     pr0,##$06000000       ' 20-erase 4k block
+        outl    #61                   ' select the flash
+
+        rep     @p1, #8
+        rol     pr0, #1   wc
+        outnot  #60
+        outc    #59
+        outnot  #60
+p1      nop
+        outnot  #60
+        fltl    #59                   ' prop->flash
+        drvh    #60
+        drvh    #61                   ' disable chip select
+        end

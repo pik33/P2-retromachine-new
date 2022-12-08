@@ -25,6 +25,8 @@ dim ccc,x1,y1,x2,y2,r as ulong
 psram.startx(0, 0, 11, -1)
 mbox=psram.getMailbox(0)
 
+
+for i=$60000 to $78000: poke i,0 : next i
 let pin=0 
 videocog=v.start(pin,mbox)
 for thecog=0 to 7:psram.setQos(thecog, 112 << 16) :next thecog
@@ -66,7 +68,7 @@ pinclear(60)
 pinclear(59)
 pinclear(58)
 i=getct()
-v.rd_block2  ($820000,4096,$60000)
+v.rd_block  ($830000,4096,$60000)
 i=(getct()-i)/336
 print i
 

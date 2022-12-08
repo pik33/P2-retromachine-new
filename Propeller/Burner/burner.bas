@@ -1,4 +1,4 @@
-' Flash burner for the P2 retromachine v.0.01 -20220429
+' Flash burner for the P2 retromachine v.0.02 -20221208
 ' Flashes:
 
 '800000 - fonts
@@ -9,89 +9,81 @@
 '860000 - other drivers (PSRAM etc)
 '870000 - audio samples, 63 slots@2k+names at 87F800
 '890000 - audio envelopes, 62 slots@1k+names at 89F800
+
+'To do in next versions: old Amiga type font at               $802000
+'		         Parallax type font at                $803000 - can it be done as 8x16 font?
+'                        3-3-2 palette at                     $810400
+'                        VGA palette at                       $810800
+'		         8c32h palette at                     $810C00
+'                        text cursor sprite at                $811400
+'                        32 bit text cursor at	              $819000
 '
+'                        8bpp hdmi video driver at            $831000 
+'                        8bpp vga driver at                   $832000
+'                        SIDCog at                            $840000
+' 			 8 chn Paula type drv at              $841000
 
-' --- 800000 - fonts, 16 slots @ 4 kB
-'- ST mono type font   at $800000   2-4 kB
-'- PC DOS type font    at $801000   2-4 kB
+'                        keyboard and mouse drivers at        $850000
+'                        PSRAM drivers at                     $860000
 
-'- Atari 8x8 type font at $80C000
-
-'To do in next versions: old Amiga type font at $802000
-'		         Parallax type font at $803000 - can it be done at 8x16?
-
-'- Atari 8bit type palette at $810000
-
-
-'To do in the next version:3-3-2 palette at           $810400
-'                           VGA palette at $810800
-'			   8c32h palette at $810C00
-
-'- mouse pointer sprite     at $811000
-'next version - text cursor sprite       at $811400
-'- moving ball sprites      at $814000 - 16 kB
-'- mouse pointer, 32bit        $818000
-'next version - text cursor, 32 bit		819000
-'- moving ball, 32 bit          81A000 - 64 kB
-
-'- 32 bpp hdmi video driver at 830000
-'- 8bpp hdmi video driver at 831000 
-'- 8bpp vga driver at 832000
-'- 833000-83F000 reserved for video drivers
-'- SIDCog at 840000
-'- 8 chn Paula at 841000
-'- 842000-84F000 reserved for audio drivers
-'- keyboard and mouse drivers at 850000
-'- PSRAM drivers at 860000
-
-'- 64 2k slots for samples     $870000-88FFFF
-'- 32 2k slots for envelopes   $890000-89FFFF
-
-
+'                        PC Softsynth type audio samples at   $870000, 64 slots @ 2k-88FFFF
+'                        PC Softsynth type audio envelopes at $890000 with name list at $89F800
 
 
 const  CLK_FREQ = 285_000_000        ' system freq as a constant
 const   _clkfreq = CLK_FREQ
 
-dim spi as class using "jm_p2_flash.spin2"
-dim buffer,b2,flashaddr,f2 as ulong
+dim spi as class using "bitbanged_flash.spin2"
 
 ' here you can decide what to burn. 0=not burn, non 0=address to burn
 
-const burn_st_mono_font=$800000
-const burn_pc_dos_font=$801000
-const burn_atari_8x8_font=$80C000
+const burn_st_mono_font=      $800000
+const burn_pc_dos_font=       $801000
+const burn_atari_8x8_font=    $80C000
 const burn_atari_8bit_palette=$810000
-const burn_mouse_pointer_8=$811000
-const burn_ball_sprites_8=$814000
-const burn_mouse_pointer_32=$818000
-const burn_ball_sprites_32=$81A000
-const burn_video32_driver=$830000
+const burn_mouse_pointer_8=   $811000
+const burn_ball_sprites_8=    $814000
+const burn_mouse_pointer_32=  $818000
+const burn_ball_sprites_32=   $81A000
+const burn_video32_driver=    $830000
 
+if burn_st_mono_font<>0       then print "Burning ST mono font at ",       hex$(burn_video32_driver) : burn(burn_st_mono_font,      varptr(stmono),       4096)
+if burn_pc_dos_font<>0        then print "Burning PC DOS font at ",        hex$(burn_video32_driver) : burn(burn_pc_dos_font,       varptr(pcdos),        4096)
+if burn_atari_8x8_font<>0     then print "Burning Atari 8x8 font at ",     hex$(burn_video32_driver) : burn(burn_atari_8x8_font,    varptr(atari8),       4096)
+if burn_atari_8bit_palette<>0 then print "Burning Atari 8-bit palette at ",hex$(burn_video32_driver) : burn(burn_atari_8bit_palette,varptr(ataripalette), 4096)
+if burn_mouse_pointer_8<>0    then print "Burning 8bpp mouse pointer at ", hex$(burn_video32_driver) : burn(burn_mouse_pointer_8,   varptr(mouse8),       4096)
+if burn_ball_sprites_8<>0     then print "Burning 8bpp ball sprites at ",  hex$(burn_video32_driver) : burn(burn_ball_sprites_8,    varptr(balls8),      16384)
+if burn_mouse_pointer_32<>0   then print "Burning 32bpp mouse pointer at ",hex$(burn_video32_driver) : burn(burn_mouse_pointer_32,  varptr(mouse32),      4096)
+if burn_ball_sprites_32<>0    then print "Burning 32bpp ball sprites at " ,hex$(burn_video32_driver) : burn(burn_ball_sprites_32,   varptr(balls32),	 65536)
+if burn_video32_driver<>0     then print "Burning 32bpp video driver at ", hex$(burn_video32_driver) : burn(burn_video32_driver,    varptr(hdmi32),       4096)
 
-spi.start(20000)
-waitms(2000)       
+sub burn(flashaddr,hubaddr,amount)
 
-if burn_video32_driver<>0 then
-  flashaddr=burn_video32_driver
-  spi.erase(flashaddr,$20,1)
-  print(hex$(flashaddr))
-  waitms(10)
-  buffer=varptr(hdmi32)
-  f2=flashaddr
-  b2=buffer
-  for i=1 to 16
-    print hex$(buffer), hex$(flashaddr) 
-    spi.wr_block (f2,256,b2)
-    waitms(10)
-    buffer+=256
-    flashaddr+=256
-    f2=flashaddr
-    b2=buffer
+' erase the flash in 4k blocks
+
+let blocks=(amount-1)/4096
+for i=0 to blocks
+  print "Erasing: ",hex$(flashaddr+4096*i)
+  spi.erase(flashaddr)
+  waitms(100)
   next i
-endif  
+waitms(100)
+let blocks=(amount-1)/256
+for i=0 to blocks
+  print "Burning: ",hex$(hubaddr+256*i), hex$(flashaddr+256*i) 
+  spi.write(flashaddr+256*i,256,hubaddr+256*i)
+  waitms(100)
+  next i
+end sub  
 
 asm shared
- 
-hdmi32	file "hdmi32.drv"    
+hdmi32		file "hdmi32.drv"
+stmono  	file "st4font.def"
+pcdos   	file "vgafont.def"
+atari8  	file "atari8.fnt"
+ataripalette 	file "ataripalettep2.def"   
+mouse8		file "mouse.def"
+balls8		file "balls01.def"
+mouse32		file "mouse32.def"
+balls32		file "balls32.def" 
 end asm
