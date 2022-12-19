@@ -68,7 +68,7 @@ pinclear(60)
 pinclear(59)
 pinclear(58)
 i=getct()
-v.rd_block  ($830000,4096,$60000)
+'v.rd_block2  ($830000,4096,$60000)
 i=(getct()-i)/336
 print i
 

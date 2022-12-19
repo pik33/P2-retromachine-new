@@ -24,7 +24,7 @@ pub read_block(fa,ha) | bb,i
 
 p1      mov 	pr0,#64               ' read 64 longs 
         outl    #60
-        fltl    #59                   ' prop->flash
+        fltl    #59                   
         outh    #60
 
 p3      rep     @p2, #32
@@ -41,6 +41,8 @@ p2      rcl     fa, #1
 
         drvh    #61                   ' disable chip select
         end
+        
+' erase a 4k block at fa
 
 pub erase_block(fa)
 
@@ -50,7 +52,7 @@ pub erase_block(fa)
         drvh    #59                   ' prop->flash
         fltl    #58                   ' flash->prop
 
-        mov     pr0,##$06000000        ' write enable
+        mov     pr0,##$06000000       ' write enable
         outl	#61
         rep     @p6,#8
         rol     pr0,#1 wc
@@ -58,9 +60,9 @@ pub erase_block(fa)
         outc    #59
         outh    #60
 p6	nop
-	outh #61
+	outh    #61
 
-        waitx ##$30000        
+        waitx   ##$30_000        
         
         add     fa, ##$20000000      ' 20-erase 4k block
         and     fa, ##$FFFFF000      ' address has to be block aligned 
@@ -68,12 +70,12 @@ p6	nop
 
         rep     @p1, #32
         rol     fa, #1   wc
-        outl  #60
+        outl    #60
         outc    #59
-        outh  #60
+        outh    #60
 p1      nop
-        outh  #61
-        waitx ##$30000000        
+        outh    #61
+        waitx   ##$30_000_000        
 
         fltl    #59                   ' prop->flash
         end
@@ -97,35 +99,32 @@ pub write_block(fa,ha)
 p6	nop
 	outh    #61
 
-        waitx ##$300000    
+        waitx   ##$30_000    
 
-            ' flash->prop
-
-' tx command "write"
-        add     fa, ##$02000000       ' 20-erase 4k block
+        add     fa, ##$02000000       ' 02 - write 256 bytes block
         outl    #61                   ' select the flash
 
         rep     @p1, #32
         rol     fa, #1   wc
-        outl  #60
+        outl    #60
         outc    #59
-        outh  #60
-p1      nop
+        outh    #60
+p1      mov     pr1,#256
 
 p3      rdbyte  pr0,ha
         shl     pr0,#24
         
         rep     @p2,#8
        
-          rol     pr0, #1   wc
-          outl  #60
-          outc    #59
-          outh  #60
-p2          add     ha,#1
-       djnz b,#p3
-        outh #61
+        rol     pr0, #1   wc
+        outl    #60
+        outc    #59
+        outh    #60
+p2      add     ha,#1
+        djnz    pr1,#p3
+        outh    #61
         
-        waitx ##30000000
+        waitx   ##3_000_000
 
         fltl    #59                   ' prop->flash
         drvh    #60

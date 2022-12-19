@@ -30,10 +30,9 @@
 '                        PC Softsynth type audio envelopes at $890000 with name list at $89F800
 
 
-const  CLK_FREQ = 285_000_000        ' system freq as a constant
-const   _clkfreq = CLK_FREQ
+const _clkfreq        = 336956522
 
-dim spi as class using "bitbanged_flash.spin2"
+dim flash as class using "bitbanged_flash_002.spin2"
 
 ' here you can decide what to burn. 0=not burn, non 0=address to burn
 
@@ -47,15 +46,15 @@ const burn_mouse_pointer_32=  $818000
 const burn_ball_sprites_32=   $81A000
 const burn_video32_driver=    $830000
 
-if burn_st_mono_font<>0       then print "Burning ST mono font at ",       hex$(burn_video32_driver) : burn(burn_st_mono_font,      varptr(stmono),       4096)
-if burn_pc_dos_font<>0        then print "Burning PC DOS font at ",        hex$(burn_video32_driver) : burn(burn_pc_dos_font,       varptr(pcdos),        4096)
-if burn_atari_8x8_font<>0     then print "Burning Atari 8x8 font at ",     hex$(burn_video32_driver) : burn(burn_atari_8x8_font,    varptr(atari8),       4096)
-if burn_atari_8bit_palette<>0 then print "Burning Atari 8-bit palette at ",hex$(burn_video32_driver) : burn(burn_atari_8bit_palette,varptr(ataripalette), 4096)
-if burn_mouse_pointer_8<>0    then print "Burning 8bpp mouse pointer at ", hex$(burn_video32_driver) : burn(burn_mouse_pointer_8,   varptr(mouse8),       4096)
-if burn_ball_sprites_8<>0     then print "Burning 8bpp ball sprites at ",  hex$(burn_video32_driver) : burn(burn_ball_sprites_8,    varptr(balls8),      16384)
-if burn_mouse_pointer_32<>0   then print "Burning 32bpp mouse pointer at ",hex$(burn_video32_driver) : burn(burn_mouse_pointer_32,  varptr(mouse32),      4096)
-if burn_ball_sprites_32<>0    then print "Burning 32bpp ball sprites at " ,hex$(burn_video32_driver) : burn(burn_ball_sprites_32,   varptr(balls32),	 65536)
-if burn_video32_driver<>0     then print "Burning 32bpp video driver at ", hex$(burn_video32_driver) : burn(burn_video32_driver,    varptr(hdmi32),       4096)
+if burn_st_mono_font<>0       then print "Burning ST mono font at ",       hex$(burn_st_mono_font)      :burn(burn_st_mono_font,      varptr(stmono),       4096)
+if burn_pc_dos_font<>0        then print "Burning PC DOS font at ",        hex$(burn_pc_dos_font)       :burn(burn_pc_dos_font,       varptr(pcdos),        4096)
+if burn_atari_8x8_font<>0     then print "Burning Atari 8x8 font at ",     hex$(burn_atari_8x8_font)    :burn(burn_atari_8x8_font,    varptr(atari8),       4096)
+if burn_atari_8bit_palette<>0 then print "Burning Atari 8-bit palette at ",hex$(burn_atari_8bit_palette):burn(burn_atari_8bit_palette,varptr(ataripalette), 4096)
+if burn_mouse_pointer_8<>0    then print "Burning 8bpp mouse pointer at ", hex$(burn_mouse_pointer_8)   :burn(burn_mouse_pointer_8,   varptr(mouse8),       4096)
+if burn_ball_sprites_8<>0     then print "Burning 8bpp ball sprites at ",  hex$(burn_ball_sprites_8)    :burn(burn_ball_sprites_8,    varptr(balls8),      16384)
+if burn_mouse_pointer_32<>0   then print "Burning 32bpp mouse pointer at ",hex$(burn_mouse_pointer_32)  :burn(burn_mouse_pointer_32,  varptr(mouse32),      4096)
+if burn_ball_sprites_32<>0    then print "Burning 32bpp ball sprites at " ,hex$(burn_ball_sprites_32)   :burn(burn_ball_sprites_32,   varptr(balls32), 	   65536)
+if burn_video32_driver<>0     then print "Burning 32bpp video driver at ", hex$(burn_video32_driver)    :burn(burn_video32_driver,    varptr(hdmi32),       4096)
 
 sub burn(flashaddr,hubaddr,amount)
 
@@ -64,16 +63,14 @@ sub burn(flashaddr,hubaddr,amount)
 let blocks=(amount-1)/4096
 for i=0 to blocks
   print "Erasing: ",hex$(flashaddr+4096*i)
-  spi.erase(flashaddr)
-  waitms(100)
+  flash.erase_block(flashaddr)
   next i
-waitms(100)
 let blocks=(amount-1)/256
 for i=0 to blocks
   print "Burning: ",hex$(hubaddr+256*i), hex$(flashaddr+256*i) 
-  spi.write(flashaddr+256*i,256,hubaddr+256*i)
-  waitms(100)
+  flash.write_block(flashaddr+256*i,hubaddr+256*i)
   next i
+print "Burning completed."  
 end sub  
 
 asm shared

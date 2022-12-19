@@ -107,7 +107,7 @@ CON
 hdmi_base       = 0           				 	'must be a multiple of 8
 _clkfreq        = 336956522    					'this is the retromachine standard main clock, PAL color frequency * 95
 debugger        = 1                                             'set this to non-zero value if you want to use BRK debugger
-
+vga_font=$60000
 
 ''--------- VGA DOS color definition constants. 
 
@@ -310,51 +310,12 @@ pub dummy()
 
 '****************************************************************************************************************
 '                                                                                                             	*
-'Read data from the flash. This allows reading PASM code and data for the driver       		rev 20221128 	*
+'Read data from the flash. This allows reading PASM code and data for the driver       		rev 20221209 	*
 'fa - flash address, b - bytes to read, ha - hub address                                                        *                                              								*
 '                                                                                                               *
 '****************************************************************************************************************
 
-pub rd_block(fa,b,ha) | bb,i     
-
-       org
-        drvh    #60                   ' clock
-        drvh    #61                   ' cs
-        drvh    #59                   ' prop->flash
-        fltl    #58                   ' flash->prop
-
-' tx command "read data"
-        add     fa, ##$03000000       ' 03-read
-        outl    #61                   ' select the flash
-
-        rep     @p1, #32
-        rol     fa, #1   wc
-        outnot  #60
-        outc    #59
-        outnot  #60
-p1
-
-' rx the data
-        nop            ' clock spacer
-        outnot  #60
-        fltl    #59                   ' prop->flash
-        outnot  #60
-p3
-        rep     @p2, #8
-        outnot  #60
-        rcl     fa, #1
-        outnot  #60
-        testp   #58   wc
-p2
-        rcl     fa, #1
-        wrbyte  fa, ha
-        add     ha, #1
-        djnz    b, #p3
-
-        drvh    #61                   ' disable chip select
-        end
-
-pub rd_block2(fa,b,ha) | bb,i     
+pub read_block(fa,ha) | bb,i     
 
         org
         drvh    #60                   ' clock
@@ -362,129 +323,36 @@ pub rd_block2(fa,b,ha) | bb,i
         drvh    #59                   ' prop->flash
         fltl    #58                   ' flash->prop
 
-' tx command "read data"
         add     fa, ##$03000000       ' 03-read
         outl    #61                   ' select the flash
 
-        rep     @p1, #32
+        rep     @p1, #32              ' send command+address
         rol     fa, #1   wc
-        outnot  #60
+        outl  	#60
         outc    #59
-        outnot  #60
-p1
+        outh  	#60
 
-' rx the data
-        shr b,#2           ' clock spacer
-        outnot  #60
-        fltl    #59                   ' prop->flash
-        outnot  #60
-p3
-        rep     @p2, #32
-        outnot  #60
+p1      mov 	pr0,#64               ' read 64 longs 
+        outl    #60
+        fltl    #59                   
+        outh    #60
+
+p3      rep     @p2, #32
+        outl    #60
         rcl     fa, #1
-        outnot  #60
+        outh    #60
         testp   #58   wc
-p2
-        rcl     fa, #1
+
+p2      rcl     fa, #1
         movbyts fa,#%00011011
         wrlong  fa, ha
         add     ha, #4
-        djnz    b, #p3
+        djnz    pr0, #p3
 
         drvh    #61                   ' disable chip select
         end
 
-pub erase(fa)
 
-        org
-        drvh    #60                   ' clock
-        drvh    #61                   ' cs
-        drvh    #59                   ' prop->flash
-        fltl    #58                   ' flash->prop
-
-' tx command "erase"
-        add     fa, ##$20000000       ' 20-erase 4k block
-        and     fa, ##$FFFFF000       ' address has to be block aligned 
-        outl    #61                   ' select the flash
-
-        rep     @p1, #32
-        rol     fa, #1   wc
-        outnot  #60
-        outc    #59
-        outnot  #60
-p1      nop
-        outnot  #60
-        fltl    #59                   ' prop->flash
-        drvh    #60
-        drvh    #61                   ' disable chip select
-        end
- 
- 
-pub write1(fa,b,ha)
-
-        org
-        drvh    #60                   ' clock
-        drvh    #61                   ' cs
-        drvh    #59                   ' prop->flash
-        fltl    #58                   ' flash->prop
-
-' tx command "write"
-        add     fa, ##$02000000       ' 20-erase 4k block
-        and     fa, ##$FFFFF000       ' address has to be block aligned 
-        outl    #61                   ' select the flash
-
-        rep     @p1, #32
-        rol     fa, #1   wc
-        outnot  #60
-        outc    #59
-        outnot  #60
-p1      nop
-
-p3      rdbyte  fa,ha
-        shl     fa,#24
-        rep      @p2,#8
-        
-        rol     fa, #1   wc
-        outnot  #60
-        outc    #59
-        outnot  #60
-        add     ha,#1
-p2      djnz b,#p3
-        
-        outnot  #60
-        fltl    #59                   ' prop->flash
-        drvh    #60
-        drvh    #61                   ' disable chip select
-        end 
- 
-pub write_enable()
-
-        org
-        drvh    #60                   ' clock
-        drvh    #61                   ' cs
-        drvh    #59                   ' prop->flash
-        fltl    #58                   ' flash->prop
-
-' tx command "write enable"
-        mov     pr0,##$06000000       ' 20-erase 4k block
-        outl    #61                   ' select the flash
-
-        rep     @p1, #8
-        rol     fa, #1   wc
-        outnot  #60
-        outc    #59
-        outnot  #60
-p1      nop
-        outnot  #60
-        fltl    #59                   ' prop->flash
-        drvh    #60
-        drvh    #61                   ' disable chip select
-        end
-        
-        
-        
-' SECTOR_ERASE = $20
-' WR_DATA      = $02
 
 '****************************************************************************************************************
 '                                                                                                             	*
@@ -548,12 +416,14 @@ cursor_y:=0
 '---------------------------- start the cog
 'flash_start(336_956_522/4)
 
-'repeat i from 0 to 15
-rd_block  ($830000,4096,$70000)
+repeat i from 0 to 15
+  read_block  ($830000+256*i,$70000+256*i)
+repeat i from 0 to 7
+  read_block  ($800000+256*i,$60000+256*i)
 
 
 
-cog:=coginit(16,@hdmi, @vblank_ptr)'70000				' start the driver cog			
+cog:=coginit(16,$70000, @vblank_ptr)'70000				' start the driver cog			
 waitms(40)							' wait for stabilize
 
 
@@ -810,7 +680,7 @@ repeat yy from 0 to 15
 pub putcharxycg(x,y,achar,f,b) |xx, yy,bb
 
 repeat yy from 0 to 15
-  bb:=byte[@vga_font+font_family<<10+achar<<4+yy]
+  bb:=byte[vga_font+font_family<<10+achar<<4+yy]
   repeat xx from 0 to 7
     if (bb&(1<<xx))<>0
       putpixel(xx+x,yy+y,f)
@@ -826,7 +696,7 @@ if (b<<24)<>0
   b:=long[palette_ptr+4*(b & $FF)]  
 repeat yy from 0 to 15
 
-  bb:=byte[@vga_font+font_family<<10+achar<<4+yy]
+  bb:=byte[vga_font+font_family<<10+achar<<4+yy]
 
   asm
   testb bb,#0 wz
@@ -1325,7 +1195,7 @@ if ((f & $40000000) <>0) && ((t & $40000000)<>0)
 '**********************************************************************************
 dat
 
-vga_font       file "vgafont.def"
+'vga_font       file "vgafont.def"
 st_font        file "st4font.def"
 a8_font        file "atari8.fnt"
 ataripalette   file "ataripalettep2.def"
@@ -1338,417 +1208,4 @@ ataripalette   file "ataripalettep2.def"
 
 '                      bf.hs, hs,  bf.vis  visible, up p., vsync, down p.,  cpl, total lines, clock,       hubset                                scanlines  ud bord mode reserved
 timings         long   14,    80,  14,      1024,   6,     8,     6,        128, 576,         336956522,   %1_101101__11_0000_0110__1111_1011,   576,        0,     192, 0, 0
-vgacolors       long   $00000000,$0000AA00,$00AA0000,$00AAAA00,$AA000000,$AA00AA00,$AA550000,$AAAAAA00,$55555500,$5555FF00,$55FF5500,$55FFFF00,$FF555500,$FF55FF00,$FFFF5500,$FFFFFF00 
-
-'**********************************************************************************
-'
-'        PASM driver code
-'
-'**********************************************************************************
-
-DAT             org
-
-''--------  Initialization  ----------------------------------------------------------------
-
-hdmi            setq    #6
-                rdlong  vblankptr,  ptra                   ' read pointers
-                setq    #8
-                rdlong  m_bs,modeptr                       ' read timings
-
-                bitl    hbase, #31 wcz                     ' if pin 31 is set, use full strength for Adafruit Pico HDMI board
-                setcmod #$100                              ' enable HDMI mode
-                mov     t1,#448                            ' 7 << 6          
-                add     t1,hbase
-                drvl    t1                                 ' #7<<6 + hdmi_base      ' enable HDMI pins
-        if_z    wrpin   #0, t1  '#7<<6 + hdmi_base         ' for Adafruit breakout board - full logic as in Pico, the board has 220 Ohm resistors on it
-	if_nz   wrpin   ##%10110_1111_0111_10_00000_0, t1  ' #7<<6 + hdmi_base      ' a '123 ohm BITDAC for Parallax breakout board
-                setxfrq ##$0CCCCCCC+1                      ' set streamer freq to 1/10th clk
-'
-                mov 	t1,hbase			   '
-                shl 	t1,#17                             '
-                add 	immg32,t1                           ' add the pin base to he streamer constant
-                sub 	i_upporch,#2			   ' the driver will call 2 blank lines itself to preload the buffer, so sub #2 from up porch time
-
-                cogid   t1              		   ' get a cogid
-                mul     t1, #12                            ' compute the offset to PSRAM mailbox 
-                add     mailbox, t1                        ' add offset to find this COG's mailbox
-
-''--------  frame rendering main loop  ---------------------------------------------------
-
-p101            setq 	#3
-		rdlong  vblankptr,ptra
-                setq    #47				   ' read sprite data
-	 	rdlong  sprite1pointer,spriteptr
-		mov     spriteline,#0                      ' init the sprite line variable
-                mov     dlinum, #0
-                add     frames,#1			   ' increment the frame counter
-                mov     dlptr2,dlptr			   ' init the temporary DL pointer
-
-
-                mov     linenum,#0			   ' init the current line #
-                mov     rcnt,#0			   	   ' init the DL repeat counter
-                mov     rcnt2a,affffffff 		   ' why?!                
-                
-
-'' -----   up porch (before the picture)
-
-                mov     hsync0,sync_000      	           ' init constants for sync
-                mov     hsync1,sync_001	
-                callpa  i_upporch ,#blank                  ' call the porch line i_upporch (-2) times
-                wrlong  #0,vblankptr                       ' the vblank time ends here
- 
-   
- 
-                xcont   m_bs,hsync0                        ' horizontal sync
-                xzero   m_sn,hsync1
-         	     call    #dli	                  ' call DL interpreter for line #0 at line #(-2) - 2 lines earlier, so it can start preloading data from PSRAM
-                xcont   m_bv,hsync0     
-                xcont   m_vi,hsync0
-                         rdfast  #256,buf1d                          ' prepare the HUB buffer for 4 scanlines
-
-                xcont   m_bs,hsync0                        ' horizontal sync
-                xzero   m_sn,hsync1
-		call    #dli
-                xcont   m_bv,hsync0     
-                xcont   m_vi,hsync0
-                 call    #sprite				   ' sprites for line #0
-                	
-                
-
- 
-'' ------- the main screen drawing starts here
-
-p301            xcont   m_bs,hsync0   			  ' make a right porch
-                xzero   m_sn,hsync1                       ' make hsync
-                call    #dli                              ' process the DL for line+2                
-                xcont   m_bv,hsync0
-                xcont   immg32,#0			  ' display the line 
-                 call    #sprite                           ' process sprites for line+1             
-              
-                add     linenum,#1                        ' increment the current line number 
-                cmp     linenum,i_totalvis  wz            ' check if all lines displayed
-    if_nz       jmp     #p301                             ' if not, display the next line
-
-' ---------------- All visible lines displayed now, start vblank  
-
-p112            wrlong  #1,vblankptr                       ' tell the system that the vblank started
-                callpa  i_downporch ,#blank                ' bottom blanks
-                mov     hsync0,sync_222                    ' vsync on
-                mov     hsync1,sync_223
-                callpa  i_vsync,#blank                     ' vertical sync blanks
-                jmp     #p101                              ' return to the main loop
-
-'' --------------- END of frame rendering loop ---------------------------------------------------------------------------
-
-'' --------------- Display list interpreter ---------------------------------------------------------------------------
-
-dli             cmp     rcnt,#0 wz			   ' check the DL repeat counter 
-
-    if_z        rdlong  dl,dlptr2				
-    if_z        add     dlptr2,#4
-    if_z        jmp     #p307                              ' no repeat, goto read and interpret the next DL entry
-
-                sub     rcnt,#1 wz                         ' decrement the repeat counter
-    if_nz       mov     dl,rdl                             ' restore repeating DL entry from temporary buffer
-                incmod  rcnt2a,rcnt2 wcz                   ' address update counter
-    if_c        add     dl,roffset                         ' if it rollovers, add the offset to the data address
-                mov     rdl,dl                             ' save the result
-
-p307	        mov     framebuf2,dl wcz                   ' move this to framebuf2. If normal DL entry, the frame buffer start will be extracted from this
-                getnib  t1,dl,#0
-                cmp     t1,#%0010 wz			   ' 0010 - display a normal graphics line, preload it from the PSRAM
-    if_z        jmp     #preload
-    		cmp     t1,#%0000 wz			   ' 0000 - display a line from a PSRAM list
-    if_z        jmp     #preload2
-                cmp     t1,#%0001 wz			   ' 0001 - repeat
-    if_z        jmp     #p390
-p308            ret
-   
-p390            rdlong  rdl,dlptr2                         ' read the next DL entry to repeat
-                getword rcnt,framebuf2,#1                  ' read the repeat count
-                shr     rcnt,#4                            ' from 12 upper bits
-                mov     rcnt2a,affffffff                   ' I still don't know why?
-                getnib  rcnt2,framebuf2,#4                 ' read the pointer update counter
-                getword roffset,framebuf2,#0               ' read the offset to add
-                shr     roffset,#4                         ' clean the command field from offset
-                shl     roffset,#6                         ' and make it ready to add to the DL entry (address=20 upper bits)
-                jmp     #dli                               ' now start repeating 
- 
-      
-'' --------------- A display list interpreter end ------------------------------------------------------------------------    
-
-
-'' --------------- Blank and vsync procedures called via callpa have to be in the middle of the code ---------------------
-
-blank           xcont   m_bs,hsync0                        ' horizontal sync
-                xzero   m_sn,hsync1
-                xcont   m_bv,hsync0     
-                xcont   m_vi,hsync0
-        _ret_   djnz    pa,#blank
-        
-'' -------------- Preload a line from PSRAM        
-        
-preload         mov     buf1c,dlinum			   ' preload a line buffer #dlinum (0..3)
-                shl     buf1c,#12		           ' 4096 bytes per line
-                add     buf1c,buf1d			   ' add the start address (himem-debug-4096) : Todo: debug variable!
-                mov     buf1,buf1c
-                incmod  dlinum,#3
-
-                shr     framebuf2,#4                      ' get the PSRAM start address from DL - Todo: use new DL format
-                mov     buf2,a4096
-                mov     cmd,framebuf2                      ' set the address
-                setnib  cmd, #%1011, #7                    ' attach the command - read burst from the external memory
-                setq    #2				   ' write 3 longs to the mailbox
-    _ret_       wrlong  cmd,mailbox			   ' read the PSRAM
- 
- 
-preload2      '  incmod  dlinum,#3
-                shr 	framebuf2,#4
-                mov 	cmd,affffffff
-                mov 	buf1,framebuf2
-                setq	#1
-    _ret_	wrlong  cmd,mailbox
-                
-
-'' -------------- Draw sprites
-
-sprite          mov     spritenum,#15			' 16 sprites. Todo: this should be a parameter
-
-p802            mov     t5,spritenum		   	' prepare a pointer to load sprite data
-                mul     t5,#3          			' one sprite data set needs 3 longs
-                alts    t5,#sprite1xy
-                getword sprite_y,0-0,#1		        ' get a sprite y
-                signx	sprite_y,#15			' they can be negative
-                alts    t5,#sprite1xy
-                getword sprite_x,0-0,#0                 ' and x
-                signx	sprite_x,#15
-                shl	sprite_x,#2			' now these are longs
-                alts    t5,#sprite1wh
-                getword sprite_h,0-0,#1		       	' get a sprite height
-                sub     sprite_h,#1
-                alts    t5,#sprite1wh
-                getword sprite_w,0-0,#0                 ' and width
-                shl	sprite_w,#2
-
-              
-                cmps	sprite_x,a4096 wcz
-     if_ge	jmp #p801          	
-     		cmps  sprite_x,##-128 wcz
-     if_le	jmp #p801		
-		mov     t2,linenum			' display line # to check if sprite has to be displayed
-  		subs    t2,sprite_y wcz                 ' check if the sprite has to be displayed
-     	if_c 	jmp     #p801				' if not, go out
-                cmp     t2,sprite_h wcz		    	' we have now the sprite line #, check, if it is not >= sprite height
-      	if_gt   jmp     #p801				' if yes, go out
-                mov     t3,spriteline			' compute the line buffer addres where to put the sprite line
-                shl     t3,#12			       	' =4096*spriteline where spriteline=0..3		' 
-                add     t3,buf1d			' line buffer addr
-                
-  		testb	sprite_x,#31 wc 		' check if sprite pos <0
-      	if_nc   add     t3,sprite_x   			' if not, add xpos, else xpos=0 - now we have the address to where wmlong the sprite
-                mul 	t2,sprite_w			' compute the offset to the sprite line data
-   	if_c	add     sprite_w,sprite_x		' if sprite_x negative, shotren the width
-   	if_c	sub 	t2,sprite_x			' and add the offset (sub negative) to the sprite data offset
-  
-                alts    t5,#sprite1pointer		' get the pointer to the sprite (3 longs per sprite data)
-                add     t2,0-0				' then add the offset
-	if_c    jmp #p899		
-				
- 		mov 	t4,sprite_x	'
-		add	t4,sprite_w
-		sub     t4,a4096 wcz			' check if the sprite goes right off the screen
-
-	if_nc	sub	sprite_w,t4			' if yes, make it narrower
-
-p899		mov 	t6,sprite_w
-		shr	t6,#2				' bytes to longs
-		sub     t6,#1				' longs to move for the full sprite width, -1 (setq adds 1)
-
-                setq   	t6
-                rdlong  368,t2				' read sprite data to the cog
-
-                setq   t6				' write the sprite data to the line buffer
-                wmlong  368,t3				
-                
-p801            djnf spritenum,#p802			' get the next sprite
-                incmod spriteline,#3			' prepare to fill the next line
-                ret
-                
- 
-'' -------------- Graphics line ------------------------------------------------------------
- 
-
-'' consts and vars
-
-sync_000        long    %1101010100_1101010100_1101010100_10    '
-sync_001        long    %1101010100_1101010100_0010101011_10    '        hsync
-sync_222        long    %0101010100_0101010100_0101010100_10    'vsync
-sync_223        long    %0101010100_0101010100_1010101011_10    'vsync + hsync
-
-border          long    %00000000_00011010_00101100_00000000
-
-'------ these longs will be set by setmode function
-
-m_bs            long    0        'blanks before sync
-m_sn            long    0        'sync
-m_bv            long    0        'blanks before visible
-m_vi            long    0        'visible pixels #
-i_upporch       long    0        'up porch lines
-i_vsync         long    0        'vsync lines
-i_downporch     long    0        'down porch lines
-i_cpl           long    0        'chars/longs per line
-i_totalvis      long    0
-
-'-------------------------------------
- 
-linenum         long    0
-frames          long    0
-dlinum long 0
-lutg8           long    $70880400 ' 0111_0000_1000_1000
-immg32		long    $B0810400 ' 1011_0000_1000_0001
-
-vblankptr       long    0
-modeptr         long    0
-paletteptr      long    0
-dlptr           long    0
-hbase           long    1
-mailbox         long    0
-spriteptr          long 0
-
-cmd             long    0
-buf1            long    $80000-16384-16384
-buf2            long    1024
-dlptr2          long    1
-dl              long    1
-
-buf1c long 0
-buf1d            long    $80000-16384-16384
-framebuf2       long    1
-hsync0          long    1
-hsync1          long    1
-
-t1              long    1
-t2 long 0
-t3 long 0
-t4 long 0
-
-rcnt            long    0  'dl repeat count
-rcnt2           long    0
-rcnt2a          long    0
-roffset         long    0
-rdl             long    0  'dl repeat line
-dlc             long    0  'dl command
-
-affffffff       long    $ffffffff
-sprite1pointer long 0
-sprite1xy      long 0
-sprite1wh      long 0
-sprite2pointer long 0
-sprite2xy      long 0
-sprite2wh      long 0
-sprite3pointer long 0
-sprite3xy      long 0
-sprite3wh      long 0
-sprite4pointer long 0
-sprite4xy      long 0
-sprite4wh      long 0
-sprite5pointer long 0
-sprite5xy      long 0
-sprite5wh      long 0
-sprite6pointer long 0
-sprite6xy      long 0
-sprite6wh      long 0
-sprite7pointer long 0
-sprite7xy      long 0
-sprite7wh      long 0
-sprite8pointer long 0
-sprite8xy      long 0
-sprite8wh      long 0
-sprite9pointer long 0
-sprite9xy      long 0
-sprite9wh      long 0
-sprite10pointer long 0
-sprite10xy      long 0
-sprite10wh      long 0
-sprite11pointer long 0
-sprite11xy      long 0
-sprite11wh      long 0
-sprite12pointer long 0
-sprite12xy      long 0
-sprite12wh      long 0
-sprite13pointer long 0
-sprite13xy      long 0
-sprite13wh      long 0
-sprite14pointer long 0
-sprite14xy      long 0
-sprite14wh      long 0
-sprite15pointer long 0
-sprite15xy      long 0
-sprite15wh      long 0
-sprite16pointer long 0
-sprite16xy      long 0
-sprite16wh      long 0
-
-spritenum long 0
-
-spriteline long 0
-sprite_x long 900
-sprite_y long 0
-sprite_w long 16
-sprite_h long 64
-l2 long 0
-t5 long 0
-t6 long 0
-t7 long 0
-t8 long 0
-t9 long 0
-preloadaddr long 0
-preloadlineaddr long 0
-a1024 long 1024
-a4096 long 4096
-a1023 long 1023
- fit 368
- 
-{{ 
-dat
- ' pr0=fa
- ' pr1=b
- ' pr2=ha
- ' pr3=i
- ' pr4=bb
- 
-       orgh   $7C000
-       drvh   #59                   ' prop->flash
-       drvh   #60                   ' clock
-       drvh   #61                   ' cs
-       fltl   #58                   ' flash->prop
-       add    pr0,##$03000000        ' 03-read
-       drvl   #61                   ' select the flash
-       mov    pr3,#32                 ' send the command
-p11    rol    pr0,#1 wc
-       drvc   #59
-       drvl   #60
-       drvh   #60
-       djnz   pr3,#p11
-       drvl   #60
-       drvh   #60
-       nop                          ' without this nop the first bit is not correct
-p13    mov    pr3,#8                  ' read b bytes
-p12    drvl   #60
-       drvh   #60
-       testp  #58 wc
-       rcl    pr4,#1
-       djnz   pr3,#p12       
-       wrbyte pr4,pr2
-       add    pr2,#1
-       djnz   pr1,#p13
- _ret_ drvh   #61                   ' disable chip select
-       
-       orgh   $7C080
-fa     long 0
-b      long 0
-ha     long 0
-bb     long 0
-i      long 0       
-       end 
-}}
+vgacolors       long   $00000000,$0000AA00,$00AA0000,$00AAAA00,$AA000000,$AA00AA00,$AA550000,$AAAAAA00,$55555500,$5555FF00,$55FF5500,$55FFFF00,$FF555500,$FF55FF00,$FFFF5500,$FFFFFF00
