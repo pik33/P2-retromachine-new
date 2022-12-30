@@ -36,15 +36,16 @@ dim flash as class using "bitbanged_flash_002.spin2"
 
 ' here you can decide what to burn. 0=not burn, non 0=address to burn
 
-const burn_st_mono_font=      $800000
-const burn_pc_dos_font=       $801000
-const burn_atari_8x8_font=    $80C000
-const burn_atari_8bit_palette=$810000
-const burn_mouse_pointer_8=   $811000
-const burn_ball_sprites_8=    $814000
-const burn_mouse_pointer_32=  $818000
-const burn_ball_sprites_32=   $81A000
-const burn_video32_driver=    $830000
+const burn_st_mono_font=      0'$800000
+const burn_pc_dos_font=       0'$801000
+const burn_atari_8x8_font=    0'$80C000
+const burn_atari_8bit_palette=0'$810000
+const burn_mouse_pointer_8=   0'$811000
+const burn_ball_sprites_8=    0'$814000
+const burn_mouse_pointer_32=  0'$818000
+const burn_ball_sprites_32=   0'$81A000
+const burn_video32_driver=    0'$830000
+const burn_psram_driver=      $860000
 
 if burn_st_mono_font<>0       then print "Burning ST mono font at ",       hex$(burn_st_mono_font)      :burn(burn_st_mono_font,      varptr(stmono),       4096)
 if burn_pc_dos_font<>0        then print "Burning PC DOS font at ",        hex$(burn_pc_dos_font)       :burn(burn_pc_dos_font,       varptr(pcdos),        4096)
@@ -55,6 +56,7 @@ if burn_ball_sprites_8<>0     then print "Burning 8bpp ball sprites at ",  hex$(
 if burn_mouse_pointer_32<>0   then print "Burning 32bpp mouse pointer at ",hex$(burn_mouse_pointer_32)  :burn(burn_mouse_pointer_32,  varptr(mouse32),      4096)
 if burn_ball_sprites_32<>0    then print "Burning 32bpp ball sprites at " ,hex$(burn_ball_sprites_32)   :burn(burn_ball_sprites_32,   varptr(balls32), 	   65536)
 if burn_video32_driver<>0     then print "Burning 32bpp video driver at ", hex$(burn_video32_driver)    :burn(burn_video32_driver,    varptr(hdmi32),       4096)
+if burn_psram_driver<>0       then print "Burning PSRAM driver at ",       hex$(burn_psram_driver)      :burn(burn_psram_driver,      varptr(psram),        4096)
 
 sub burn(flashaddr,hubaddr,amount)
 
@@ -83,4 +85,5 @@ mouse8		file "mouse.def"
 balls8		file "balls01.def"
 mouse32		file "mouse32.def"
 balls32		file "balls32.def" 
+psram 		file "psram.drv"
 end asm

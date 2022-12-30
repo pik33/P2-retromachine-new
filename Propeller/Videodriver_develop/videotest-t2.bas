@@ -7,7 +7,7 @@ const   spi_do = 58 ' flash -> P2
 mount "/sd", _vfs_open_sdcard() 
 
 dim v as class using "ht013.spin2"
-dim psram as class using "psram.spin2"
+dim psram as class using "psram_flash.spin2"
 dim onesprite as ubyte(4095)
 dim s as ulong(128)
 sub cls(fg=154,bg=147) 
