@@ -51,54 +51,6 @@ end function
 #define startmachine rm.start
 #define plot v.plot1
 
-'sub putpixel(x,y,c)
-'v030.putpixel8(x,y,c)
-'end sub
-
-function peek(addr) as ubyte
-dim r as ubyte
-asm
-rdbyte r,addr
-end asm
-return r
-end function
-
-
-
-function dpeek(addr) as ushort
-dim r as ushort
-asm
-rdword r,addr
-end asm
-return r
-end function
-
-function lpeek(addr) as ulong
-dim r as ulong
-asm
-rdlong r,addr
-end asm
-return r
-end function
-
-sub poke(addr as ulong,value as ubyte)
-asm
-wrbyte value, addr
-end asm
-end sub
-
-sub dpoke(addr as ulong,value as ushort)
-asm
-wrword value, addr
-end asm
-end sub
-
-sub lpoke(addr as ulong,value as ulong)
-asm
-wrlong value, addr
-end asm
-end sub
-
 sub pslpoke(addr as ulong,value as ulong)
 psram.filllongs(addr,value,1,0)
 end sub

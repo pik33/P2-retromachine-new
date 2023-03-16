@@ -27,7 +27,7 @@ const h_vspace=20
 #include "dir.bi"
 
 dim h as class using "hg008.spin2"		' HDMI driver
-dim psram as class using "psram.spin2"		' PSRAM driver
+dim psram as class using "psram4.spin2"		' PSRAM driver
 
 '' All drivers are hacked for this. VGA and HDMI has to have separated buffers, PSRAM mailbuffers are moved to S7FF00 to make loading size as big as possible
 
