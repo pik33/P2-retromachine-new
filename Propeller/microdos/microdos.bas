@@ -1,5 +1,5 @@
 ' MicroDOS - a binary loader for a PSRAM P2 system
-' v. 0.02- 20220614
+' v. 0.04- 20230508
 ' Piotr Kardasz, pik33@o2.pl
 ' MIT license
 ' For better effect compile with -DFF_USE_LFN 
@@ -9,11 +9,11 @@ const _clkfreq = 336956522 	' don't change, video drivers will set it to this
 
 const pin=8			' VGA pin
 const hpin=0			' HDMI pin
-const up_key=$51		' define your keys here
-const down_key=$50
-const w_key=$77
-const s_key=$73
-const enter_key=$0D
+const up_key=$52		' define your keys here
+const down_key=$51
+const w_key=$1a
+const s_key=$16
+const enter_key=$28
 const v_back_color=147		' Display colors for VGA and HDMI. Drivers use Atari type palette, 16 colors on high nibble, 16 luminances on low nibble, 32 is red, 112 is blue, 192 is green
 const v_write_color=154
 const h_back_color=147-16
@@ -35,10 +35,7 @@ dim psram as class using "psram.spin2"		' PSRAM driver
 
 '-----------------------------------------------------------------------------------------------
 
-' Replace this with your keyboard driver. It has to provide readkey() which returns the pressed key code or zero if no key pressed
-' To do: add a standard USB keyboard driver here.
-
-dim kbd as class using "keyboard.spin2"
+dim kbd as class using "usbnew.spin2"
 
 '-----------------------------------------------------------------------------------------------
 
@@ -50,7 +47,12 @@ dim mbox as ulong
 dim files$(27)
 dim shortfiles$(27)
 dim filebuf(16383) as ubyte
-let title$="P2 MicroDOS v. 0.03 - 20220614"
+let title$="P2 MicroDOS v. 0.04 - 20230508"
+
+
+function readkey() as ulong
+return kbd.get_key()
+end function
 
 ' Start cogs
 
@@ -102,9 +104,9 @@ for i=1 to filenum-1: v.outtextxycz(960-8*len(shortfiles$(i)),pos,shortfiles$(i)
 ' Wait for a keyboard input, highlight the selected name
 
 let filepos=0
-do: loop until kbd.readkey()=0
+do: loop until readkey()=0
 do 
-  let key=kbd.readkey() 
+  let key=readkey() 
   if key=down_key orelse key=s_key then
     key=0
     v.outtextxycz(960-8*len(shortfiles$(filepos)),v_vspace*(3+filepos),shortfiles$(filepos),v_write_color,v_back_color,2,2) 
