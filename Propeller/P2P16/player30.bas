@@ -1,7 +1,7 @@
 '-------------------------------------------------------------------------------------------------------------
 '
 ' Prop2play - a multiformat player for the P2
-' v. 0.28 - 20220421
+' v. 0.30 - 20230509
 ' pik33@o2.pl
 ' with a lot of code and help from the P2 community
 ' MIT license
@@ -48,7 +48,7 @@
 
 const HEAPSIZE = 16384
 const version$="Prop2play v.0.30"
-const statusline$=" Propeller2 multiformat player v. 0.29 --- 2022.05.10 --- pik33@o2.pl --- use a serial terminal or a RPi KBM interface to control --- arrows up,down move - pgup/pgdn or w/s move 10 positions - enter selects - tab switches panels - +,- controls volume - 1..4 switch channels on/off - 5,6 stereo separation - 7,8,9 sample rate - a,d SID speed - x,z SID subtune - R rescans current directory ------"
+const statusline$=" Propeller2 multiformat player v. 0.30 --- 2023.05.09 --- pik33@o2.pl --- use an USB keyboard and mouse to control --- arrows up,down move - pgup/pgdn or w/s move 10 positions - enter selects - tab switches panels - +,- controls volume - 1..4 switch channels on/off - 5,6 stereo separation - 7,8,9 sample rate - a,d SID speed - x,z SID subtune - R rescans current directory ------"
 const hubset338=%1_111011__11_1111_0111__1111_1011 '338_666_667 =30*44100 
 const hubset336=%1_101101__11_0000_0110__1111_1011 '336_956_522 =paula*95
 'const hubset338=%1_110000__11_0110_1100__1111_1011 ' to test at 354
@@ -110,12 +110,12 @@ dim mousex,mousey,mousek,mousewheel,mouseclick
 
 channelvol(0)=1 : channelvol(1)=1 : channelvol(2)=1 : channelvol(3)=1    
 mainvolume=127 : mainpan=2048  ' vol: 1..128..(255)  pan 0 (mono)..8192 (full)
-'startmachine
+rm.start()
+rm.mouse_set_limits(1023,767)
 startpsram
 startvideo
 cls(154,147)
 'startaudio
-do:loop
 'v.cursoroff
 makedl
 lpoke addr(sl),len(statusline$)  ' cannot assign to sl, but still can lpoke :) 
@@ -171,20 +171,39 @@ v.spr16x=512
 v.spr16y=288
 
 '' --------------------------------- THE MAIN LOOP --------------------------------------------------------------------------------------
-
+dim newmousewheel,dblclick as integer
+rm.set_mouse_xyz(512,288,0)
 do
-  do
-    let mouse1=rm.readmouse()
-    if mouse2(3)=$81 then mousex=mouse2(2)+128*mouse2(1)
-    if mouse2(3)=$82 then mousey=mouse2(2)+128*mouse2(1)
-    if mousex<1022 then v.spr16x=mousex else v.spr16x=1022
-    if mousey<574  then v.spr16y=mousey else v.spr16y=574
-    if mouse2(3)=$85 then mouseclick=1
-    if mouse2(3)=$86 then mouseclick=2
-    if mouse2(3)=$83 andalso mouse2(2)=1   then mousewheel=-1 
-    if mouse2(3)=$83 andalso mouse2(2)=$7F then mousewheel=1 
+
+
+
+
+    let oldmousewheel=newmousewheel  
+    let mousex,mousey,newmousewheel=rm.mouse_xyz()
+    mousewheel=0
+    if newmousewheel<oldmousewheel then mousewheel=1
+    if newmousewheel>oldmousewheel then mousewheel=-1
+    mouseclick=rm.mouse_buttons()
+   ' print mousex,mousey,mousewheel
+    if mouseclick=1 andalso dblclick=-1 then dblclick=0
+    if mouseclick=0 andalso dblclick>=0 then dblclick+=1
     
-  loop until mouse1=0  
+    if mouseclick=1 andalso dblclick<30 andalso dblclick>2 then dblclick=-1:mouseclick=2
+    if dblclick>30 then dblclick=-1
+ '   position 0,2:print mouseclick, dblclick
+    v.spr16x=mousex 
+    v.spr16y=mousey
+    
+'    if mouse2(3)=$81 then mousex=mouse2(2)+128*mouse2(1)
+'    if mouse2(3)=$82 then mousey=mouse2(2)+128*mouse2(1)
+'    if mousex<1022 then v.spr16x=mousex else v.spr16x=1022
+'    if mousey<574  then v.spr16y=mousey else v.spr16y=574
+'    if mouse2(3)=$85 then mouseclick=1
+'    if mouse2(3)=$86 then mouseclick=2
+'    if mouse2(3)=$83 andalso mouse2(2)=1   then mousewheel=-1 
+'    if mouse2(3)=$83 andalso mouse2(2)=$7F then mousewheel=1 
+    
+'  loop until mouse1=0  
   waitvbl  							  	                        ' synchronize with vblanks
   if modplaying=0 then framenum+=1 : scrollstatus((framenum) mod (8*sl))                        ' if not playing module let main loop scroll the status line
   if dmpplaying or modplaying or sidplaying then displaysamples
@@ -192,7 +211,7 @@ do
   scope												' display scope
   bars												' display bars
 
-  position 0,0: print decuns$(mousex,4), decuns$(mousey,4)
+'  position 0,0: print decuns$(mousex,4), decuns$(mousey,4)
 '' --------------------------------  Getting the .wav file data in the main loop as no other cogs can acces the file system ------------
 
   if waveplaying=1 then
@@ -220,7 +239,7 @@ do
     if dirnum2>=dirnum3 then dirnum2=dirnum3-1            						' dirnum2 has to be less than all directoriess count
     if dirnum1>=dirnum3 then dirnum1=dirnum3-1 ': goto 199 						' dirnum1 has to be less than all directories count. If it is, nothing more to do, go to the end of this part     
     highlight(0,olddirnum1,0) : highlight(0,dirnum1,1)                ' only highlight changed, change the highlighted entry and go away
-    if mouseclick=2 then ansibuf(3)=13: mouseclick=0: goto 412
+    if mouseclick=2 then ansibuf(3)=$28: mouseclick=0: goto 412
     mouseclick=0
   endif  
 
@@ -237,7 +256,7 @@ do
     if filenum2>=filenum3 then filenum2=filenum3-1            						' dirnum2 has to be less than all directoriess count
     if filenum1>=filenum3 then filenum1=filenum3-1 ': goto 199 						' dirnum1 has to be less than all directories count. If it is, nothing more to do, go to the end of this part     
     highlight(1,oldfilenum1,0) : highlight(1,filenum1,1)                ' only highlight changed, change the highlighted entry and go away
-    if mouseclick=2 then ansibuf(3)=13: mouseclick=0: goto 412
+    if mouseclick=2 then ansibuf(3)=$28: mouseclick=0: goto 412
     mouseclick=0
   endif  
 
@@ -259,16 +278,16 @@ do
   endif  
 
 '' ----------------------------- Get data from the keyboard
- 
+  lpoke($30,rm.get_key())
   if lpeek($30)<>0 then 									                         	' a Raspberry Pi based interface sent a message
-    if peek($33)=$88 then  ansibuf(0)=ansibuf(1): ansibuf(1)=ansibuf(2) : ansibuf(2)=ansibuf(3) : ansibuf(3)=peek($31)   	' add it to the ANSI buffer
+    if peek($33)=$0 then  ansibuf(0)=ansibuf(1): ansibuf(1)=ansibuf(2) : ansibuf(2)=ansibuf(3) : ansibuf(3)=peek($30)   	' add it to the ANSI buffer
     lpoke $30,0 													 	' and clear the message
   endif  
 
   if lpeek($3c)<>0 then ansibuf(0)=ansibuf(1): ansibuf(1)=ansibuf(2) : ansibuf(2)=ansibuf(3) : ansibuf(3)=peek($3D): lpoke($3C,0) ' A serial interface at P62.63 from ANSI terminal
-  if ansibuf(3)=asc(" ") then stop=not stop: ansibuf(3)=0 
+  if ansibuf(3)=$2c then stop=not stop: ansibuf(3)=0 
   
-  if (ansibuf(3)=asc("x")) and (sidplaying=1) then
+  if (ansibuf(3)=$1B) and (sidplaying=1) then
     startsong+=1
     if startsong>songs then startsong=songs
     song=startsong-1
@@ -277,7 +296,7 @@ do
     ansibuf(3)=0
     endif
     
-  if (ansibuf(3)=asc("z")) and (sidplaying=1) then
+  if (ansibuf(3)=$1D) and (sidplaying=1) then
     startsong-=1
     if startsong<1 then startsong=1
     song=startsong-1
@@ -288,23 +307,23 @@ do
     
 '' ---------------------------- Key 7,8,9 pressed - samplerate (period) change     
 
-  if ansibuf(3)=asc("7") then 									' 7 - decrease the period
+  if ansibuf(3)=$24then 									' 7 - decrease the period
     samplerate-=1 : if samplerate<65 then samplerate=65
     lpoke base+28,samplerate+$80000000 : waitms(2) : lpoke base+28,0 : ansibuf(3)=0
   endif  
    
-  if ansibuf(3)=asc("8") then 									' 8 - incerase the period    
+  if ansibuf(3)=$25 then 									' 8 - incerase the period    
     samplerate+=1 : if samplerate>65535 then samplerate=65535
     lpoke base+28,samplerate+$80000000 : waitms(2) : lpoke base+28,0 : ansibuf(3)=0
   endif 
      
-  if ansibuf(3)=asc("9") then									' 9 - return to standard     
+  if ansibuf(3)=$26 then									' 9 - return to standard     
     if waveplaying=0 then lpoke base+28,$80000064 : samplerate=100				' 100=$64  if module playing
     if waveplaying=1 then lpoke base+28,$80000100 : samplerate=256				' 256=$100 if wave playing, $100 allows HQ DACs
      waitms(2) : lpoke base+28,0 : ansibuf(3)=0
    endif
    
-  if ansibuf(3)=asc("d") then 									' 7 - decrease the period
+  if ansibuf(3)=7 then 									' z - decrease the period
     if sidfreq>=100 then sidfreq=sidfreq+50: if sidfreq>400 then sidfreq=400
     if sidfreq=60 then sidfreq=100
     if sidfreq=50 then sidfreq=60
@@ -315,7 +334,7 @@ do
     ansibuf(3)=0
   endif  
   
-  if ansibuf(3)=asc("a") then 									' 7 - decrease the period
+  if ansibuf(3)=4 then 									' a - decrease the period
     if sidfreq<=50 then sidfreq=sidfreq-5: if sidfreq<1 then sidfreq=1
     if sidfreq=60 then sidfreq=50
     if sidfreq=100 then sidfreq=60
@@ -327,19 +346,19 @@ do
    
 '' --------------------------- Keys 1..4 - channels on/off, 5,6 - stereo separation, +,- volume
    
-  if mousex>54 andalso mousex<72 andalso mousey>350 andalso mousey<365 andalso mousewheel=-1 then ansibuf(3)=54: mousewheel=0
-  if mousex>54 andalso mousex<72 andalso mousey>350 andalso mousey<365 andalso mousewheel=1 then ansibuf(3)=53 : mousewheel=0
+  if mousex>54 andalso mousex<72 andalso mousey>350 andalso mousey<365 andalso mousewheel=-1 then ansibuf(3)=$23: mousewheel=0
+  if mousex>54 andalso mousex<72 andalso mousey>350 andalso mousey<365 andalso mousewheel=1 then ansibuf(3)=$22 : mousewheel=0
   if mousex>128 andalso mousex<152 andalso mousey>350 andalso mousey<365 andalso mousewheel=-1 then ansibuf(3)=asc("+"): mousewheel=0
   if mousex>128 andalso mousex<152 andalso mousey>350 andalso mousey<365 andalso mousewheel=1 then ansibuf(3)=asc("-")  : mousewheel=0
    
-  if ansibuf(3)=49 then channelvol(0)=1-channelvol(0) : ansibuf(3)=0									' 1 - channel 1	
-  if ansibuf(3)=50 then channelvol(1)=1-channelvol(1) : ansibuf(3)=0									' 2 - channel 2
-  if ansibuf(3)=51 then channelvol(2)=1-channelvol(2) : ansibuf(3)=0									' 3 - channel 3
-  if ansibuf(3)=52 then channelvol(3)=1-channelvol(3) : ansibuf(3)=0									' 4 - channel 4
-  if ansibuf(3)=53 andalso ansibuf(2)<>91 then ansibuf(3)=0 : ansibuf(2)=0: mainpan=mainpan-256: if mainpan<0 then mainpan=0		' 5 - decrease stereo separation
-  if ansibuf(3)=54 andalso ansibuf(2)<>91 then ansibuf(3)=0 : ansibuf(2)=0: mainpan=mainpan+256: if mainpan>8192 then mainpan=8192	' 6 - increase stereo separation
-  if ansibuf(3)=asc("+") orelse ansibuf(3)=asc("=") then mainvolume+=1: ansibuf(3)=0 : if mainvolume>128 then mainvolume=128 		' + - increase volume
-  if ansibuf(3)=asc("-") then mainvolume-=1: ansibuf(3)=0 : if mainvolume<0  then mainvolume=0    					' - - decrease volume
+  if ansibuf(3)=$1e then channelvol(0)=1-channelvol(0) : ansibuf(3)=0									' 1 - channel 1	
+  if ansibuf(3)=$1f then channelvol(1)=1-channelvol(1) : ansibuf(3)=0									' 2 - channel 2
+  if ansibuf(3)=$20 then channelvol(2)=1-channelvol(2) : ansibuf(3)=0									' 3 - channel 3
+  if ansibuf(3)=$21 then channelvol(3)=1-channelvol(3) : ansibuf(3)=0									' 4 - channel 4
+  if ansibuf(3)=$22 then ansibuf(3)=0 : ansibuf(2)=0: mainpan=mainpan-256: if mainpan<0 then mainpan=0		' 5 - decrease stereo separation
+  if ansibuf(3)=$23 then ansibuf(3)=0 : ansibuf(2)=0: mainpan=mainpan+256: if mainpan>8192 then mainpan=8192	' 6 - increase stereo separation
+  if ansibuf(3)=$2e orelse ansibuf(3)=$57 then mainvolume+=1: ansibuf(3)=0 : if mainvolume>128 then mainvolume=128 		' + - increase volume
+  if ansibuf(3)=$2d orelse ansibuf(3)=$56 then mainvolume-=1: ansibuf(3)=0 : if mainvolume<0  then mainvolume=0    					' - - decrease volume
    
   pan(0)=8192-mainpan : pan(1)=8192+mainpan : pan(2)=8192+mainpan : pan(3)=8192-mainpan 						' set channels position
   v.setwritecolors(122,114)
@@ -370,11 +389,11 @@ do
   
 '' -------------------------- R - rescan the directory 
 
-  if (ansibuf(3)=asc("r")) orelse (ansibuf(3)=asc("R")) then getlists(1)  : ansibuf(3)=0 						' recreate dirlist
+  if (ansibuf(3)=$15) then getlists(1)  : ansibuf(3)=0 						' recreate dirlist
 
 '' ------------------------- Enter and also directory panel active - change the current directory
 
-  if (ansibuf(3)=13 orelse ansibuf(3)=141) andalso panel=0 then
+  if (ansibuf(3)=$28 orelse ansibuf(3)=$58 ) andalso panel=0 then
     close #7: open currentdir$+"dirlist.txt" for input as #7					' open a directory list file
     for  iii=0 to dirnum2 : input #7,filename$ :next iii						' read dirnum2 entries - todo: use get instead
      filename$=rtrim$(filename$)								' delete spaces at the end
@@ -400,7 +419,7 @@ do
 
 '' -------------------- Enter and also file panel active - open and play the file
   
-412 if (ansibuf(3)=13 orelse ansibuf(3)=141) andalso panel=1 then
+412 if (ansibuf(3)=$28 orelse ansibuf(3)=$58) andalso panel=1 then
     close #7: open currentdir$+"filelist.txt" for input as #7					' open a file list
     if filenum2>0 then get #7,1+39*(filenum2-1),displayname(0),39 				' find the file name
     input #7,filename$ 			
@@ -560,7 +579,7 @@ do
 
 '' ----------------------------------- User interface panels control : tab, arrows, pg up/down, w, s
  
-  if (ansibuf(3)=9) orelse (ansibuf(3)=137) then 						                                           ' TAB changes panel
+  if (ansibuf(3)=$2b)  then 						                                           ' TAB changes panel
     if panel=0 then highlight(panel,dirnum1,0)
     if panel=1 then highlight(panel,filenum1,0)
     panel=1-panel
@@ -569,10 +588,10 @@ do
     ansibuf(3)=0
   endif
    
-  if (ansibuf(3)=66 andalso ansibuf(2)=91 andalso ansibuf(1)=27) orelse (ansibuf(3)=$D0) orelse mousewheel=1 then filemove=1 :mousewheel=0                                 ' arrow down  
-  if (ansibuf(3)=54 andalso ansibuf(2)=91 andalso ansibuf(1)=27) orelse (ansibuf(3)=205) orelse (ansibuf(3)=asc("s")) then filemove=10     ' pg down or s - moves 10 positions down 
-  if (ansibuf(3)=65 andalso ansibuf(2)=91 andalso ansibuf(1)=27) orelse (ansibuf(3)=$D1) orelse mousewheel=-1 then filemove=(-1) :mousewheel=0                              ' arrow up 
-  if (ansibuf(3)=53 andalso ansibuf(2)=91 andalso ansibuf(1)=27) orelse (ansibuf(3)=203) orelse (ansibuf(3)=asc("w"))  then filemove=(-10) ' pg up or w - moves 10 positions up 
+  if ansibuf(3)=$51 orelse mousewheel=1 then filemove=1 :mousewheel=0                                 ' arrow down  
+  if ansibuf(3)=$4e orelse ansibuf(3)=$16 then filemove=10     ' pg down or s - moves 10 positions down 
+  if ansibuf(3)=$52 orelse mousewheel=-1 then filemove=(-1) :mousewheel=0                              ' arrow up 
+  if ansibuf(3)=$4b orelse ansibuf(3)=$1a  then filemove=(-10) ' pg up or w - moves 10 positions up 
 
 '' ---------------------------------- If the "cursor" needs to be moved, do it
 
@@ -665,7 +684,7 @@ do
     
 230  ansibuf(3)=0: ansibuf(2)=0 : ansibuf(1)=0  :filemove=0   
   endif
-  if playnext=1 then playnext=0: ansibuf(3)=13
+  if playnext=1 then playnext=0: ansibuf(3)=$28
   mouseclick=0: mousewheel=0
 loop		
 
