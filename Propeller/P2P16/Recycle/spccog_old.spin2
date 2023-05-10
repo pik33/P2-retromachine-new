@@ -4,7 +4,7 @@ obj {{
                      │ ┌─── │ ┌─┐ │ │ ┌───
                                │ │    │ │ │ │ │ │ ┐ ┐
                                │ └─── │ └─┘ │ │ └─┘ │
-                     └───── └─────┘ └─────┘  V1.2
+                     └───── └─────┘ └─────┘  V1.0
 
               The sound of the Super Nintendo in a cog!
 
@@ -23,16 +23,10 @@ Misfeatures:
   • Some tunes exhibit minor clicking..
   • Inaccurate Timer 2 emulation
 
-V1.1 improvements:
-  • BRR decoding is now correctly clamped
-
-V1.2 improvements:
-  • Further improved BRR decoding accuracy
-
 
 Legal nonsense:
 
-     (C) 2023 Ada Gottensträter, IRQsome Software non-inc.
+     (C) 2022 Ada Gottensträter, IRQsome Software non-inc.
 
 
 (This software production is not associated with or endorsed by either Nintendo or Sony)
@@ -68,6 +62,12 @@ long cog,memptr
 ' SPCcog state
 byte inport[4],outport[4]
 long chanstate[8*CHANNEL_SIZE]
+
+'' Get current volume for channel (zero to $7FF00)
+PUB get_current_volume(channel) : v | chbase
+  chbase := @chanstate[channel*CHANNEL_SIZE]
+  return (abs(byte[chbase][14*4 + 1] signx 7) + abs(byte[chbase][14*4 + 3] signx 7))*long[chbase][10]
+
 
 PUB start_spcfile(left,right,fileptr) :r
 '' ┌──────────────────────────────────────────────────────────────┐
@@ -338,18 +338,21 @@ dsp_dosample
               mov pb,dsp_daccenter
               scas dsp_rsample,dsp_dacscas
               add pb,0-0
+              
+              
+              '''''' to do: oscilloscope here
+
+                      
+              
               wypin pa,dsp_lpin
               wypin pb,dsp_rpin
               
-              
-              'scope
-              
-                          	setword pa,pb,#1   
+            			setword pa,pb,#1   
             			mov scptr2,scptr
             			shl scptr2,#2
             			add scptr2,scbase     
  			        wrlong pa,scptr2
-          			incmod scptr,##639    
+          			incmod scptr,##639                
               
               
               
@@ -717,7 +720,7 @@ dsp_write
         _ret_ setbyte dsp_dir_esa_edl,sp_memv,#2 ' $7D: EDL
 
 .kon
-              mov dsp_kon_latch,sp_memv
+        _ret_ mov dsp_kon_latch,sp_memv
         _ret_ mov dsp_kon_read,sp_memv
 
 .firwrite
@@ -727,10 +730,10 @@ dsp_write
               ret wcz
 
 
-
 scptr long 0
 scptr2 long 0
 scbase long $75A00 
+
 sp_400h       long $400
 dsp_maxenv    ' alias
 sp_7FFh       long $7FF
@@ -806,10 +809,18 @@ byte        1
 byte        0
 
 dsp_brrpred_tbl long ' BRR predictor coefficents (sometimes wrongly referred to as "filters")
+
+long $0000_0000
+long $3C00_0000
+long $7A00_C400
+long $7300_CC00
+{
 long $0000_0000
 long $1E00_0000
 long $3D00_E200
 long $3980_E600
+}
+
 
               '' TODO: make sure initial values for these are ok
 dsp_ct1       long 0 ' undivded rate counter
@@ -858,7 +869,7 @@ dsp_rates     res 1
 dsp_lecho     res 1
 dsp_recho     res 1
 dsp_modout    res 1
-
+                
 
 
               fit $1E0
@@ -1628,7 +1639,7 @@ dsp_chloop    '' Channel loop
               mov dsp_tmp6,0-0
               getword dsp_tmp5,dsp_tmp6,#1 ' tmp5/tmp6 are first/second prediction coefficient
               getnib pb,dsp_tmp4,#1 ' scale (invalid values are not treated correctly)
-              subr pb,#28+1
+              subr pb,#28
               ' Move buffer
               mov dsp_sbuf+0,dsp_sbuf+4
               mov dsp_sbuf+1,dsp_sbuf+5
@@ -1643,9 +1654,6 @@ dsp_chloop    '' Channel loop
               add dsp_sbuf+4,0-0
               scas dsp_sbuf+2,dsp_tmp6 ' s[t-2]
               add dsp_sbuf+4,0-0
-              fges dsp_sbuf+4,dsp_min
-              fles dsp_sbuf+4,dsp_max
-              shl dsp_sbuf+4,#1
               ' Second sample
               getnib dsp_sbuf+5,dsp_tmp1,#0
               shl dsp_sbuf+5,#28
@@ -1654,9 +1662,6 @@ dsp_chloop    '' Channel loop
               add dsp_sbuf+5,0-0
               scas dsp_sbuf+3,dsp_tmp6 ' s[t-2]
               add dsp_sbuf+5,0-0
-              fges dsp_sbuf+5,dsp_min
-              fles dsp_sbuf+5,dsp_max
-              shl dsp_sbuf+5,#1
               ' Third sample
               getnib dsp_sbuf+6,dsp_tmp1,#3
               shl dsp_sbuf+6,#28
@@ -1665,9 +1670,6 @@ dsp_chloop    '' Channel loop
               add dsp_sbuf+6,0-0
               scas dsp_sbuf+4,dsp_tmp6 ' s[t-2]
               add dsp_sbuf+6,0-0
-              fges dsp_sbuf+6,dsp_min
-              fles dsp_sbuf+6,dsp_max
-              shl dsp_sbuf+6,#1
               ' Fourth sample
               getnib dsp_sbuf+7,dsp_tmp1,#2
               shl dsp_sbuf+7,#28
@@ -1676,13 +1678,6 @@ dsp_chloop    '' Channel loop
               add dsp_sbuf+7,0-0
               scas dsp_sbuf+5,dsp_tmp6 ' s[t-2]
               add dsp_sbuf+7,0-0
-              fges dsp_sbuf+7,dsp_min
-              fles dsp_sbuf+7,dsp_max
-              shl dsp_sbuf+7,#1
-
-              ' Note: decoded samples are clamped to 16 bits, _then doubled_
-              '       but need to be truncated to 16 bits afterwards? (hardware bug?)
-              '       Truncation happens autmagically when using MULS/SCAS.
 
               ' advance BRR pointer if we're done with this block
               cmp dsp_tmp3,#3 wz
@@ -1798,8 +1793,6 @@ dsp_gt_patch2 rdlong dsp_tmp1,ptrb[##0] ' "forward"
               muls dsp_output,dsp_envlvl
               sar dsp_output,#11+1
               mov dsp_modout,dsp_output
-              'cmp dsp_chan,#3 wz '' DEBUG
-        'if_nz mov dsp_output,#0 '' DEBUG
               ' Mix into output
               getword dsp_tmp2,dsp_cvol,#1 ' right volume (left is in lowword of dsp_cvol)
               getbyte pa,dsp_pmon_non_eon,#2
@@ -2092,6 +2085,7 @@ sp_init
               jmp #\sp_nextop '' GO!
 
 patched       long 0
+
 
 DAT ' SPC700 firmware ROM
               orgh

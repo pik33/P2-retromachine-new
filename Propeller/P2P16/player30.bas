@@ -42,7 +42,88 @@
 
 '--------------------------------------------------------------------------------------------------------------
 
-#include "retromachine.bi"                     ' initialization, classes and auxilliary stuff
+' initialization, classes and auxilliary stuff
+
+const _clkfreq = 336956522
+
+dim v as class using "hg008.spin2"
+dim rm as class using "usbnew.spin2"
+dim tracker as class using "trackerplayer.spin2"
+dim paula as class using "audio093b-8-sc.spin2"
+dim sid as class using "sidcog8.spin2"
+dim psram as class using "psram.spin2"
+dim spc as class using "spccog.spin2"
+dim a6502 as class using "a6502-1.spin2"
+#include "dir.bi"
+
+dim audiocog,videocog as integer
+dim base as ulong
+dim mbox as ulong
+
+sub startpsram
+psram.startx(0, 0, 11, -1)
+mbox=psram.getMailbox(0)
+end sub
+
+sub startaudio
+audiocog,base=paula.start(mbox,$75A00,$7A400)
+end sub 
+
+sub stopaudio
+cpustop(audiocog)
+audiocog=-1
+end sub
+
+sub cls(fg=154,bg=147)
+v.cls(fg,bg)
+end sub
+
+function startvideo(mode=64, pin=0, mb=0) 'todo return a cog#
+dim videocog as ulong
+videocog=v.start(pin,mbox)
+
+for thecog=0 to 7:psram.setQos(thecog, 112 << 16) :next thecog
+psram.setQoS(videocog, $7FFFf400) 
+open SendRecvDevice(@v.putchar, nil, nil) as #0
+return videocog
+end function
+
+
+#define plot v.plot1
+
+sub pslpoke(addr as ulong,value as ulong)
+psram.filllongs(addr,value,1,0)
+end sub
+
+sub pspoke(addr as ulong,value as ulong)
+psram.fillbytes(addr,value,1,0)
+end sub
+
+function pspeek(adr as ulong) as ubyte
+dim res as ubyte
+psram.read1(addr(res),adr,1)
+return res
+end function
+
+function pslpeek(adr as ulong) as ulong
+dim res as ulong
+psram.read1(addr(res),adr,4)
+return res
+end function
+
+function addr(byref v as const any) as ulong
+
+return(cast(ulong,@v))
+end function
+
+sub position(x,y)
+v.setcursorpos(x,y)
+end sub
+
+sub waitvbl
+  v.waitvbl(1)
+end sub
+
 
 ' ------------------------ Constant and addresses -------------------------------------------------------------
 
@@ -188,8 +269,8 @@ do
     if mouseclick=1 andalso dblclick=-1 then dblclick=0
     if mouseclick=0 andalso dblclick>=0 then dblclick+=1
     
-    if mouseclick=1 andalso dblclick<30 andalso dblclick>2 then dblclick=-1:mouseclick=2
-    if dblclick>30 then dblclick=-1
+    if mouseclick=1 andalso dblclick<12 andalso dblclick>1 then dblclick=-1:mouseclick=2
+    if dblclick>12 then dblclick=-1
  '   position 0,2:print mouseclick, dblclick
     v.spr16x=mousex 
     v.spr16y=mousey
@@ -278,7 +359,15 @@ do
   endif  
 
 '' ----------------------------- Get data from the keyboard
-  lpoke($30,rm.get_key())
+  dim key as ulong: let key=rm.get_key()
+
+  if key>0 andalso key<$80000000 then let key2=key : let rpt=1 : lpoke $30,key2
+  if key>$80000000 then let rptcnt=0 : let rpt=0
+  if key=0 andalso rpt=1 then rptcnt+=1
+  if key<$80000000 then if rptcnt=25 then lpoke $30,key2 : rptcnt=21
+ ' if rptcnt>30 then lpoke $30,key2: rptcnt=18
+'  position 0,0: print rptcnt;"    "
+' lpoke($30,rm.get_key())
   if lpeek($30)<>0 then 									                         	' a Raspberry Pi based interface sent a message
     if peek($33)=$0 then  ansibuf(0)=ansibuf(1): ansibuf(1)=ansibuf(2) : ansibuf(2)=ansibuf(3) : ansibuf(3)=peek($30)   	' add it to the ANSI buffer
     lpoke $30,0 													 	' and clear the message
@@ -348,8 +437,8 @@ do
    
   if mousex>54 andalso mousex<72 andalso mousey>350 andalso mousey<365 andalso mousewheel=-1 then ansibuf(3)=$23: mousewheel=0
   if mousex>54 andalso mousex<72 andalso mousey>350 andalso mousey<365 andalso mousewheel=1 then ansibuf(3)=$22 : mousewheel=0
-  if mousex>128 andalso mousex<152 andalso mousey>350 andalso mousey<365 andalso mousewheel=-1 then ansibuf(3)=asc("+"): mousewheel=0
-  if mousex>128 andalso mousex<152 andalso mousey>350 andalso mousey<365 andalso mousewheel=1 then ansibuf(3)=asc("-")  : mousewheel=0
+  if mousex>128 andalso mousex<152 andalso mousey>350 andalso mousey<365 andalso mousewheel=-1 then ansibuf(3)=$2e: mousewheel=0
+  if mousex>128 andalso mousex<152 andalso mousey>350 andalso mousey<365 andalso mousewheel=1 then ansibuf(3)=$2d : mousewheel=0
    
   if ansibuf(3)=$1e then channelvol(0)=1-channelvol(0) : ansibuf(3)=0									' 1 - channel 1	
   if ansibuf(3)=$1f then channelvol(1)=1-channelvol(1) : ansibuf(3)=0									' 2 - channel 2
