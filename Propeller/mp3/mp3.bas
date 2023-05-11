@@ -1,4 +1,7 @@
-dim mp3 as class using "mp3.c"
+DECLARE FUNCTION mp3init LIB "mp3.c" () AS integer
+DECLARE FUNCTION mp3decode1 LIB "mp3.c" (rawdata as any pointer, left as integer pointer, outbuf as any pointer) AS integer
+
+
 dim rawdata(4096) as ubyte 
 dim prawdata as ubyte pointer
 dim outbuf(8192) as short
@@ -13,8 +16,8 @@ close #7
 dim left as integer
 prawdata=@rawdata(0)
 dim err as integer
-let err=mp3.mp3init()
-let time=getct()
-let result=mp3.mp3decode(@prawdata, @left, @outbuf(0)) 
-time=getct()-time
-print result,time
+let err=mp3init()
+let time1=getct()
+let result=mp3decode(@prawdata, @left, @outbuf(0)) 
+time=getct()-time1
+print result,time1
