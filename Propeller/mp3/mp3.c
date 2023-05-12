@@ -1,5 +1,5 @@
 #include <stdint.h>
-#include <stdio.h>
+//#include <stdio.h>
 #include <string.h>		/* for memmove, memcpy (can replace with different implementations if desired) */
 
 
@@ -625,11 +625,11 @@ int UnpackFrameHeader(MP3DecInfo *mp3DecInfo, unsigned char *buf)
 
 	int verIdx;
 	FrameHeader *fh;
-
+//        printf("%x,%x,%x,\n",buf,buf[0],buf[1]);
 	/* validate pointers and sync word */
 	if (!mp3DecInfo || !mp3DecInfo->FrameHeaderPS || (buf[0] & SYNCWORDH) != SYNCWORDH || (buf[1] & SYNCWORDL) != SYNCWORDL)
 		return -1;
-
+        
 	fh = ((FrameHeader *)(mp3DecInfo->FrameHeaderPS));
 
 	/* read header fields - use bitmasks instead of GetBits() for speed, since format never varies */
@@ -3423,18 +3423,18 @@ static int HybridTransform(int *xCurr, int *xPrev, int y[BLOCK_SIZE][NBANDS], Si
 int mp3init(void)
 {
         int result=0;
-//        mp3decoder=mp3initdecoder();
-//        result=(int)mp3decoder;
+         mp3decoder=mp3initdecoder();
+         result=(int)mp3decoder;
         return result;
         }
 
 HMP3Decoder mp3initdecoder(void)
 {
-//	MP3DecInfo *mp3DecInfo;
+ 	MP3DecInfo *mp3DecInfo;
 
-//	mp3DecInfo = AllocateBuffers();
+ 	mp3DecInfo = AllocateBuffers();
 
-	return NULL ;//(HMP3Decoder)mp3DecInfo;
+	return   (HMP3Decoder)mp3DecInfo;
 }
 
 /**************************************************************************************
@@ -3677,7 +3677,7 @@ int MP3Decode(HMP3Decoder hMP3Decoder, unsigned char **inbuf, int *bytesLeft, sh
 	*inbuf += siBytes;
 	*bytesLeft -= (fhBytes + siBytes);
 	
-/*
+
 	if (mp3DecInfo->bitrate == 0 || mp3DecInfo->freeBitrateFlag) {
 		if (!mp3DecInfo->freeBitrateFlag) {
 	
@@ -3713,7 +3713,7 @@ int MP3Decode(HMP3Decoder hMP3Decoder, unsigned char **inbuf, int *bytesLeft, sh
 			MP3ClearBadFrame(mp3DecInfo, outbuf);
 			return ERR_MP3_INDATA_UNDERFLOW;	
 		}
-		
+	
 		if (mp3DecInfo->mainDataBytes >= mp3DecInfo->mainDataBegin) {
 		
 			memmove(mp3DecInfo->mainBuf, mp3DecInfo->mainBuf + mp3DecInfo->mainDataBytes - mp3DecInfo->mainDataBegin, mp3DecInfo->mainDataBegin);
@@ -3784,7 +3784,7 @@ int MP3Decode(HMP3Decoder hMP3Decoder, unsigned char **inbuf, int *bytesLeft, sh
 			return ERR_MP3_INVALID_SUBBAND;			
 		}
 	}
-*/
+
 	return ERR_MP3_NONE;
 }
 
