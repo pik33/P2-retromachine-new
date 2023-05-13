@@ -1,18 +1,18 @@
 
-const _clkfreq=336000000
+const _clkfreq=330000000
 
 dim mp3  as class using "mp3.c"
 dim audio as class using "audio.spin2"
 'DECLARE FUNCTION mp3init LIB "mp3.c" () AS integer
 'DECLARE FUNCTION mp3decode1 LIB "mp3.c" (a as any pointer, b as any pointer, c as any pointer) AS integer
 dim left as integer
-dim rawdata1(8191) as ubyte 
+dim rawdata1(9000) as ubyte 
 dim outbuf1(32768) as short
 dim q as integer
 dim prawdata,prawdata2 as ubyte pointer
 mount "/sd", _vfs_open_sdcard()
 chdir "/sd"
-close #7: open "/sd/test2.mp3/" for input as #7	
+close #7: open "/sd/2.mp3/" for input as #7	
 for i=0 to 16383: outbuf1(i)=0: next i
 let filepos=1
 get #7,filepos,rawdata1(0),8192,q 
@@ -22,7 +22,7 @@ waitms(2)
  lpoke base+28,$80000100 : waitms(2) : lpoke base+28,$00000000  
     lpoke base+12,0               								' loop start   
     lpoke base+16,4608*4                                    					' loop end, we will use $50000 bytes as $50 4k buffers
-    dpoke base+20,16384                                                                         ' set volume 
+    dpoke base+20,16384                                                                        ' set volume 
     dpoke base+22,16384                                                              		' set pan
     dpoke base+24,30					                			' set period
     dpoke base+26,256 									' set skip, 1 stereo sample=4 bytes
