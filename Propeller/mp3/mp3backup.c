@@ -1,85 +1,7 @@
-// ----------------------------------------------------------------------------  stdint.h
+#include <stdint.h>
+#include <string.h>		/* for memmove, memcpy (can replace with different implementations if desired) */
 
-typedef signed char   int8_t;
-typedef unsigned char uint8_t;
-
-typedef signed short   int16_t;
-typedef unsigned short uint16_t;
-
-typedef signed long   int32_t;
-typedef unsigned long uint32_t;
-
-typedef long long int64_t;
-typedef unsigned long long uint64_t;
-
-typedef unsigned long uintptr_t;
-typedef long intptr_t;
-
-typedef int64_t intmax_t;
-typedef uint64_t uintmax_t;
-
-typedef int8_t  int_least8_t;
-typedef int16_t int_least16_t;
-typedef int32_t int_least32_t;
-typedef int64_t int_least64_t;
-
-typedef uint8_t  uint_least8_t;
-typedef uint16_t uint_least16_t;
-typedef uint32_t uint_least32_t;
-typedef uint64_t uint_least64_t;
-
-typedef int32_t int_fast8_t;
-typedef int32_t int_fast16_t;
-typedef int32_t int_fast32_t;
-typedef int64_t int_fast64_t;
-
-typedef uint32_t uint_fast8_t;
-typedef uint32_t uint_fast16_t;
-typedef uint32_t uint_fast32_t;
-typedef uint64_t uint_fast64_t;
-
-#define INT8_MIN (-128)
-#define INT8_MAX (-127)
-#define UINT8_MAX (255)
-
-#define INT16_MIN (-32768)
-#define INT16_MAX (32767)
-#define UINT16_MAX (65535)
-
-#define INT32_MIN (-2147483648)
-#define INT32_MAX (2147483647)
-#define UINT32_MAX (4294967295)
-
-#define INT_LEAST8_MIN  INT8_MIN
-#define INT_LEAST16_MIN INT16_MIN
-#define INT_LEAST32_MIN INT32_MIN
-#define UINT_LEAST8_MIN  UINT8_MIN
-#define UINT_LEAST16_MIN UINT16_MIN
-#define UINT_LEAST32_MIN UINT32_MIN
-
-#define INT_FAST8_MIN INT32_MIN
-#define INT_FAST16_MIN INT32_MIN
-#define INT_FAST32_MIN INT32_MIN
-#define UINT_FAST8_MIN UINT32_MIN
-#define UINT_FAST16_MIN UINT32_MIN
-#define UINT_FAST32_MIN UINT32_MIN
-
-#define INTPTR_MIN INT32_MIN
-#define INTPTR_MAX INT32_MAX
-#define UINTPTR_MAX UINT32_MAX
-
-#define INT8_C(x)   (x)
-#define INT16_C(x)  (x)
-#define INT32_C(x)  (x)
-#define INT64_C(x)  (x ## LL)
-
-#define UINT8_C(x)  (x ## u)
-#define UINT16_C(x) (x ## u)
-#define UINT32_C(x) (x ## u)
-#define UINT64_C(x)  (x ## ULL)
-
-
-// ----------------------------------------------------------------------------  assembly.h
+// --------------------  assembly.h
 
 typedef long long Word64;
 
@@ -131,7 +53,7 @@ static inline Word64 MADD64(Word64 sum, int x, int y) {
  
 }
 
-//-------------------------------------------------------------------------   mp3dec.h
+//--------------------------------------------   mp3dec.h
 
 #define MAINBUF_SIZE	1940
 
@@ -693,8 +615,6 @@ int UnpackFrameHeader(MP3DecInfo *mp3DecInfo, unsigned char *buf)
 
 	int verIdx;
 	FrameHeader *fh;
-//        printf("%x,%x,%x,\n",buf,buf[0],buf[1]);
-	/* validate pointers and sync word */
 	if (!mp3DecInfo || !mp3DecInfo->FrameHeaderPS || (buf[0] & SYNCWORDH) != SYNCWORDH || (buf[1] & SYNCWORDL) != SYNCWORDL)
 		return -1;
         
@@ -3490,10 +3410,20 @@ static int HybridTransform(int *xCurr, int *xPrev, int y[BLOCK_SIZE][NBANDS], Si
 
 int mp3init(void)
 {
-mp3decoder= AllocateBuffers();
-return 0;
-}
+        int result=0;
+         mp3decoder=mp3initdecoder();
+         result=(int)mp3decoder;
+        return result;
+        }
 
+HMP3Decoder mp3initdecoder(void)
+{
+ 	MP3DecInfo *mp3DecInfo;
+
+ 	mp3DecInfo = AllocateBuffers();
+
+	return   (HMP3Decoder)mp3DecInfo;
+}
 
 /**************************************************************************************
  * Function:    MP3FreeDecoder
@@ -5264,15 +5194,16 @@ const int polyCoef[264] = {
  *                is not supported (bit reservoir is not maintained if useSize on)
  **************************************************************************************/
 
-int mp3decode(unsigned char **inbuf, int *bytesLeft, short *outbuf)
-
-  
+int mp3decode1(unsigned char **inbuf, int *bytesLeft, short *outbuf)
+{ return MP3Decode(mp3decoder, inbuf, bytesLeft, outbuf, 0);}
+        
+int MP3Decode(HMP3Decoder hMP3Decoder, unsigned char **inbuf, int *bytesLeft, short *outbuf, int useSize)
 {
         
 int offset, bitOffset, mainBits, gr, ch, fhBytes, siBytes, freeFrameBytes;
 int prevBitOffset, sfBlockBits, huffBlockBits;
 unsigned char *mainPtr;
-MP3DecInfo *mp3DecInfo = (MP3DecInfo *)mp3decoder;
+MP3DecInfo *mp3DecInfo = (MP3DecInfo *)hMP3Decoder;
 
 fhBytes = UnpackFrameHeader(mp3DecInfo, *inbuf);
 *inbuf += fhBytes;
@@ -5316,3 +5247,143 @@ for (gr = 0; gr < mp3DecInfo->nGrans; gr++) {
   }
 return ERR_MP3_NONE;
 }
+
+
+//backup
+int MP3Decode2(HMP3Decoder hMP3Decoder, unsigned char **inbuf, int *bytesLeft, short *outbuf, int useSize)
+{
+	int offset, bitOffset, mainBits, gr, ch, fhBytes, siBytes, freeFrameBytes;
+	int prevBitOffset, sfBlockBits, huffBlockBits;
+	unsigned char *mainPtr;
+	MP3DecInfo *mp3DecInfo = (MP3DecInfo *)hMP3Decoder;
+
+	if (!mp3DecInfo)
+		return ERR_MP3_NULL_POINTER;
+
+// Needs: UnpackFrameHeader
+	fhBytes = UnpackFrameHeader(mp3DecInfo, *inbuf);
+	if (fhBytes < 0)	
+		return ERR_MP3_INVALID_FRAMEHEADER;		
+	*inbuf += fhBytes;
+	
+// Needs: UnpackSideInfo
+	siBytes = UnpackSideInfo(mp3DecInfo, *inbuf);
+	if (siBytes < 0) {
+		MP3ClearBadFrame(mp3DecInfo, outbuf);
+		return ERR_MP3_INVALID_SIDEINFO;
+	}
+	*inbuf += siBytes;
+	*bytesLeft -= (fhBytes + siBytes);
+	
+
+	if (mp3DecInfo->bitrate == 0 || mp3DecInfo->freeBitrateFlag) {
+		if (!mp3DecInfo->freeBitrateFlag) {
+	
+			mp3DecInfo->freeBitrateFlag = 1;
+			mp3DecInfo->freeBitrateSlots = MP3FindFreeSync(*inbuf, *inbuf - fhBytes - siBytes, *bytesLeft);
+			if (mp3DecInfo->freeBitrateSlots < 0) {
+				MP3ClearBadFrame(mp3DecInfo, outbuf);
+				return ERR_MP3_FREE_BITRATE_SYNC;
+			}
+			freeFrameBytes = mp3DecInfo->freeBitrateSlots + fhBytes + siBytes;
+			mp3DecInfo->bitrate = (freeFrameBytes * mp3DecInfo->samprate * 8) / (mp3DecInfo->nGrans * mp3DecInfo->nGranSamps);
+		}
+		mp3DecInfo->nSlots = mp3DecInfo->freeBitrateSlots + CheckPadBit(mp3DecInfo);	
+	}
+
+
+	if (useSize) {
+		mp3DecInfo->nSlots = *bytesLeft;
+		if (mp3DecInfo->mainDataBegin != 0 || mp3DecInfo->nSlots <= 0) {
+		
+			MP3ClearBadFrame(mp3DecInfo, outbuf);
+			return ERR_MP3_INVALID_FRAMEHEADER;
+		}
+
+	
+		mp3DecInfo->mainDataBytes = mp3DecInfo->nSlots;
+		mainPtr = *inbuf;
+		*inbuf += mp3DecInfo->nSlots;
+		*bytesLeft -= (mp3DecInfo->nSlots);
+	} else {
+
+		if (mp3DecInfo->nSlots > *bytesLeft) {
+			MP3ClearBadFrame(mp3DecInfo, outbuf);
+			return ERR_MP3_INDATA_UNDERFLOW;	
+		}
+	
+		if (mp3DecInfo->mainDataBytes >= mp3DecInfo->mainDataBegin) {
+		
+			memmove(mp3DecInfo->mainBuf, mp3DecInfo->mainBuf + mp3DecInfo->mainDataBytes - mp3DecInfo->mainDataBegin, mp3DecInfo->mainDataBegin);
+			memcpy(mp3DecInfo->mainBuf + mp3DecInfo->mainDataBegin, *inbuf, mp3DecInfo->nSlots);
+
+			mp3DecInfo->mainDataBytes = mp3DecInfo->mainDataBegin + mp3DecInfo->nSlots;
+			*inbuf += mp3DecInfo->nSlots;
+			*bytesLeft -= (mp3DecInfo->nSlots);
+			mainPtr = mp3DecInfo->mainBuf;
+		} else {
+		
+			memcpy(mp3DecInfo->mainBuf + mp3DecInfo->mainDataBytes, *inbuf, mp3DecInfo->nSlots);
+			mp3DecInfo->mainDataBytes += mp3DecInfo->nSlots;
+			*inbuf += mp3DecInfo->nSlots;
+			*bytesLeft -= (mp3DecInfo->nSlots);
+			MP3ClearBadFrame(mp3DecInfo, outbuf);
+			return ERR_MP3_MAINDATA_UNDERFLOW;
+		}
+	}
+	bitOffset = 0;
+	mainBits = mp3DecInfo->mainDataBytes * 8;
+
+
+	for (gr = 0; gr < mp3DecInfo->nGrans; gr++) {
+		for (ch = 0; ch < mp3DecInfo->nChans; ch++) {
+			
+			prevBitOffset = bitOffset;
+			offset = UnpackScaleFactors(mp3DecInfo, mainPtr, &bitOffset, mainBits, gr, ch);
+
+			sfBlockBits = 8*offset - prevBitOffset + bitOffset;
+			huffBlockBits = mp3DecInfo->part23Length[gr][ch] - sfBlockBits;
+			mainPtr += offset;
+			mainBits -= sfBlockBits;
+
+			if (offset < 0 || mainBits < huffBlockBits) {
+				MP3ClearBadFrame(mp3DecInfo, outbuf);
+				return ERR_MP3_INVALID_SCALEFACT;
+			}
+
+		
+			prevBitOffset = bitOffset;
+			offset = DecodeHuffman(mp3DecInfo, mainPtr, &bitOffset, huffBlockBits, gr, ch);
+			if (offset < 0) {
+				MP3ClearBadFrame(mp3DecInfo, outbuf);
+				return ERR_MP3_INVALID_HUFFCODES;
+			}
+
+			mainPtr += offset;
+			mainBits -= (8*offset - prevBitOffset + bitOffset);
+		}
+
+	
+		if (Dequantize(mp3DecInfo, gr) < 0) {
+			MP3ClearBadFrame(mp3DecInfo, outbuf);
+			return ERR_MP3_INVALID_DEQUANTIZE;			
+		}
+
+	
+		for (ch = 0; ch < mp3DecInfo->nChans; ch++)
+			if (IMDCT(mp3DecInfo, gr, ch) < 0) {
+				MP3ClearBadFrame(mp3DecInfo, outbuf);
+				return ERR_MP3_INVALID_IMDCT;			
+			}
+
+
+		if (Subband(mp3DecInfo, outbuf + gr*mp3DecInfo->nGranSamps*mp3DecInfo->nChans) < 0) {
+			MP3ClearBadFrame(mp3DecInfo, outbuf);
+			return ERR_MP3_INVALID_SUBBAND;			
+		}
+	}
+
+	return ERR_MP3_NONE;
+}
+
+//------ main

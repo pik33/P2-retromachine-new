@@ -1,6 +1,6 @@
 
 const _clkfreq=330000000
-
+const HEAPSIZE=65536
 dim mp3  as class using "mp3.c"
 dim audio as class using "audio.spin2"
 'DECLARE FUNCTION mp3init LIB "mp3.c" () AS integer
@@ -12,7 +12,7 @@ dim q as integer
 dim prawdata,prawdata2 as ubyte pointer
 mount "/sd", _vfs_open_sdcard()
 chdir "/sd"
-close #7: open "/sd/2.mp3/" for input as #7	
+close #7: open "/sd/4.mp3/" for input as #7	
 for i=0 to 16383: outbuf1(i)=0: next i
 let filepos=1
 get #7,filepos,rawdata1(0),8192,q 
@@ -57,10 +57,10 @@ for i=1 to 10000
 
 do: loop until lpeek(base)>768*1152
 
-let err=mp3.mp3decode1(@prawdata, @Left, @outbuf1(0)) 
-let err=mp3.mp3decode1(@prawdata, @Left, @outbuf1(2304)) 
-let err=mp3.mp3decode1(@prawdata, @Left, @outbuf1(4608)) 
-let err=mp3.mp3decode1(@prawdata, @Left, @outbuf1(6912)) 
+let err=mp3.mp3decode(@prawdata, @Left, @outbuf1(0)) 
+let err=mp3.mp3decode(@prawdata, @Left, @outbuf1(2304)) 
+let err=mp3.mp3decode(@prawdata, @Left, @outbuf1(4608)) 
+let err=mp3.mp3decode(@prawdata, @Left, @outbuf1(6912)) 
 
 
 
