@@ -12,10 +12,9 @@ dim q as integer
 dim prawdata,prawdata2 as ubyte pointer
 mount "/sd", _vfs_open_sdcard()
 chdir "/sd"
-close #7: open "/sd/4.mp3/" for input as #7	
-for i=0 to 16383: outbuf1(i)=0: next i
-let filepos=1
-get #7,filepos,rawdata1(0),8192,q 
+dim err as integer
+let mp3rec=mp3.mp3init()
+
 dim cog,base as ulong
 let cog, base=audio.start(0,0,0)
 waitms(2)
@@ -39,19 +38,26 @@ waitms(2)
     lpoke base+8, $d0000000  +varptr(outbuf1(0))							  	        ' sample ptr, 16 bit, restart from 0 
     lpoke base+32+8, $f0000002	+varptr(outbuf1(0))						                ' sample ptr+2 (=another channel), synchronize #1 to #2'
 'do: filepos+=1:bytemove(rawdata1(0),rawdata1(1),4096):loop until rawdata1(0)=$FF andalso rawdata1(1)=$FB
+
+
+let filenum=4
+160 let filename$="/sd/"+str$(filenum)+".mp3/": print filename$
+close #7: open filename$ for input as #7	
+for i=0 to 16383: outbuf1(i)=0: next i
+let filepos=1
+get #7,filepos,rawdata1(0),8192,q 
 print filepos,q, hex$(rawdata1(0),2), hex$(rawdata1(1),2) 
  
 prawdata=@rawdata1
 prawdata2=prawdata
 left=8192
-dim err as integer
-let mp3rec=mp3.mp3init()
+
 print mp3rec
 
 'for i=0 to 4607: outbuf1(i)=round(16000*sin((3.1415926/2304)*2*i)): next i
 
 
-for i=1 to 10000
+do
 'print lpeek(base)
 
 
@@ -68,8 +74,12 @@ let a=8192-left: filepos+=a
 get #7,filepos,rawdata1(0),8192,q
 prawdata=prawdata2
 left=8192
-
-
+if q<2048 then 
+  close #7: filenum+=1
+  if filenum > 6 then filenum=1
+  goto 160
+  endif
+loop
 'do: loop until lpeek(base)>512*1152
 
 'let err=mp3.mp3decode1(@prawdata, @Left, @outbuf1(2304)) 
@@ -98,7 +108,7 @@ left=8192
 'prawdata=prawdata2
 'left=4096
 
-next i
+ 
 
 
 

@@ -85,20 +85,21 @@ typedef long long Word64;
 
 static inline int MULSHIFT32(int x, int y) {
     int r;
-
-    __asm {
-        qmul x, y;
-        mov  r, #0;
-        cmps x, #0 wc;
-   if_c add  r, y;
-        cmps y, #0 wc;
-   if_c add  r, x;
-        getqy y;
-        subr r, y;
-    }
-    return r;
-    
+   
+   __asm {
+       qmul x, y;
+       mov  r, #0;
+       cmps x, #0 wc;
+  if_c add  r, y;
+       cmps y, #0 wc;
+  if_c add  r, x;
+       getqy y;
+       subr r, y;
+  }
+  return r;
 }
+
+
 static inline int FASTABS(int x) {
     __asm { abs x; }
     return x;
@@ -183,6 +184,7 @@ typedef struct _MP3FrameInfo {
 
 int mp3init(void);
 HMP3Decoder mp3initdecoder(void);   			// for Basic
+int mp3free(void);
 void MP3FreeDecoder(HMP3Decoder hMP3Decoder);
 int MP3Decode(HMP3Decoder hMP3Decoder, unsigned char **inbuf, int *bytesLeft, short *outbuf, int useSize);
 
@@ -3217,7 +3219,7 @@ static __inline void imdct12 (int *x, int *out)
  * TODO:        optimize for ARM
  **************************************************************************************/
  // barely faster in RAM
-/*__attribute__ ((section (".data")))*/ static int IMDCT12x3(int *xCurr, int *xPrev, int *y, int btPrev, int blockIdx, int gb)
+static int IMDCT12x3(int *xCurr, int *xPrev, int *y, int btPrev, int blockIdx, int gb)
 {
 	int i, es, mOut, yLo, xBuf[18], xPrevWin[18];	/* need temp buffer for reordering short blocks */
 	const int *wp;
@@ -3329,14 +3331,14 @@ static int HybridTransform(int *xCurr, int *xPrev, int y[BLOCK_SIZE][NBANDS], Si
 	}
 
 	/* do short blocks (if any) */
-	for (   ; i < bc->nBlocksTotal; i++) {
+	for (i=bc->nBlocksLong   ; i < bc->nBlocksTotal; i++) {
 		ASSERT(sis->blockType == 2);
 
 		prevWinIdx = bc->prevType;
 		if (i < bc->prevWinSwitch)
 			 prevWinIdx = 0;
 		
-		mOut |= IMDCT12x3(xCurr, xPrev, &(y[0][i]), prevWinIdx, i, bc->gbIn);
+		mOut |= IMDCT12x3(xCurr, xPrev, &(y[0][i]), prevWinIdx, i, bc->gbIn); //12x3 static int IMDCT12x3(int *xCurr, int *xPrev, int *y, int btPrev, int blockIdx, int gb)
 		xCurr += 18;
 		xPrev += 9;
 	}
@@ -3399,7 +3401,7 @@ static int HybridTransform(int *xCurr, int *xPrev, int y[BLOCK_SIZE][NBANDS], Si
  * Return:      0 on success,  -1 if null input pointers
  **************************************************************************************/
  // a bit faster in RAM
-/*__attribute__ ((section (".data")))*/ int IMDCT(MP3DecInfo *mp3DecInfo, int gr, int ch)
+ int IMDCT(MP3DecInfo *mp3DecInfo, int gr, int ch)
 {
 	int nBfly, blockCutoff;
 	FrameHeader *fh;
@@ -3507,6 +3509,9 @@ return 0;
  *
  * Return:      none
  **************************************************************************************/
+int mp3free(void)
+{MP3FreeDecoder(mp3decoder); }
+
 void MP3FreeDecoder(HMP3Decoder hMP3Decoder)
 {
 	MP3DecInfo *mp3DecInfo = (MP3DecInfo *)hMP3Decoder;
@@ -5266,7 +5271,7 @@ const int polyCoef[264] = {
 
 int mp3decode(unsigned char **inbuf, int *bytesLeft, short *outbuf)
 
-  
+
 {
         
 int offset, bitOffset, mainBits, gr, ch, fhBytes, siBytes, freeFrameBytes;
