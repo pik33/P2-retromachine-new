@@ -1,5 +1,5 @@
 
-const _clkfreq=330000000
+const _clkfreq=331776000
 const HEAPSIZE=65536
 dim mp3  as class using "mp3.c"
 dim audio as class using "audio.spin2"
@@ -20,18 +20,18 @@ let cog, base=audio.start(0,0,0)
 waitms(2)
  lpoke base+28,$80000100 : waitms(2) : lpoke base+28,$00000000  
     lpoke base+12,0               								' loop start   
-    lpoke base+16,4608*4                                    					' loop end, we will use $50000 bytes as $50 4k buffers
-    dpoke base+20,16384                                                                        ' set volume 
+    lpoke base+16,4608*4                                    					' loop end, 
+    dpoke base+20,15000                                                                        ' set volume 
     dpoke base+22,16384                                                              		' set pan
-    dpoke base+24,30					                			' set period
+    dpoke base+24,28					                			' set period
     dpoke base+26,256 									' set skip, 1 stereo sample=4 bytes
     lpoke base+28,$0000_0000
 
     lpoke base+32+12,0                 								' loop start   
     lpoke base+32+16,4608*4                                      				' loop end
-    dpoke base+32+20,16384                                                                      ' volume
+    dpoke base+32+20,15000                                                                      ' volume
     dpoke base+32+22,0     	                                                                ' pan
-    dpoke base+32+24, 30                                                                       ' period
+    dpoke base+32+24, 28                                                                       ' period
     dpoke base+32+26, 256									' skip
     lpoke base+32+28,$0000_0000
     
@@ -40,7 +40,7 @@ waitms(2)
 'do: filepos+=1:bytemove(rawdata1(0),rawdata1(1),4096):loop until rawdata1(0)=$FF andalso rawdata1(1)=$FB
 
 
-let filenum=4
+let filenum=1
 160 let filename$="/sd/"+str$(filenum)+".mp3/": print filename$
 close #7: open filename$ for input as #7	
 for i=0 to 16383: outbuf1(i)=0: next i
@@ -76,7 +76,7 @@ prawdata=prawdata2
 left=8192
 if q<2048 then 
   close #7: filenum+=1
-  if filenum > 6 then filenum=1
+  if filenum > 20 then filenum=1
   goto 160
   endif
 loop

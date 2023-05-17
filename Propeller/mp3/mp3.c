@@ -100,12 +100,14 @@ static inline int MULSHIFT32(int x, int y) {
 }
 
 
+        
+        
 static inline int FASTABS(int x) {
     __asm { abs x; }
     return x;
 }
 
-#define CLZ(x) __builtin_clz((x))
+#define CLZ(x) 2+ __builtin_clz((x))
 
 static inline Word64 SAR64(Word64 x, int n) {
 	return x >>= n;
@@ -1541,7 +1543,7 @@ static const int pow2frac[8] = {
 			buf[j][2] = workBuf[2*nSamps + j];
 		}
 
-		ASSERT(3*nSamps <= MAX_REORDER_SAMPS);
+	 	ASSERT(3*nSamps <= MAX_REORDER_SAMPS);
 
 		if (i >= *nonZeroBound) 
 			break;
@@ -1568,7 +1570,7 @@ static const int pow2frac[8] = {
 	cbi->cbEndSMax = MAX(cbi->cbEndSMax, cbMax[1]);
 	cbi->cbEndSMax = MAX(cbi->cbEndSMax, cbMax[2]);
 
-	return CLZ(gbMask) - 1;
+	return CLZ(gbMask) - 1; //-------------------------------------- FIXED?????
 }
 
 
