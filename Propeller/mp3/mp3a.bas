@@ -40,7 +40,7 @@ waitms(2)
 'do: filepos+=1:bytemove(rawdata1(0),rawdata1(1),4096):loop until rawdata1(0)=$FF andalso rawdata1(1)=$FB
 
 
-let filenum=4
+let filenum=6
 160 let filename$="/sd/"+str$(filenum)+".mp3/": print filename$
 close #7: open filename$ for input as #7	
 for i=0 to 9214: outbuf1(i)=0: next i
