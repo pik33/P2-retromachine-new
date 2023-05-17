@@ -6,8 +6,8 @@ dim audio as class using "audio.spin2"
 'DECLARE FUNCTION mp3init LIB "mp3.c" () AS integer
 'DECLARE FUNCTION mp3decode1 LIB "mp3.c" (a as any pointer, b as any pointer, c as any pointer) AS integer
 dim left as integer
-dim rawdata1(9000) as ubyte 
-dim outbuf1(32768) as short
+dim rawdata1(8191) as ubyte 
+dim outbuf1(9215) as short
 dim q as integer
 dim prawdata,prawdata2 as ubyte pointer
 mount "/sd", _vfs_open_sdcard()
@@ -40,10 +40,10 @@ waitms(2)
 'do: filepos+=1:bytemove(rawdata1(0),rawdata1(1),4096):loop until rawdata1(0)=$FF andalso rawdata1(1)=$FB
 
 
-let filenum=1
+let filenum=4
 160 let filename$="/sd/"+str$(filenum)+".mp3/": print filename$
 close #7: open filename$ for input as #7	
-for i=0 to 16383: outbuf1(i)=0: next i
+for i=0 to 9214: outbuf1(i)=0: next i
 let filepos=1
 get #7,filepos,rawdata1(0),8192,q 
 print filepos,q, hex$(rawdata1(0),2), hex$(rawdata1(1),2) 
