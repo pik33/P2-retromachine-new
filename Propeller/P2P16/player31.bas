@@ -128,7 +128,7 @@ end sub
 
 ' ------------------------ Constant and addresses -------------------------------------------------------------
 
-const HEAPSIZE = 65536
+const HEAPSIZE = 4096
 const version$="Prop2play v.0.30"
 const statusline$=" Propeller2 multiformat player v. 0.30 --- 2023.05.09 --- pik33@o2.pl --- use an USB keyboard and mouse to control --- arrows up,down move - pgup/pgdn or w/s move 10 positions - enter selects - tab switches panels - +,- controls volume - 1..4 switch channels on/off - 5,6 stereo separation - 7,8,9 sample rate - a,d SID speed - x,z SID subtune - R rescans current directory ------"
 const hubset338=%1_111011__11_1111_0111__1111_1011 '338_666_667 =30*44100 
@@ -1470,17 +1470,17 @@ end sub
 
  
 sub mp3play()
-do
-do: loop until decodenext=-1: 
-let err=mp3.mp3decode(@prawdata, @Left, @outbuf1(0)) 
-let err=mp3.mp3decode(@prawdata, @Left, @outbuf1(2304)) 
-let err=mp3.mp3decode(@prawdata, @Left, @outbuf1(4608)) 
-let err=mp3.mp3decode(@prawdata, @Left, @outbuf1(6912)) 
 
-decodenext=6144-left
-prawdata=prawdata2
-left=6144
-loop
+do
+  do: loop until lpeek(base)>768*1152 
+  let err=mp3.mp3decode(@prawdata, @Left, @outbuf1(0)) 
+  let err=mp3.mp3decode(@prawdata, @Left, @outbuf1(2304)) 
+  let err=mp3.mp3decode(@prawdata, @Left, @outbuf1(4608)) 
+  let err=mp3.mp3decode(@prawdata, @Left, @outbuf1(6912)) 
+  decodenext=6144-left
+  prawdata=prawdata2
+  left=6144
+  loop
 
 end sub
  
@@ -1507,10 +1507,10 @@ if waveplaying then
  
 if mp3playing then  
  
-	qqq=6144										' one wave chunk to load, 4kB=27 ms
-  if lpeek(base)>768*1152 then		
- '  wavepos+=decodenext  :
-   print wavepos,decodenext							' if there is a buffer to load
+   qqq=6144										' one wave chunk to load, 4kB=27 ms
+   if decodenext>0 then	
+   wavepos+=decodenext  :
+							' if there is a buffer to load
    get #8,wavepos,filebuf(0),6144,qqq 	
  								' file position
    decodenext=-1	' tell the decoder to decode
