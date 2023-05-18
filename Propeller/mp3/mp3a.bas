@@ -21,7 +21,7 @@ let cog, base=audio.start(0,0,0)
 waitms(2)
  lpoke base+28,$80000100 : waitms(2) : lpoke base+28,$00000000  
     lpoke base+12,0               								' loop start   
-    lpoke base+16,4608*4                                    					' loop end, 
+    lpoke base+16,4608*4      -4                              					' loop end, 
     dpoke base+20,15000                                                                        ' set volume 
     dpoke base+22,16384                                                              		' set pan
     dpoke base+24,28					                			' set period
@@ -29,7 +29,7 @@ waitms(2)
     lpoke base+28,$0000_0000
 
     lpoke base+32+12,0                 								' loop start   
-    lpoke base+32+16,4608*4                                      				' loop end
+    lpoke base+32+16,4608*4 -4                                     				' loop end
     dpoke base+32+20,15000                                                                      ' volume
     dpoke base+32+22,0     	                                                                ' pan
     dpoke base+32+24, 28                                                                       ' period
