@@ -128,7 +128,7 @@ end sub
 
 ' ------------------------ Constant and addresses -------------------------------------------------------------
 
-const HEAPSIZE = 16384
+const HEAPSIZE = 65536
 const version$="Prop2play v.0.30"
 const statusline$=" Propeller2 multiformat player v. 0.30 --- 2023.05.09 --- pik33@o2.pl --- use an USB keyboard and mouse to control --- arrows up,down move - pgup/pgdn or w/s move 10 positions - enter selects - tab switches panels - +,- controls volume - 1..4 switch channels on/off - 5,6 stereo separation - 7,8,9 sample rate - a,d SID speed - x,z SID subtune - R rescans current directory ------"
 const hubset338=%1_111011__11_1111_0111__1111_1011 '338_666_667 =30*44100 
@@ -176,7 +176,10 @@ dim sidpos,sidlen as ulong
 dim stop as ulong
 dim sidregs(34) as ulong
 dim sidnames(8) as string
-
+dim decodenext,left as integer
+dim q as integer
+dim prawdata,prawdata2 as ubyte pointer
+dim err as integer
 
 dim speed, r as ulong
 dim version,offset,load,startsong,flags, init, play, songs, song  as ushort
@@ -187,6 +190,7 @@ dim atitle,author,copyright as string
 dim mouse1 as ulong
 declare mouse2 alias mouse1 as ubyte(3)
 dim mousex,mousey,mousek,mousewheel,mouseclick
+dim outbuf1(9215) as short
 
 '' ----------------------------Main program start ------------------------------------
 
@@ -205,7 +209,7 @@ framenum=0
 for i=0 to 3 : oldtrigs(i)=0 : next i
 pan(0)=8192-mainpan : pan(1)=8192+mainpan : pan(2)=8192+mainpan : pan(3)=8192-mainpan
 preparepanels
-waveplaying=0: modplaying=0 : dmpplaying=0 : spcplaying=0 : sidplaying=0
+waveplaying=0: modplaying=0 : dmpplaying=0 : spcplaying=0 : sidplaying=0 : mp3playing=0
 
 sidnames(0)="               "
 sidnames(1)="Triangle       "
@@ -296,7 +300,7 @@ do
 '  position 0,0: print decuns$(mousex,4), decuns$(mousey,4)
 '' --------------------------------  Getting the .wav file data in the main loop as no other cogs can acces the file system ------------
 
-  if waveplaying=1 then
+  if waveplaying=1 orelse mp3playing=1 then
     getwave											' load the next chunk of wave file if needed
   endif  
   
@@ -305,6 +309,7 @@ do
   v.setwritecolors($e9,$e1)
   if modcog>(-1) then time2=framenum-modtime
   if waveplaying=1 then time2=(wavepos)/3528
+  '''---------------------------------------------------------------mp3 todo
   if (dmpplaying=1) or (sidplaying=1) then time2=sidtime/200
   position 2*15,19: v.write(v.inttostr2(time2/180000,2)): v.write(":"):v.write(v.inttostr2((time2 mod 180000)/3000,2)):v.write(":"):v.write(v.inttostr2((time2 mod 3000)/50,2)):v.write(":"):v.write(v.inttostr2((time2 mod 50),2))
 
@@ -408,8 +413,8 @@ do
   endif 
      
   if ansibuf(3)=$26 then									' 9 - return to standard     
-    if waveplaying=0 then lpoke base+28,$80000064 : samplerate=100				' 100=$64  if module playing
-    if waveplaying=1 then lpoke base+28,$80000100 : samplerate=256				' 256=$100 if wave playing, $100 allows HQ DACs
+    if waveplaying=0 andalso mp3playing=0 then lpoke base+28,$80000064 : samplerate=100				' 100=$64  if module playing ??????? 95 ?????????
+    if waveplaying=1 orelse mp3playing=1 then lpoke base+28,$80000100 : samplerate=256				' 256=$100 if wave playing, $100 allows HQ DACs
      waitms(2) : lpoke base+28,0 : ansibuf(3)=0
    endif
    
@@ -463,8 +468,8 @@ do
   if ((modplaying=1) or (sidplaying=1) or (dmpplaying=1)) and (channelvol(2)=0) then position 2*30,22 :v.write("-")
   if (modplaying=1) and (channelvol(3)=1) then position 2*32,22 :v.write("4")
   if (modplaying=1) and (channelvol(3)=0) then position 2*32,22 :v.write("-")   
-  if (sidplaying=1) or (dmpplaying=1) or (waveplaying=1)then position 2*32,22 :v.write(" ")  
-  if (waveplaying=1) then position 2*30,22 :v.write(" ")  
+  if (sidplaying=1) orelse (dmpplaying=1) orelse (waveplaying=1) orelse (mp3playing=1) then position 2*32,22 :v.write(" ")  
+  if (waveplaying=1) orelse (mp3playing=1) then position 2*30,22 :v.write(" ")  
   if (sidplaying=1) then 
     position 2*33,22: v.write("song: ") : v.write(v.inttostr2(song+1,2))
 
@@ -576,30 +581,45 @@ do
 
 									' main clock=38 MHz, sample rate 1367187.5 Hz=31*44102.8 Hz - Todo: get a sample rate from a header and set it properly     
     filename3$=currentdir$+filename$								' get a filename with the path
-    close #8: open filename3$ for input as #8: get #8,1,filebuf(0),$2000 
-    psram.write(addr(filebuf(0)),0,$4000)          						' open the file and preload the buffer
-    wavepos=$2001 : mp3playing=1   					' init buffering variables
-    mp3cog=cpu (mp3play, @mainstack)  ' and let it set the audio too 										                ' now init the driver. Todo: exact synchronization of stereo channels !!!!!
-'     samplerate=256 : lpoke base+28,$80000100 : waitms(2) : lpoke base+28,$00000000              ' samplerate=clock/256 allows for HQ DAC
-'     hubset(hubset338)	
-'    lpoke base+12,0               								' loop start   
-'    lpoke base+16,$40000                                      					' loop end, we will use $50000 bytes as $50 4k buffers
-'    dpoke base+20,16384                                                                         ' set volume 
-'    dpoke base+22,16384                                                              		' set pan
-'    dpoke base+24,31 					                			' set period
-'    dpoke base+26,256  									' set skip, 1 stereo sample=4 bytes
-'    lpoke base+28,$0000_0000
-
- '   lpoke base+32+12,0                 								' loop start   
- '   lpoke base+32+16,$40000                                       				' loop end
- '   dpoke base+32+20,16384                                                                      ' volume
- '   dpoke base+32+22,0     	                                                                ' pan
- '   dpoke base+32+24, 31                                                                        ' period
- '   dpoke base+32+26, 256									' skip
- '   lpoke base+32+28,$0000_0000
+    close #8: open filename3$ for input as #8
+        						' open the file and preload the buffer
+    wavepos=$1 : mp3playing=1   
     
- '   lpoke base+8, $d0000000  							  	        ' sample ptr, 16 bit, restart from 0 
- '   lpoke base+32+8, $f0000002							                ' sample ptr+2 (=another channel), synchronize #1 to #2
+    let mp3rec=mp3.mp3init()
+    prawdata=@filebuf
+    prawdata2=prawdata
+    left=6144
+    decodenext=0
+    
+    
+    					' init buffering variables
+    mp3cog=cpu (mp3play(), @a6502buf(1))  ' and let it set the audio too 										                ' now init the driver. Todo: exact synchronization of stereo channels !!!!!
+
+
+    for i=0 to 9213: outbuf1(i)=32767: next i
+    waitms(2)
+
+    lpoke base+28,$80000100 : waitms(2) : lpoke base+28,$40000000  
+    lpoke base+12,0               								' loop start   
+    lpoke base+16,4608*4 -4                                   					' loop end, 
+    dpoke base+20,15000                                                                       ' set volume 
+    dpoke base+22,16384                                                              		' set pan
+    dpoke base+24,28					                			' set period
+    dpoke base+26,256 									' set skip, 1 stereo sample=4 bytes
+  
+
+    lpoke base+32+12,0                 								' loop start   
+    lpoke base+32+16,4608*4    -4                                  				' loop end
+    dpoke base+32+20,15000                                                                  ' volume
+    dpoke base+32+22,0     	                                                                ' pan
+    dpoke base+32+24, 28                                                                       ' period
+    dpoke base+32+26, 256									' skip
+     lpoke base+32+28,$4000_0000
+    
+    lpoke base+8, $d0000000  +varptr(outbuf1(0))							  	        ' sample ptr, 16 bit, restart from 0 
+    lpoke base+32+8, $f0000002	+varptr(outbuf1(0))						                ' sample ptr+2 (=another channel), synchronize #1 to #2'
+ ''
+
   
     v.setwritecolors($ea,$e1)									' yellow
     position 2*2,17:v.write(space$(38)): filename3$=right$(filename3$,38) 		 	' clear the place for a file name
@@ -829,7 +849,7 @@ sub bars
 dim s1,s2,s21,s22,s31,s32,s41,s42 as integer
 
 s1=32768: s21=32768 : s31=32768 : s41=32768
-if (modplaying=1)  or (waveplaying=1)then
+if (modplaying=1)  or (waveplaying=1) orelse (mp3playing=1) then
 
 s1=lpeek(base+4)					' get a stereo sample from channel 1
 s2=0
@@ -893,7 +913,7 @@ s41=32768
 
 endif
 
-let bdiv=64: if waveplaying then let bdiv=96  
+let bdiv=64: if waveplaying orelse mp3playing then let bdiv=96  
 if spcplaying then let bdiv=96
 if dmpplaying then let bdiv=48
 
@@ -945,7 +965,7 @@ if s41c>=16 then lpoke v.palette_ptr+4*$F4,$00FF0000+(s41c-16)*$11000000
 if s41c>=32 then lpoke v.palette_ptr+4*$F4,$FFFF0000-(s41c-32)*$00220000
 if s41c>=48 then lpoke v.palette_ptr+4*$F4,$FF000000
 
-if waveplaying=1 then let add=46
+if waveplaying=1 orelse mp3playing=1 then let add=46
 if dmpplaying=1 or sidplaying=1 then let add=22
 if modplaying=1 then let add=0
 
@@ -1104,7 +1124,7 @@ e=geterr()
     filename$=right$(filename$,38)							' which enables to use get when reading
     print #5, filename$									' write directory name to the file
     filename$ = dir$()
-    if waveplaying then getwave
+    if waveplaying orelse mp3playing then getwave
   end while
   close #5										
   goto 350
@@ -1119,7 +1139,7 @@ if e=0 then 										' now the directory list exists
     input #5,filename$									' write first 10 entries to the panel
     filename2$=rtrim$(filename$)
     p=(360-8*len(filename2$))/8
-    if waveplaying then getwave
+    if waveplaying orelse mp3playing then getwave
     if i<12 then position p,2+i : v.write(filename2$) 
     i+=1
   loop until filename$=nil orelse filename$="" 						' to do: write the number of entries to avoid reading all of them
@@ -1144,7 +1164,7 @@ e=geterr()
     filename$=right$(filename$,38)
     print #5, filename$
     filename$ = dir$()
-        if waveplaying then getwave
+        if waveplaying orelse mp3playing then getwave
 
   end while
   goto 400
@@ -1158,7 +1178,7 @@ if e=0 then ' file list exists
     input #5,filename$									' write first 10 entries to the panel
     filename2$=rtrim$(filename$)
     p=(720+360-8*len(filename2$))/8
-    if waveplaying then getwave
+    if waveplaying orelse mp3playing then getwave
     if i<23 then position p,2+i : v.write(filename2$) 
     i+=1
   loop until filename$=nil orelse filename$="" 
@@ -1450,111 +1470,60 @@ end sub
 
  
 sub mp3play()
-
-
-dim outbuf1(9215) as short
-dim q as integer
-dim prawdata,prawdata2 as ubyte pointer
-dim left,err as integer
-let mp3rec=mp3.mp3init()
-waitms(2)
-
-    lpoke base+28,$80000100 : waitms(2) : lpoke base+28,$00000000  
-    lpoke base+12,0               								' loop start   
-    lpoke base+16,4608*4                                    					' loop end, 
-    dpoke base+20,15000                                                                        ' set volume 
-    dpoke base+22,16384                                                              		' set pan
-    dpoke base+24,28					                			' set period
-    dpoke base+26,256 									' set skip, 1 stereo sample=4 bytes
-    lpoke base+28,$0000_0000
-
-    lpoke base+32+12,0                 								' loop start   
-    lpoke base+32+16,4608*4                                      				' loop end
-    dpoke base+32+20,15000                                                                      ' volume
-    dpoke base+32+22,0     	                                                                ' pan
-    dpoke base+32+24, 28                                                                       ' period
-    dpoke base+32+26, 256									' skip
-    lpoke base+32+28,$0000_0000
-    
-    lpoke base+8, $d0000000  +varptr(outbuf1(0))							  	        ' sample ptr, 16 bit, restart from 0 
-    lpoke base+32+8, $f0000002	+varptr(outbuf1(0))						                ' sample ptr+2 (=another channel), synchronize #1 to #2'
-
-
-
-for i=0 to 9214: outbuf1(i)=0: next i
- 
-prawdata=@filebuf
-prawdata2=prawdata
-left=8192
-
-print mp3rec
-
-'for i=0 to 4607: outbuf1(i)=round(16000*sin((3.1415926/2304)*2*i)): next i
-
-
 do
-'print lpeek(base)
-
-
-do: loop until lpeek(base)>768*1152
-
+do: loop until decodenext=-1: 
 let err=mp3.mp3decode(@prawdata, @Left, @outbuf1(0)) 
 let err=mp3.mp3decode(@prawdata, @Left, @outbuf1(2304)) 
 let err=mp3.mp3decode(@prawdata, @Left, @outbuf1(4608)) 
 let err=mp3.mp3decode(@prawdata, @Left, @outbuf1(6912)) 
 
-'now tell the player to get some data
-
-
+decodenext=6144-left
 prawdata=prawdata2
-left=8192
-if q<2048 then 
-
-  endif
+left=6144
 loop
 
 end sub
  
-
-sub getmp3
-
-qqq=$4000											' one wave chunk to load, 4kB=27 ms
-'' currentbuf has to be get from mp3 playing procedure ''    currentbuf=lpeek(base) shr 20								' get a current playing 4k buffer# from the driver
-if needbuf<>currentbuf then									' if there is a buffer to load
-  get #8,wavepos,filebuf(0),$4000,qqq 		'
-  psram.write(addr(filebuf(0)), needbuf shl 14 ,$4000)
-  needbuf=(needbuf+1) mod 16								' we can have any count of 4k buffers, now 2 used
-  wavepos+=$4000      									' file position
-  endif
-if qqq<>$4000 then 										' end of file
-  do: currentbuf=0 ' get from mp3 proc : waitvbl: scope : bars : 
-  loop until currentbuf=(needbuf-1) mod 16				' wait until all buffers played					
-  close #8 : mp3playing=0									' close the file, stop playing
-  for i=0 to 7 : lpoke base+32*i+20,0 : next i 						' mute the sound
-  filemove=1 : playnext=1							        	' experimental
-  endif
-end sub  
-
 sub getwave
-    qqq=$4000											' one wave chunk to load, 4kB=27 ms
-    currentbuf=lpeek(base) shr 20								' get a current playing 4k buffer# from the driver
-    if needbuf<>currentbuf then									' if there is a buffer to load
-'      get #8,wavepos,wavebuf(needbuf shl 14),$4000,qqq 		'
-'      get #8,wavepos,wavebuf(needbuf shl 14),$4000,qqq 		'
-   
-   let aaaa=getct()
-      get #8,wavepos,filebuf(0),$4000,qqq 		'
-'   aaaa=getct()-aaaa: position 20,1: print aaaa /336  
-      psram.write(addr(filebuf(0)), needbuf shl 14 ,$4000)
-      needbuf=(needbuf+1) mod 16								' we can have any count of 4k buffers, now 2 used
-      wavepos+=$4000      									' file position
-      endif
-    if qqq<>$4000 then 										' end of file
-      do: currentbuf=lpeek(base) shr 20 : waitvbl: scope : bars : loop until currentbuf=(needbuf-1) mod 16				' wait until all buffers played					
-      close #8 : waveplaying=0									' close the file, stop playing
-      for i=0 to 7 : lpoke base+32*i+20,0 : next i 						' mute the sound
-      filemove=1 : playnext=1							        	' experimental
+
+if waveplaying then
+
+  qqq=$4000											' one wave chunk to load, 4kB=27 ms
+  currentbuf=lpeek(base) shr 20								' get a current playing 4k buffer# from the driver
+  if needbuf<>currentbuf then									' if there is a buffer to load
+    let aaaa=getct()
+    get #8,wavepos,filebuf(0),$4000,qqq 		'
+    psram.write(addr(filebuf(0)), needbuf shl 14 ,$4000)
+    needbuf=(needbuf+1) mod 16								' we can have any count of 4k buffers, now 2 used
+    wavepos+=$4000      									' file position
     endif
+  if qqq<>$4000 then 										' end of file
+    do: currentbuf=lpeek(base) shr 20 : waitvbl: scope : bars : loop until currentbuf=(needbuf-1) mod 16				' wait until all buffers played					
+    close #8 : waveplaying=0									' close the file, stop playing
+    for i=0 to 7 : lpoke base+32*i+20,0 : next i 						' mute the sound
+    filemove=1 : playnext=1							        	' experimental
+    endif
+  endif
+ 
+if mp3playing then  
+ 
+	qqq=6144										' one wave chunk to load, 4kB=27 ms
+  if lpeek(base)>768*1152 then		
+ '  wavepos+=decodenext  :
+   print wavepos,decodenext							' if there is a buffer to load
+   get #8,wavepos,filebuf(0),6144,qqq 	
+ 								' file position
+   decodenext=-1	' tell the decoder to decode
+    endif
+  if qqq<>6144 then 										' end of file
+    do: waitvbl: scope : bars : loop until left<100 
+    close #8 : mp3playing=0									' close the file, stop playing
+    for i=0 to 7 : lpoke base+32*i+20,0 : next i 						' mute the sound
+    mp3.mp3free()
+    cpustop(mp3cog): mp3cog=-1
+    filemove=1 : playnext=1							        	' experimental
+    endif
+  endif  
 end sub    
 
 

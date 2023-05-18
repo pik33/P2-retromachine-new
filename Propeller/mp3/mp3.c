@@ -107,7 +107,7 @@ static inline int FASTABS(int x) {
     return x;
 }
 
-#define CLZ(x) 1+ __builtin_clz((x))
+#define CLZ(x) __builtin_clz((x)) 
 
 static inline Word64 SAR64(Word64 x, int n) {
 	return x >>= n;
@@ -1515,7 +1515,7 @@ static const int pow2frac[8] = {
 	
 	/* early exit if no short blocks */
 	if (cbStartS >= 12) 
-		return 10; //CLZ(gbMask) - 1;
+		return CLZ(gbMask) - 1;
 	
 	/* short blocks */
 	cbMax[2] = cbMax[1] = cbMax[0] = cbStartS;
@@ -1570,7 +1570,7 @@ static const int pow2frac[8] = {
 	cbi->cbEndSMax = MAX(cbi->cbEndSMax, cbMax[1]);
 	cbi->cbEndSMax = MAX(cbi->cbEndSMax, cbMax[2]);
 
-	return 10; //CLZ(gbMask) - 1; //-------------------------------------- FIXED?????
+	return CLZ(gbMask) - 1; //-------------------------------------- FIXED?????
 }
 
 
