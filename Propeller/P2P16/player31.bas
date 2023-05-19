@@ -128,12 +128,12 @@ end sub
 
 ' ------------------------ Constant and addresses -------------------------------------------------------------
 
-const HEAPSIZE = 4096
-const version$="Prop2play v.0.30"
-const statusline$=" Propeller2 multiformat player v. 0.30 --- 2023.05.09 --- pik33@o2.pl --- use an USB keyboard and mouse to control --- arrows up,down move - pgup/pgdn or w/s move 10 positions - enter selects - tab switches panels - +,- controls volume - 1..4 switch channels on/off - 5,6 stereo separation - 7,8,9 sample rate - a,d SID speed - x,z SID subtune - R rescans current directory ------"
+const HEAPSIZE = 8192
+const version$="Prop2play v.0.31"
+const statusline$=" Propeller2 multiformat player v. 0.31 --- 2023.05.19 --- pik33@o2.pl --- use an USB keyboard and mouse to control --- arrows up,down move - pgup/pgdn or w/s move 10 positions - enter selects - tab switches panels - +,- controls volume - 1..4 switch channels on/off - 5,6 stereo separation - 7,8,9 sample rate - a,d SID speed - x,z SID subtune - R rescans current directory ------"
 const hubset338=%1_111011__11_1111_0111__1111_1011 '338_666_667 =30*44100 
 const hubset336=%1_101101__11_0000_0110__1111_1011 '336_956_522 =paula*95
-'const hubset338=%1_110000__11_0110_1100__1111_1011 ' to test at 354
+const hubset331=%1_110000__11_0110_1100__1111_1011  '331776000 = 27*48000
 'const hubset336=%1_110000__11_0110_1100__1111_1011
 
 const scope_ptr=$75A00
@@ -144,6 +144,8 @@ const filepanelx1=363, filepanely1=60, filepanelx2=719, filepanely2=403
 declare a6502buf alias $64000 as ubyte($10FFF) '64000 doesnt work, why?
 declare mainstack alias $75000 as ubyte(2559)
 declare filebuf alias $76400 as ubyte(16383)
+dim shared as ulong bitrates(15) = {0,32,40,48,56,64,80,96,112,128,160,192,224,256,320}
+dim shared as ulong samplerates(3) = {44100,48000,32000,0}
 
 ' ----------------------- Global vars -------------------------------------------------------------------------
 
@@ -190,8 +192,8 @@ dim atitle,author,copyright as string
 dim mouse1 as ulong
 declare mouse2 alias mouse1 as ubyte(3)
 dim mousex,mousey,mousek,mousewheel,mouseclick
-dim outbuf1(9215) as short
-
+dim outbuf1(18431) as short
+dim sr as ushort
 '' ----------------------------Main program start ------------------------------------
 
 channelvol(0)=1 : channelvol(1)=1 : channelvol(2)=1 : channelvol(3)=1    
@@ -255,6 +257,8 @@ v.spr16h=32
 v.spr16w=32
 v.spr16x=512
 v.spr16y=288
+
+let mp3rec=mp3.mp3init()
 
 '' --------------------------------- THE MAIN LOOP --------------------------------------------------------------------------------------
 dim newmousewheel,dblclick as integer
@@ -582,37 +586,37 @@ do
 									' main clock=38 MHz, sample rate 1367187.5 Hz=31*44102.8 Hz - Todo: get a sample rate from a header and set it properly     
     filename3$=currentdir$+filename$								' get a filename with the path
     close #8: open filename3$ for input as #8
-        						' open the file and preload the buffer
-    wavepos=$1 : mp3playing=1   
+   wavepos=1:      mp3open()						' open the file and preload the buffer
+ mp3playing=1   
     
-    let mp3rec=mp3.mp3init()
+'    let mp3rec=mp3.mp3init()
     prawdata=@filebuf
     prawdata2=prawdata
-    left=6144
-    decodenext=0
-    
+    left=12288
+    decodenext=-1
+    for i=0 to 12287: outbuf1(i)=32767: next i 
     
     					' init buffering variables
-    mp3cog=cpu (mp3play(), @a6502buf(1))  ' and let it set the audio too 										                ' now init the driver. Todo: exact synchronization of stereo channels !!!!!
+    mp3cog=cpu (mp3play(), @mainstack(0))  ' and let it set the audio too 										                ' now init the driver. Todo: exact synchronization of stereo channels !!!!!
 
 
-    for i=0 to 9213: outbuf1(i)=32767: next i
-    waitms(2)
+
+   waitms(2)
 
     lpoke base+28,$80000100 : waitms(2) : lpoke base+28,$40000000  
     lpoke base+12,0               								' loop start   
-    lpoke base+16,4608*4 -4                                   					' loop end, 
-    dpoke base+20,15000                                                                       ' set volume 
+    lpoke base+16,4608*8 -4                                   					' loop end, 
+    dpoke base+20,16000                                                                      ' set volume 
     dpoke base+22,16384                                                              		' set pan
-    dpoke base+24,28					                			' set period
+    dpoke base+24,sr					                			' set period
     dpoke base+26,256 									' set skip, 1 stereo sample=4 bytes
   
 
     lpoke base+32+12,0                 								' loop start   
-    lpoke base+32+16,4608*4    -4                                  				' loop end
-    dpoke base+32+20,15000                                                                  ' volume
+    lpoke base+32+16,4608*8    -4                                  				' loop end
+    dpoke base+32+20,16000                                                                  ' volume
     dpoke base+32+22,0     	                                                                ' pan
-    dpoke base+32+24, 28                                                                       ' period
+    dpoke base+32+24, sr                                                                       ' period
     dpoke base+32+26, 256									' skip
      lpoke base+32+28,$4000_0000
     
@@ -1470,16 +1474,21 @@ end sub
 
  
 sub mp3play()
+ 
 
 do
-  do: loop until lpeek(base)>768*1152 
+  do: loop until lpeek(base)>1536*1152 andalso decodenext=-2
   let err=mp3.mp3decode(@prawdata, @Left, @outbuf1(0)) 
   let err=mp3.mp3decode(@prawdata, @Left, @outbuf1(2304)) 
   let err=mp3.mp3decode(@prawdata, @Left, @outbuf1(4608)) 
   let err=mp3.mp3decode(@prawdata, @Left, @outbuf1(6912)) 
-  decodenext=6144-left
+  let err=mp3.mp3decode(@prawdata, @Left, @outbuf1(9216)) 
+  let err=mp3.mp3decode(@prawdata, @Left, @outbuf1(11520)) 
+  let err=mp3.mp3decode(@prawdata, @Left, @outbuf1(13824)) 
+  let err=mp3.mp3decode(@prawdata, @Left, @outbuf1(16128)) 
+  decodenext=12288-left
   prawdata=prawdata2
-  left=6144
+
   loop
 
 end sub
@@ -1507,19 +1516,25 @@ if waveplaying then
  
 if mp3playing then  
  
-   qqq=6144										' one wave chunk to load, 4kB=27 ms
+   qqq=12288										' one wave chunk to load, 4kB=27 ms
+   if decodenext=-1 then 
+      get #8,wavepos,filebuf(0),12288,qqq 	
+     left=qqq
+     decodenext=-2
+     endif
    if decodenext>0 then	
-   wavepos+=decodenext  :
-							' if there is a buffer to load
-   get #8,wavepos,filebuf(0),6144,qqq 	
- 								' file position
-   decodenext=-1	' tell the decoder to decode
-    endif
-  if qqq<>6144 then 										' end of file
-    do: waitvbl: scope : bars : loop until left<100 
-    close #8 : mp3playing=0									' close the file, stop playing
-    for i=0 to 7 : lpoke base+32*i+20,0 : next i 						' mute the sound
-    mp3.mp3free()
+     wavepos+=decodenext  
+					' if there is a buffer to load
+     get #8,wavepos,filebuf(0),12288,qqq 	
+     left=qqq								' file position
+     decodenext=-2	' tell the decoder to decode
+     endif
+  if qqq<>12288 then 										' end of file
+    'do: waitvbl: scope : bars : loop until left<100 
+    waitms(100): close #8 : mp3playing=0									' close the file, stop playing
+    for i=0 to 12287: outbuf1(i)=32767: next i   
+    dpoke base+20,0: dpoke base+20+32,0
+'    mp3.mp3free()
     cpustop(mp3cog): mp3cog=-1
     filemove=1 : playnext=1							        	' experimental
     endif
@@ -1851,6 +1866,46 @@ v.setwritecolors(150,147) : if xid6fields$(9)<>"" then position px,py: print "Fa
 
 
 end sub
+
+' ----------------- Read and display/skip mp3 file metadata
+ 
+sub mp3open()
+
+
+
+dim header(3) as ubyte
+get #8,1,header(0),4
+if header(0)=$ff andalso ((header(1) and $F0)=$F0 orelse (header(1) and $F0)=$E0) then 'this is a header
+  let bitrate=bitrates((header(2) and $F0) shr 4)
+  let samplerate=samplerates((header(2) and $0C) shr 2)
+  let tag$="No tag"
+  endif
+if header(0)=asc("I") andalso header(1)=asc("D") andalso header(2)=asc("3") then  'this is a tag
+  get #8,7,header(0),4
+  let tagsize = header(0) * $200000 + header(1) * $4000 + header(2) * $80 + header(3) + 10
+  wavepos=tagsize+1
+  let tag$="tag detected, size="+str$(tagsize)
+  get #8,wavepos,header(0),4
+  if header(0)=$ff andalso ((header(1) and $F0)=$F0 orelse (header(1) and $F0)=$E0) then 'this is a header
+    let bitrate=bitrates((header(2) and $F0) shr 4)
+    let samplerate=samplerates((header(2) and $0C) shr 2)
+    endif 
+  endif
+if samplerate=44100 then sr=31
+if samplerate=48000 then sr=28
+v.setwritecolors(147,154) 											' print the info
+position 184,4 : print "                                " 
+position 184,4:  print " ";filename$ :v.setwritecolors($9a,$93)                      
+position 184,5  : v.write ("MP3 file ")                ',178);
+v.setwritecolors(150,147) : position 184,7 : v.write ("bitrate:")
+v.setwritecolors(154,147) : position 184,8:  v.write(v.inttostr(bitrate))
+v.setwritecolors(150,147) : position 184,9 : v.write ("samplerate:")
+v.setwritecolors(154,147) : position 184,10:  v.write(v.inttostr(samplerate))
+v.setwritecolors(154,147) : position 184,12:  v.write(tag$)
+
+end sub       
+
+
 
 ' ----------------- Read and display SID file metadata, initialize the 6502 for playing the file  ------------------- rev 20220420 -----------------------------
  
