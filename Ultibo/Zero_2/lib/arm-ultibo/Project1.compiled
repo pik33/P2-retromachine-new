@@ -1,5 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<CONFIG>
-  <Compiler Value="/home/pik33/ultibo/core/fpc/bin/fpc" Date="1653742180"/>
-  <Params Value=" -Tultibo -Parm -CpARMV7A -WpRPIZERO2W @/home/pik33/ultibo/core/fpc/bin/RPI3.CFG -MObjFPC -Scghi -CX -O2 -XX -l -vewnhibq -Fi/home/pik33/Programowanie/P2-retromachine/Ultibo/Zero_2/lib/arm-ultibo -Fu/home/pik33/Programowanie/P2-retromachine/Ultibo/Zero_2/ -FU/home/pik33/Programowanie/P2-retromachine/Ultibo/Zero_2/lib/arm-ultibo/ -FE/home/pik33/Programowanie/P2-retromachine/Ultibo/Zero_2/ -o/home/pik33/Programowanie/P2-retromachine/Ultibo/Zero_2/Project1 Project1.pas"/>
-</CONFIG>
