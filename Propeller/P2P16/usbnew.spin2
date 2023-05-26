@@ -15,8 +15,8 @@ CON
 
     USB_BASE_PIN  = 16
 
-    ACTIVITY_LED  = 38
-    ERROR_LED     = 39
+    ACTIVITY_LED  = 16
+    ERROR_LED     = 20
 
     KEYQUEUE_SIZE = 64
 

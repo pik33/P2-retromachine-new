@@ -128,20 +128,21 @@ end sub
 
 ' ------------------------ Constant and addresses -------------------------------------------------------------
 
-const HEAPSIZE = 32768
+const HEAPSIZE = 16384
 const version$="Prop2play v.0.32"
 const statusline$=" Propeller2 multiformat player v. 0.32 --- 2023.05.23 --- pik33@o2.pl --- use an USB keyboard and mouse to control --- arrows up,down move - pgup/pgdn or w/s move 10 positions - enter selects - tab switches panels - +,- controls volume - 1..4 switch channels on/off - 5,6 stereo separation - 7,8,9 sample rate - a,d SID speed - x,z SID subtune - R rescans current directory ------"
 const hubset338=%1_111011__11_1111_0111__1111_1011 '338_666_667 =30*44100 
 const hubset336=%1_101101__11_0000_0110__1111_1011 '336_956_522 =paula*95
 const hubset331=%1_110000__11_0110_1100__1111_1011  '331776000 = 27*48000
-'const hubset336=%1_110000__11_0110_1100__1111_1011
+const hubset270=%1_000001__00_0001_1010__1111_1011
+const hubset250=%1_000001__00_0001_1000__1111_1011
 
 const scope_ptr=$75A00
 
 const  dirpanelx1=  5,  dirpanely1=60,  dirpanelx2=357,  dirpanely2=235
 const filepanelx1=363, filepanely1=60, filepanelx2=719, filepanely2=403
 
-declare a6502buf alias $64000 as ubyte($10FFF) '64000 doesnt work, why?
+declare a6502buf alias $64000 as ubyte($10FFF) 
 declare mainstack alias $75000 as ubyte(2559)
 declare filebuf alias $76400 as ubyte(16383)
 dim shared as ulong bitrates(15) = {0,32,40,48,56,64,80,96,112,128,160,192,224,256,320}
@@ -168,7 +169,7 @@ dim currentdir$ as string
 dim channelvol(4), channelpan(4) as integer
 dim mainvolume, mainpan as integer
 dim samplerate,wavepos,currentbuf as ulong
-dim newdl(32)
+dim newdl(41)
 
 dim modplaying,waveplaying,mp3playing,dmpplaying, spcplaying, sidplaying, needbuf,playnext as ubyte
 dim modcog,scog,a6502cog,scog2,mp3cog as integer
@@ -547,12 +548,12 @@ do
       											'
     endif  
     
-    if ext$="lac" then 
-      filename2$=currentdir$+filename$								' get a full filename with path
-      open filename2$ for input as #8 : pos=1	
-      flacopen
-      close #8
-    endif
+'    if ext$="lac" then 
+'//      filename2$=currentdir$+filename$								' get a full filename with path
+'//      open filename2$ for input as #8 : pos=1	
+'//     flacopen
+'//      close #8
+'    endif
 
     if ext$="mod" then							                        ' module file will be read into the PSRAM
       if audiocog<1 then startaudio   								' start the audio driver
@@ -589,7 +590,7 @@ do
     for i=0 to 7 : lpoke base+32*i+20,0 : next i 					        ' mute the sound
 
 									' main clock=38 MHz, sample rate 1367187.5 Hz=31*44102.8 Hz - Todo: get a sample rate from a header and set it properly     
-    filename3$=currentdir$+filename$	' :position 0,0: print currentdir$, filename$							' get a filename with the path
+    filename3$=currentdir$+filename$	'  :position 0,0: print currentdir$, filename$, filename3$							' get a filename with the path
     close #8: open filename3$ for input as #8
    wavepos=1:      mp3open()						' open the file and preload the buffer
  mp3playing=1   
@@ -628,8 +629,7 @@ do
     lpoke base+8, $d0000000  +varptr(outbuf1(0))							  	        ' sample ptr, 16 bit, restart from 0 
     lpoke base+32+8, $f0000002	+varptr(outbuf1(0))						                ' sample ptr+2 (=another channel), synchronize #1 to #2'
  ''
-
-  
+'    hubset(hubset250)	
     v.setwritecolors($ea,$e1)									' yellow
     position 2*2,17:v.write(space$(38)): filename3$=right$(filename3$,38) 		 	' clear the place for a file name
     position 2*2,17: v.write(filename3$)						        ' display the 'now playing' filename 
@@ -1576,7 +1576,7 @@ sub makedl
 newdl(0)=559<<20+(0)<<16+%0001+ (0+(v.cpl1<<2)) <<4             
 newdl(1)=v.buf_ptr<<4+%10  
 for i=2 to 17: newdl(i)=$7000002+2*65536*(i-2) :next i
-for i=18 to 32: newdl(i)=$7000002 : next i
+for i=18 to 41: newdl(i)=$7000002 : next i
 v.dl_ptr=addr(newdl(0))
 end sub
 
@@ -1902,7 +1902,7 @@ sub mp3open()
 
 
 dim header(3) as ubyte
-get #8,1,header(0),4
+get #8,1,header(0),4,q ': position 0,0: print q,hex$(header(0)),hex$(header(1))
 if header(0)=$ff andalso ((header(1) and $F0)=$F0 orelse (header(1) and $F0)=$E0) then 'this is a header
   let bitrate=bitrates((header(2) and $F0) shr 4)
   let samplerate=samplerates((header(2) and $0C) shr 2)
@@ -2099,208 +2099,6 @@ end sub
 
 '---------------------------------- THE END OF THE CODE ----------------------------------------------------------------
 
-''-----------------------------------Trying to port the simple flac decoder ---------------------------------------------
-sub flacopen
-
-
-dim samplerate as ulong
-dim numchannels as ulong
-dim sampledepth as ulong
-dim numsamples as ulong
-dim magic as ulong
-dim r as ulong
-dim metahead as ulong
-dim metalength,metatype,lastmeta,long1,long2 as ulong
-dim flacsamplerate, flacchannels, flacdepth as ulong
-dim meta as ulong
-dim framehead as ushort
-dim framecode as ubyte 
-
-bitbuffer=0: bitbufferlen=0			
-meta=0
-pos=1
-position 184,15
-magic=readuint(32) : position 184,4 : print hex$(magic)
-if magic<>$664C6143 then goto 9999
-
-
-do
-  lastmeta=readuint(1)
-  metatype=readuint(7)
-  metalength=readuint(24)
-  if metatype<>0 then
-    for i=0 to metalength-1: readuint(8) : next i
-  else
-    readuint(16)
-    readuint(16)
-    readuint(24)
-    readuint(24)
-    flacsamplerate=readuint(20)
-    flacchannels=readuint(3)+1
-    flacdepth=readuint(5)+1
-    readuint(4)
-    long2=readuint(32)
-       position 184,9:  print "samples:",long2;"   "
-       position 184,10: print "samplerate:",flacsamplerate
-       position 184,11: print "channels:",flacchannels
-       position 184,12: print "depth:",flacdepth
-    for i=0 to 15: let q=readuint(8) : print hex$(q), : next i
-  endif
-  meta+=1
-loop until lastmeta=1
-
-9999 end sub
-
-
-function decodeframe(channels,depth as ulong) as integer
-
-dim temp,sync as integer
-
-temp = readuint(8)
-if r<>1 then return 0
-sync = temp << 6 + readUint(6)
-if (sync <> $3FFE) then return -1
-
-readuint(1)
-readuint(1)
-let blockSizeCode = readuint(4)
-let sampleRateCode = readuint(4)
-let chanAsgn = readUint(4)
-readUint(3)
-readUint(1)
-temp = readuint(8)
-do while temp >= %11000000:
-  readuint(8)
-  temp = (temp shl 1) and 0xFF
-loop  
-
-if (blockSizeCode == 1) then
-  let blockSize = 192
-else if (blockSizeCode>=2 andalso blockSizeCode <= 5) then
-  blockSize = 576 << (blockSizeCode - 2)
-else if (blockSizeCode = 6) then
-  blockSize = readUint(8) + 1
-else if (blockSizeCode = 7) then
-  blockSize = readUint(16) + 1
-else if (blockSizeCode>=8 andalso blockSizeCode <= 15) then
-  blockSize = 256 << (blockSizeCode - 8)
-else
-  return -2
-endif
-		
-if (sampleRateCode = 12) then
-  readUint(8)
-else if (sampleRateCode == 13 orelse sampleRateCode == 14) then
-  readUint(16)
-endif
-readUint(8)
-  ' make 'samples array[numchannels][blocksize]		
- ' decodeSubframes(in, sampleDepth, chanAsgn, samples); 'TODO
-		
-alignToByte 
-readUint(16)
-		
-
-'		for (int i = 0; i < blockSize; i++) {
-'			for (int j = 0; j < numChannels; j++) {
-'				int val = samples[j][i];
-'				if (sampleDepth == 8)
-'					val += 128;
-'				writeLittleInt(sampleDepth / 8, val, out);
-'			}
-'		}
-'		return true;
-'	}
-	
-
-return 0
-
-end function
-
-/'
-
-function decode_subframes(inp, blocksize, sampledepth, chanasgn) as integer
-
-if chanasgn>=0 andalso chanasgn <= 7 then
-  for ch = 0; ch < result.length; ch++)
-				decodeSubframe(in, sampleDepth, subframes[ch]);
-
-
-		return [decode_subframe(inp, blocksize, sampledepth) for _ in range(chanasgn + 1)]
-	elif 8 <= chanasgn <= 10:
-		temp0 = decode_subframe(inp, blocksize, sampledepth + (1 if (chanasgn == 9) else 0))
-		temp1 = decode_subframe(inp, blocksize, sampledepth + (0 if (chanasgn == 9) else 1))
-		if chanasgn == 8:
-			for i in range(blocksize):
-				temp1[i] = temp0[i] - temp1[i]
-		elif chanasgn == 9:
-			for i in range(blocksize):
-				temp0[i] += temp1[i]
-		elif chanasgn == 10:
-			for i in range(blocksize):
-				side = temp1[i]
-				right = temp0[i] - (side >> 1)
-				temp1[i] = right
-				temp0[i] = right + side
-		return [temp0, temp1]
-	else:
-		raise ValueError("Reserved channel assignment")
-
-
-def decode_subframe(inp, blocksize, sampledepth):
-
-	inp.read_uint(1)
-	type = inp.read_uint(6)
-	shift = inp.read_uint(1)
-	if shift == 1:
-		while inp.read_uint(1) == 0:
-			shift += 1
-	sampledepth -= shift
-	
-	if type == 0:  # Constant coding
-		result = [inp.read_signed_int(sampledepth)] * blocksize
-	elif type == 1:  # Verbatim coding
-		result = [inp.read_signed_int(sampledepth) for _ in range(blocksize)]
-	elif 8 <= type <= 12:
-		result = decode_fixed_prediction_subframe(inp, type - 8, blocksize, sampledepth)
-	elif 32 <= type <= 63:
-		result = decode_linear_predictive_coding_subframe(inp, type - 31, blocksize, sampledepth)
-	else:
-		raise ValueError("Reserved subframe type")
-	return [(v << shift) for v in result]
-
-'/
-
-dim bitbuffer,bitbufferlen as ulong 
-dim temp as ubyte
-dim result as ulong
-
-
-function readuint(n as ulong) as ulong
-
-do while bitbufferlen<n
-  get #8,pos,temp,1,r: pos+=1
-  bitbuffer=(bitbuffer shl 8) + temp
-  bitbufferlen+=8
-loop
-bitbufferlen-=n
-if n<32 then 
-  result=(bitbuffer shr bitbufferlen) and ((1 shl n)-1) 
-  bitbuffer=bitbuffer and ((1 shl bitbufferlen)-1)
-else
-  result=bitbuffer
-  bitbuffer=0
-endif  
-
-return result
-end function
-  
-	
-sub alignToByte 
-bitBufferLen -= bitBufferLen mod 8
-end sub
-
-''--------FLAC end 
 
 ' Semigraphic characters codes
 ' 3 hline 4 vline 5 T 6 up T 7 -| 8 |- 9rup 10 lup 11 rdown 12 ldown 13 cross
