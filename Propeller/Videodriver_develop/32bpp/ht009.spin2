@@ -321,22 +321,22 @@ mailbox_ptr:=mb
 mailbox0:=mb				' PSRAM mailbox pointer
 sprite_ptr:=@spr1ptr
 
-spr1y:=600				'
-spr2y:=600				'
-spr3y:=600				'
-spr4y:=600				'
-spr5y:=600				'
-spr6y:=600				'
-spr7y:=600				'
-spr8y:=600				'
-spr9y:=600				'
-spr10y:=600				'
-spr11y:=600				'
-spr12y:=600				'
-spr13y:=600				'
-spr14y:=600				'
-spr15y:=600				'
-spr16y:=600
+spr1y:=700				'
+spr2y:=700				'
+spr3y:=700				'
+spr4y:=700				'
+spr5y:=700				'
+spr6y:=700				'
+spr7y:=700				'
+spr8y:=700				'
+spr9y:=700				'
+spr10y:=700				'
+spr11y:=700				'
+spr12y:=700				'
+spr13y:=700				'
+spr14y:=700				'
+spr15y:=700				'
+spr16y:=700
 				'
 
 emptydl[0]:=%0100_0000_0000_0000_0000_0000_0000_0111
@@ -933,18 +933,18 @@ if (cursor_y>st_lines-1)
 
 pub scrollup() | i
 	
-repeat i from 0 to 559 
+repeat i from 0 to lines-17
   ram.read1($80000-16384-4096-s_debug, s_buf_ptr+(i+16)*4096, 4096)
   ram.write($80000-16384-4096-s_debug, s_buf_ptr+i*4096, 4096)
 
-repeat i from 560 to 575
+repeat i from lines-16 to lines-1
    fastline(0,1023,i,write_background)   
  
 ''----------- Scroll the screen one line down 
 
 pub scrolldown() | i
 
-repeat i from 559 to 0
+repeat i from lines-17 to 0
   ram.read1($80000-16384-4096-s_debug, s_buf_ptr+i*4096, 4096)
   ram.write($80000-4096-1024-s_debug, s_buf_ptr+(i+16)*4096, 4096)
 
@@ -1131,7 +1131,7 @@ ataripalette   file "ataripalettep2.def"
 '**********************************************************************************
 
 '                      bf.hs, hs,  bf.vis  visible, up p., vsync, down p.,  cpl, total lines, clock,       hubset                                scanlines  ud bord mode reserved
-timings         long   14,    80,  14,      1024,   6,     8,     6,        128, 576,         336956522,   %1_101101__11_0000_0110__1111_1011,   576,        0,     192, 0, 0
+timings         long   10,    60,  10,      1024,   7,     4,     1,        128, 600,         336956522,   %1_101101__11_0000_0110__1111_1011,   600,        0,     192, 0, 0
 vgacolors       long   $00000000,$0000AA00,$00AA0000,$00AAAA00,$AA000000,$AA00AA00,$AA550000,$AAAAAA00,$55555500,$5555FF00,$55FF5500,$55FFFF00,$FF555500,$FF55FF00,$FFFF5500,$FFFFFF00 
 
 '**********************************************************************************

@@ -1,8 +1,8 @@
 '********************************************************************************************
 ' Displaylisted PSRAM HDMI for P2 Retromachine
-' Version 0.07 alpha - 20220328
-' 1 cog graphics with or without border, with sprites
-' (c) 2012-2021 Piotr Kardasz pik33@o2.pl
+' Version 0.09 alpha - 20230526
+' 1 cog graphics with or without border, with sprites, 8bpp
+' (c) 2012-2023 Piotr Kardasz pik33@o2.pl
 ' MIT license
 '********************************************************************************************
 '' WARNING! If you want to use this with a BRK debugger, set con debugger to anything different than 0
@@ -78,7 +78,7 @@
 '-----------------------------------------------------------------------------------------------------------------------
 
 ' Available standard graphic modes:
-'   - 1024x576@50 Hz borderless
+'   - 1024x576@50 Hz borderless 8bpp
 
 '  The display list
 

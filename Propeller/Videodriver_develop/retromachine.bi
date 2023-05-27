@@ -1,6 +1,6 @@
 
-'dim v as class using "hg008.spin2"
-dim v as class using "vg001.spin2"
+dim v as class using "hg008.spin2"
+'dim v as class using "vg001.spin2"
 dim psram as class using "psram.spin2"
 
 dim videocog as integer

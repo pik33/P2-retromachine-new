@@ -55,7 +55,7 @@ next i
 close #8 
 
 v.blit($4000_0000+v.buf_ptr,0,0,1023,575,4096,$4100_0000,0,0,4096) 
-v.outtextxycf(0,0,"1024x576 True Color HDMI driver",15)   
+v.outtextxycf(0,0,"1024x600 True Color HDMI driver",15)   
 waitms(5000)    
 waitms(5000)    
 
@@ -63,86 +63,86 @@ do
 
   for i=1 to 200: v.setwritecolors (getrnd()<<8, 0) : print i: next i : waitms(1000)
   
-  v.blit($4100_0000,0,0,1023,575,4096,$4000_0000+v.buf_ptr,0,0,4096) : waitms(1000)
+ ' v.blit($4100_0000,0,0,1023,575,4096,$4000_0000+v.buf_ptr,0,0,4096) : waitms(1000)
   
   for i=0 to 5000
     ccc=getrnd() shl 8
     x1=getrnd() mod 128 
-    y1=getrnd() mod 36                                
+    y1=getrnd() mod 37                                
     position 2*x1,y1
     v.setwritecolors(ccc,0)
-    v.write("Testing PSRAM 32bpp 1024x576 HDMI mode fast write")
+    v.write("Testing PSRAM 32bpp 1024x600 HDMI mode fast write")
   next i
   waitms(1000)
   
-  v.blit($4100_0000,0,0,1023,575,4096,$4000_0000+v.buf_ptr,0,0,4096) : waitms(1000)
+ ' v.blit($4100_0000,0,0,1023,575,4096,$4000_0000+v.buf_ptr,0,0,4096) : waitms(1000)
 
   for i=0 to 500
     ccc=getrnd() <<8
     x1=getrnd() mod 1024
-    y1=getrnd() mod 560
-    v.outtextxycg(x1,y1,"Testing PSRAM 32bpp 1024x576 HDMI1920x1080 VGA mode slow write",ccc,0)
+    y1=getrnd() mod 584
+    v.outtextxycg(x1,y1,"Testing PSRAM 32bpp 1024x600 HDMI mode slow write",ccc,0)
   next i
   waitms(1000)
   
-  v.blit($4100_0000,0,0,1023,575,4096,$4000_0000+v.buf_ptr,0,0,4096) : waitms(1000)
+ ' v.blit($4100_0000,0,0,1023,575,4096,$4000_0000+v.buf_ptr,0,0,4096) : waitms(1000)
 
   for i = 0 to 5000
     ccc=getrnd() shl 8
     x1=getrnd() mod 1024
     x2=getrnd() mod 1024
-    y1=getrnd() mod 576
-    y2=getrnd() mod 576
+    y1=getrnd() mod 600
+    y2=getrnd() mod 600
     v.draw(x1,y1,x2,y2,ccc)
     next i 
   waitms(1000) 
  
-  v.blit($4100_0000,0,0,1023,575,4096,$4000_0000+v.buf_ptr,0,0,4096) : waitms(1000)
+ ' v.blit($4100_0000,0,0,1023,575,4096,$4000_0000+v.buf_ptr,0,0,4096) : waitms(1000)
 
   for i = 0 to 5000
     x1=getrnd() mod 1024
-    y1=getrnd() mod 576
+    y1=getrnd() mod 600
     r=getrnd() mod 100
     ccc=getrnd() shl 8
     v.fcircle(x1,y1,r,ccc)   
   next i  
   waitms(1000)
  
-  v.blit($4100_0000,0,0,1023,575,4096,$4000_0000+v.buf_ptr,0,0,4096) : waitms(1000) 
+  'v.blit($4100_0000,0,0,1023,575,4096,$4000_0000+v.buf_ptr,0,0,4096) : waitms(1000) 
 
   for i = 0 to 5000
     x1=getrnd() mod 1024
-    y1=getrnd() mod 576
+    y1=getrnd() mod 600
     r=getrnd() mod 100
     ccc=getrnd() shl 8
     v.circle(x1,y1,r,ccc)   
   next i  
   waitms(1000)
 
-  v.blit($4100_0000,0,0,1023,575,4096,$4000_0000+v.buf_ptr,0,0,4096) : waitms(1000) 
+ ' v.blit($4100_0000,0,0,1023,575,4096,$4000_0000+v.buf_ptr,0,0,4096) : waitms(1000) 
 
   for i = 0 to 5000
     ccc=getrnd() shl 8
     x1=getrnd() mod 1024
     x2=getrnd() mod 1024
-    y1=getrnd() mod 576
-    y2=getrnd() mod 576
+    y1=getrnd() mod 600
+    y2=getrnd() mod 600
     v.frame(x1,y1,x2,y2,ccc)
   next i  
   waitms(1000)
   
-  v.blit($4100_0000,0,0,1023,575,4096,$4000_0000+v.buf_ptr,0,0,4096) : waitms(1000) 
+ ' v.blit($4100_0000,0,0,1023,575,4096,$4000_0000+v.buf_ptr,0,0,4096) : waitms(1000) 
  
   for i = 0 to 5000
     ccc=getrnd() shl 8
     x1=getrnd() mod 1024
     x2=getrnd() mod 200
-    y1=getrnd() mod 576
+    y1=getrnd() mod 600
     y2=getrnd() mod 200
     v.box(x1,y1,x1+x2,y1+y2,ccc)   
   next i    
   waitms(1000)
-  v.blit($4100_0000,0,0,1023,575,4096,$4000_0000+v.buf_ptr,0,0,4096) : waitms(1000)
+ ' v.blit($4100_0000,0,0,1023,575,4096,$4000_0000+v.buf_ptr,0,0,4096) : waitms(1000)
 
 loop
 
@@ -327,7 +327,7 @@ ypos1+=ydelta1
 
 
 if xpos1>=1024 then xdelta1=-1
-if ypos1>=576 then ydelta1=-1
+if ypos1>=600 then ydelta1=-1
 if ypos1<=-32 then ydelta1=1
 if xpos1<=-32 then xdelta1=1
 

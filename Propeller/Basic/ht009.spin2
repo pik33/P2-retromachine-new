@@ -1,35 +1,38 @@
 '********************************************************************************************
 ' Displaylisted PSRAM HDMI for P2 Retromachine
 ' Version 0.07 alpha - 20220328
-' 1 cog graphics with or without border, with sprites
-' (c) 2012-2021 Piotr Kardasz pik33@o2.pl
+' 1 cog, 1024x576 32 bpp graphics with sprites
+' (c) 2012-2022 Piotr Kardasz pik33@o2.pl
 ' MIT license
 '********************************************************************************************
 '' WARNING! If you want to use this with a BRK debugger, set con debugger to anything different than 0
 '' It will prevent the driver from using the last 16 kB of HUB RAM
 '
 ' You can capture the FlexBasic print by open SendRecvDevice(@this_object.putchar, nil, nil) as #0 for any mode
+' Colors are in format $rrggbb00 - if the color code is <=255, the color will be loaded frot the Atari 8bit type palette
+' rrggbb00 is needed by a streamer/HDMI as non-zero lower nibble can switch HDMI to direct 10bit mode 
+' using a palette for low color# makes the driver compatible with 8-bit drivers
 '
 ' Available functions:
 '
 ' - Starting and mode setting
 '
-'pub start(mode,base,mb) - start the driver with graphics mode 'mode' at pins 'base' with PSRAM mailbox at mb
-'pub makedl(mode) - make a display list for the mode, called from setmode
+'pub start(base,mb) - start the driver at pins 'base' with PSRAM mailbox at mb
+'pub makedl() - make a standard display list for the mode, called from setmode
 '
 ' - Graphics function for graphics modes
 
 'pub putpixel(x,y,c) - set pixel at x,y to the color c
 'pub fastline(x1,x2,y,c) - draw a horizontal line fast
-'pub draw(x1,y1,x2,y2,c) - draw a line
+'pub draw(x1,y1,x2,y2,c) - draw a line  
 'pub line(x1,y1,x2,y2,c) - alias for draw
 'pub fcircle(x0,y0,r,c) - draw a filled circle
-'pub circle(x0,y0,r,c) - draw an empty circle
+'pub circle(x0,y0,r,c) - draw an empty circlev
 'pub frame(x1,y1,x2,y2,c) - draw an empty rectangle
 'pub box(x1,y1,x2,y2,c) - draw a filled rectangle
 'pub putcharxycf(x,y,achar,f) - draw the character, don't change the background
-'pub putcharxycg(x,y,achar,f,b) - draw the character on the opaque background color
-'pub putcharxycg8(x,y,achar,f,b) - draw a 8x8 vharacter
+'pub putcharxycg(x,y,achar,f,b) - draw the character on the opaque background color  
+'pub putcharxycg8(x,y,achar,f,b) - draw a 8x8 character
 'pub putcharxycz(x,y,achar,f,b,xz,yz) - draw a zoomed character
 'pub outtextxycg(x,y,text,f,b) - output a string
 'pub outtextxycg8(x,y,text,f,b) - output 8x8 string
@@ -87,10 +90,9 @@
 
 ' The DL command list
 
-'' - display a line from memory list  	%0000_0000_aaaa_aaaa_aaaa_aaaa_aaaa_0000    a - pointer to the memory list for the line
+'' - display a line from memory list  	%0000_0000_aaaa_aaaa_aaaa_aaaa_aaaa_0000    a - pointer to the memory list for the line TODO
 '' - display a graphic line    		%aaaa_aaaa_aaaa_aaaa_aaaa_aaaa_aaaa_0010    a- PSRAM address 
-'' - repeat                   		%nnnn_nnnn_nnnn_qqqq_mmmm_mmmm_mmmm_0001    repeat the next dl line n times, after q lines add offset m to the address
-'' - reload palette            		%aaaa_aaaa_aaaa_aaaa_aaaa_bbbb_bbbb_0011    reload the 16 palette entries at b from address a
+'' - repeat                   		%nnnn_nnnn_nnnn_qqqq_mmmm_mmmm_mmmm_0001    repeat the next dl line n times, after q lines add offset m longs to the address
  
 ''-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -102,24 +104,24 @@ _clkfreq        = 336956522    					'this is the retromachine standard main cloc
 debugger        = 1                                             'set this to non-zero value if you want to use BRK debugger
 
 
-''--------- VGA DOS color definition constants. These are numbers of standard palette used (16 colors*16 luminances, 8-bit Atari based)
+''--------- VGA DOS color definition constants. 
 
-c_black         =    0
-c_blue          =  117
-c_green         =  199
-c_cyan          =  149
-c_red           =   39
-c_magenta       =   71
-c_brown         =  246
-c_lightgray     =   10
-c_darkgray      =    5
-c_lightblue     =  121
-c_lightgreen    =  203
-c_lightcyan     =  155
-c_lightred      =   43
-c_lightmagenta  =   75
-c_yellow        =  234
-c_white         =   15
+c_black         =  $00000000
+c_blue          =  $0000AA00
+c_green         =  $00AA0000
+c_cyan          =  $00AAAA00
+c_red           =  $AA000000
+c_magenta       =  $AA00AA00
+c_brown         =  $AA550000
+c_lightgray     =  $AAAAAA00
+c_darkgray      =  $55555500
+c_lightblue     =  $5555FF00
+c_lightgreen    =  $55FF5500
+c_lightcyan     =  $55FFFF00
+c_lightred      =  $FF555500
+c_lightmagenta  =  $FF55FF00
+c_yellow        =  $FFFF5500
+c_white         =  $FFFFFF00
 
 ''---------- A constant to add to timing values for the streamer
 
@@ -163,7 +165,7 @@ long cpl1
 long lines             'screen text lines count
 long fontnum           'offset to font
 long streamer[6]       'streamer constants
-byte colors[16]        'vga colors
+long colors[16]        'vga colors
 long graphmode
 long font_family
 long customtimings[16]
@@ -285,7 +287,7 @@ long displaylist[12]              ' now 8 longs is sufficient for a DL for simpl
 long emptydl[2]
 byte pixelbuf
 
-long ccc[2]
+long ccc[8]
 obj
 ram: "psram.spin2"
 
@@ -301,49 +303,40 @@ pub dummy()
 
 '****************************************************************************************************************
 '                                                                                                             	*
-'Start the driver with graphics mode 'mode' at pins 'base'                            		rev 20220320 	*
+'Start the driver at pins 'base' with mailbox mb	                            		rev 20220801 	*
 '                                                                                                            	*
-' mode - mode #, see below											*
+'                                                								*
 ' base - HDMI base pin												*
-' mb - PSRAM mailbox pointer, 0 if no PSRAM									*
-'														*
-'' mode number: :  %p_tn_bb_cc_vv_hh										*
-'' set bit #15 for custom timings														*
-'' p - 1 - psram, 0 - hub											*
-'' t - 1 - graphics, 0 - text											*
-'' n - 1 - 60 Hz,  0 - 50 Hz 											*
-'' hh - h.zoom, vv-v.zoom, cc-color depth if graphic, unused in text,						*
-'' bb - borders, 00-wide, 01 medium, 10 no border, 11 no border, extended resolution (1024x576/896x496)		*
-'														*
+' mb - PSRAM mailbox pointer, 32-bit PSRAM is mandatory here							*
+'                                                                                                               *
 '****************************************************************************************************************
 
 pub start(base,mb):result
 
 '--------------------------- initialize pointers and variables
 
-border_ptr:=@bordercolor					' Initial border color pointer, can be changed via DL
-'font_ptr:=@amiga_font						' Initial 8x16 font definition
+
 hdmibase:=base							' HDMI base pin, 8*n
 mailbox_ptr:=mb		
 mailbox0:=mb				' PSRAM mailbox pointer
 sprite_ptr:=@spr1ptr
 
-spr1y:=600				'
-spr2y:=600				'
-spr3y:=600				'
-spr4y:=600				'
-spr5y:=600				'
-spr6y:=600				'
-spr7y:=600				'
-spr8y:=600				'
-spr9y:=600				'
-spr10y:=600				'
-spr11y:=600				'
-spr12y:=600				'
-spr13y:=600				'
-spr14y:=600				'
-spr15y:=600				'
-spr16y:=600
+spr1y:=700				'
+spr2y:=700				'
+spr3y:=700				'
+spr4y:=700				'
+spr5y:=700				'
+spr6y:=700				'
+spr7y:=700				'
+spr8y:=700				'
+spr9y:=700				'
+spr10y:=700				'
+spr11y:=700				'
+spr12y:=700				'
+spr13y:=700				'
+spr14y:=700				'
+spr15y:=700				'
+spr16y:=700
 				'
 
 emptydl[0]:=%0100_0000_0000_0000_0000_0000_0000_0111
@@ -358,7 +351,7 @@ setmode()							' set the mode, see below
 vblank_ptr:=@vblank						' set pointers before starting the driver
 cursor_ptr:=@cursor_x						
 fontnum:=0  							' start with a PC type font 
-bytemove(@colors,@vgacolors,16)					' prepare standard DOS VGA colors
+longmove(@colors,@vgacolors,16)					' prepare standard DOS VGA colors
 
 '---------------------------- initialize a cursor (MSDOS type)
 
@@ -379,7 +372,7 @@ return cog							' return the driver's cog #
 '                                                                                                             	*
 '****************************************************************************************************************
 
-pub setmode() | i', 'xzoom, yzoom, azoom
+pub setmode() | i
 
 
 dl_ptr:=@emptydl[0]
@@ -388,21 +381,20 @@ if cog>0
    waitvbl(1)						    	' if the driver is active, wait for vblank to set the new mode and DL	
   
 ppl:=(timings[3])
-cpl:=timings[7]<<1                                      	' now cpl is longs per line
+cpl:=timings[7]<<3                                      	' now cpl is longs per line
 cpl1:=cpl '' todo remove
 palette_ptr:=@ataripalette				    	' use 256-colors palettr
 repeat i from 0 to 3
   timings[i]:=timings[i]+hdmibase<<17+ timingsxxt          	' add a streamer config (imm->pins) to horizontal timings 
 clkfreq:=timings[9]					    	' set the clock frequency for the mode
-hubset(timings[10])
+'hubset(timings[10])
 waitms(1)                                                   	' wait for stabilization
 lines:=timings[11]
 t_lines:=lines/16
 buflen:=cpl*lines						' framebuffer length in longs
-buf_ptr:=$1000000-4*buflen                          	     	' todo: get a PSRAM real himem 
+buf_ptr:=$2000000-4*buflen                          	     	' todo: get a PSRAM real himem 
 mode_ptr:=@timings						' set pointers to timings
-graphmode:=1024+512+192+48							' det global variable
-makedl(graphmode)							' make a DL for the mode
+makedl()							' make a DL for the mode
 s_buf_ptr:=buf_ptr						' secondary copies of main framebuffer parameters 
 s_font_ptr:=font_ptr
 s_lines:=lines
@@ -421,14 +413,13 @@ waitms(20)							' wait
 '                                                                                                             	*
 '****************************************************************************************************************
 
-pub makedl(mode) |i,vzoom,border,psbuf,lines2
+pub makedl() |i,psbuf,lines2
 
 psbuf:=$80000-s_debug-1024                                                     ' HUB line buffer on the top of HUB RAM (-16 kB if debug enabled)
-vzoom:=1<<((mode>>2) & 3)                                                      ' real vzoom from mode#
 repeat i from 0 to 11                                                           ' clear DL
   displaylist[i]:=0 
                         ' 
-displaylist[0]:=lines<<20+(0)<<16+%0001+ (0+(cpl1<<2)) <<4             
+displaylist[0]:=lines<<20+(0)<<16+%0001+ $4000            
 displaylist[1]:=buf_ptr<<4+%10  
 dl_ptr:=@displaylist[0] 						      ' tell the driver where to find the DL
 
@@ -444,18 +435,22 @@ dl_ptr:=@displaylist[0] 						      ' tell the driver where to find the DL
 
 pub putpixel(x,y,c)
 
+if (c<<24)<>0
+  c:=long[palette_ptr+4*(c & $FF)]
 if ((x>=0) & (x<4*s_cpl) & (y>=0) & (y<s_lines))
-  ram.fill(s_buf_ptr+(4*s_cpl1*y+x),c,1,0,1)
+  ram.fill(s_buf_ptr+(4*s_cpl1*y+4*x),c,1,0,4)
 
 '----------- A line drawing family. BASIC doesn't like the name, so it is named "draw" and aliased  -----------------------------
 
 pub fastline(x1,x2,y,c)									' a fast 8bpp horizontal line
 
+if (c<<24)<>0
+  c:=long[palette_ptr+4*(c & $FF)]
 if y<0
   return
 if x1>x2 
   x1,x2:=x2,x1
-ram.fill(s_buf_ptr+(4*s_cpl1*y+x1),c,1+x2-x1,0,1)
+ram.fill(s_buf_ptr+(4*s_cpl1*y+4*x1),c,1+x2-x1,0,4)
 
  
 pub line(x1,y1,x2,y2,c)  								' this is a "draw" alias
@@ -463,9 +458,13 @@ draw(x1,y1,x2,y2,c)
 
 pub draw(x1,y1,x2,y2,c) | d,dx,dy,ai,bi,xi,yi,x,y					' I had to rename the function for BASIC	
 
+
+
 if (y1==y2)
   fastline(x1,x2,y1,c)
 else  
+  if (c<<24)<>0
+    c:=long[palette_ptr+4*(c & $FF)]
   x:=x1
   y:=y1
 
@@ -542,7 +541,6 @@ repeat while (x<=y)
  
 pub circle(x0,y0,r,c) | d,x,y,da,db
 
- 
 d:=5-4*r
 x:=0
 y:=r
@@ -613,46 +611,57 @@ repeat yy from 0 to 15
     else
       putpixel(xx+x,yy+y,b)
       
-pub putcharxycgf(x,y,achar,f,b) |xx, yy,bb,c1,c2
+pub putcharxycgf(x,y,achar,f,b) |xx,yy,bb,c0
 
- 
+c0:=@ccc
+if (f<<24)<>0
+  f:=long[palette_ptr+4*(f & $FF)]
+if (b<<24)<>0
+  b:=long[palette_ptr+4*(b & $FF)]  
 repeat yy from 0 to 15
 
   bb:=byte[@vga_font+font_family<<10+achar<<4+yy]
+
   asm
   testb bb,#0 wz
-  if_z setbyte c1,f,#0
-  if_nz setbyte c1,b,#0
-  testb bb,#1 wz
-  if_z setbyte c1,f,#1
-  if_nz setbyte c1,b,#1
-  testb bb,#2 wz
-  if_z setbyte c1,f,#2
-  if_nz setbyte c1,b,#2
-  testb bb,#3 wz
-  if_z setbyte c1,f,#3
-  if_nz setbyte c1,b,#3
-  testb bb,#4 wz
-  if_z setbyte c2,f,#0
-  if_nz setbyte c2,b,#0
-  testb bb,#5 wz
-  if_z setbyte c2,f,#1
-  if_nz setbyte c2,b,#1
-  testb bb,#6 wz
-  if_z setbyte c2,f,#2
-  if_nz setbyte c2,b,#2
-  testb bb,#7 wz
-  if_z setbyte c2,f,#3
-  if_nz setbyte c2,b,#3
+  if_z mov $1e0,f
+  if_nz mov $1e0,b
 
+  testb bb,#1 wz
+  if_z mov $1e1,f
+  if_nz mov $1e1,b
+
+  testb bb,#2 wz
+  if_z mov $1e2,f
+  if_nz mov $1e2,b
+
+  testb bb,#3 wz
+  if_z mov $1e3,f
+  if_nz mov $1e3,b
+
+  testb bb,#4 wz
+  if_z mov $1e4,f
+  if_nz mov $1e4,b
+
+  testb bb,#5 wz
+  if_z mov $1e5,f
+  if_nz mov $1e5,b
+
+  testb bb,#6 wz
+  if_z mov $1e6,f
+  if_nz mov $1e6,b
+  
+  testb bb,#7 wz
+  if_z mov $1e7,f
+  if_nz mov $1e7,b
+
+  setq #7
+  wrlong $1e0,c0
    
   endasm  
-  
-  ccc[0]:=c1
-  ccc[1]:=c2 
-  long[mailbox0][2]:=8
+  long[mailbox0][2]:=32
   long[mailbox0][1]:=@ccc
-  long[mailbox0]:= s_buf_ptr+((y+yy)<<10+x<<2)+$f0000000   
+  long[mailbox0]:= s_buf_ptr+((y+yy)<<12+x<<4)+$f0000000   
   repeat
   while long[mailbox0] < 0 
  
@@ -848,8 +857,6 @@ pub setcolor(c,r,g,b)  |cc
 cc:=r<<24+g<<16+b<<8
 long[palette_ptr+4*c]:=cc
 
-pub getcolor(c) :r
-return long[@ataripalette+4*c]
 
 '*************************************************************************
 '                                                                        *
@@ -857,15 +864,19 @@ return long[@ataripalette+4*c]
 '                                                                        *
 '*************************************************************************
 
+
+pub getcolor(c) :r
+return long[@ataripalette+4*c]
+
 ''---------- Clear the screen, set its foreground/background color  
 
-pub cls(fc,bc)   :c,i
-
+pub cls(fc,bc):c
 c:=bc
-ram.fill(s_buf_ptr,c,4*buflen,0,1)  
+ram.fill(s_buf_ptr,c,4*buflen,0,4)  
 setwritecolors(fc,bc)
 cursor_x:=0
 cursor_y:=0
+return c
 
 ''---------- Output a char at the cursor position, move the cursor 
 
@@ -922,20 +933,20 @@ if (cursor_y>st_lines-1)
 
 pub scrollup() | i
 	
-repeat i from 0 to 559 
-  ram.read1($80000-4096-1024-s_debug, s_buf_ptr+(i+16)*4*s_cpl1, 4*s_cpl1)
-  ram.write($80000-4096-1024-s_debug, s_buf_ptr+i*4*s_cpl1, 4*s_cpl1)
+repeat i from 0 to lines-17
+  ram.read1($80000-16384-4096-s_debug, s_buf_ptr+(i+16)*4096, 4096)
+  ram.write($80000-16384-4096-s_debug, s_buf_ptr+i*4096, 4096)
 
-repeat i from 560 to 575
+repeat i from lines-16 to lines-1
    fastline(0,1023,i,write_background)   
  
 ''----------- Scroll the screen one line down 
 
 pub scrolldown() | i
 
-repeat i from 559 to 0
-  ram.read1($80000-4096-1024-s_debug, s_buf_ptr+i*4*s_cpl1, 4*s_cpl1)
-  ram.write($80000-4096-1024-s_debug, s_buf_ptr+(i+16)*4*s_cpl1, 4*s_cpl1)
+repeat i from lines-17 to 0
+  ram.read1($80000-16384-4096-s_debug, s_buf_ptr+i*4096, 4096)
+  ram.write($80000-4096-1024-s_debug, s_buf_ptr+(i+16)*4096, 4096)
 
 repeat i from 0 to 15
    fastline(0,1023,i,write_background)      
@@ -1071,26 +1082,33 @@ pub blit(f,x1a,y1a,x2a,y2a,s1,t,x1b,y1b,s2) | y
 '' bit 30 set=psram
 
 if ((f & $40000000) <>0) && ((t & $40000000)<>0) ' todo: check if the fields overlap and reorder the move
+
   f:=f & $FFFFFFF
   t:=t & $FFFFFFF
-  repeat y from y1a to y2a
-    ram.read1($80000-16384*debugger-4096-1024, f+(y)*s1+x1a, x2a-x1a+1)
-    ram.write($80000-16384*debugger-4096-1024, t+(y1b-y1a+y)*s2+x1b, x2a-x1a+1)
+  
+  if (f+s1*y1a+4*x1a)>(t+s2*y1b+4*x1b)
+    repeat y from y1a to y2a
+      ram.read1($80000-16384*debugger-16384-4096, f+(y)*s1+4*x1a, 4*(x2a-x1a+1))
+      ram.write($80000-16384*debugger-16384-4096, t+(y1b-y1a+y)*s2+4*x1b, 4*(x2a-x1a+1))
+  else    
+    repeat y from y2a to y1a
+      ram.read1($80000-16384*debugger-16384-4096, f+(y)*s1+4*x1a, 4*(x2a-x1a+1))
+      ram.write($80000-16384*debugger-16384-4096, t+(y1b-y1a+y)*s2+4*x1b, 4*(x2a-x1a+1))
+
     
 if ((f & $40000000) <>0) && ((t & $40000000)==0)
   f:=f & $FFFFFFF
   repeat y from y1a to y2a
-    ram.read1(t+(y1b-y1a+y)*s2+x1b,f+(y)*s1+x1a,x2a-x1a+1)
+    ram.read1(t+(y1b-y1a+y)*s2+4*x1b,f+(y)*s1+4*x1a,4*(x2a-x1a+1))
     
 if ((f & $40000000) == 0) && ((t & $40000000)<>0)
   t:=t & $FFFFFFF
   repeat y from y1a to y2a
-    ram.write(f+(y)*s1+x1a,t+(y1b-y1a+y)*s2+x1b,x2a-x1a+1)
+    ram.write(f+(y)*s1+4*x1a,t+(y1b-y1a+y)*s2+4*x1b,4*(x2a-x1a+1))
     
 if ((f & $40000000) <>0) && ((t & $40000000)<>0)
   repeat y from y1a to y2a
-    bytemove (f+(y)*s1+x1a,t+(y1b-y1a+y)*s2+x1b,x2a-x1a+1)
-
+    bytemove (f+(y)*s1+4*x1a,t+(y1b-y1a+y)*s2+4*x1b,4*(x2a-x1a+1))
 
 
 
@@ -1102,11 +1120,8 @@ if ((f & $40000000) <>0) && ((t & $40000000)<>0)
 dat
 
 vga_font       file "vgafont.def"
-'vga_font       file "vgafont.def"
 st_font        file "st4font.def"
-'amiga_font     file "amigafont.def"
 a8_font        file "atari8.fnt"
-vga16          long  $00000000,$00008000,$00800000,$00808000,$80000000,$80008000,$80400000,$AAAAAA00,$55555500,$0000FF00,$00FF0000,$00FFFF00,$FF000000,$FF00FF00,$FFFF0000,$FFFFFF00
 ataripalette   file "ataripalettep2.def"
 
 '**********************************************************************************
@@ -1116,9 +1131,8 @@ ataripalette   file "ataripalettep2.def"
 '**********************************************************************************
 
 '                      bf.hs, hs,  bf.vis  visible, up p., vsync, down p.,  cpl, total lines, clock,       hubset                                scanlines  ud bord mode reserved
-timings         long   14,    80,  14,      1024,   6,     8,     6,        128, 576,         336956522,   %1_101101__11_0000_0110__1111_1011,   576,        0,     192, 0, 0
-vgacolors       byte   0, 117, 199, 151, 39, 71, 246, 10, 5, 121, 203, 155, 43, 75, 234, 15
-
+timings         long   10,    60,  10,      1024,   7,     4,     1,        128, 600,         336956522,   %1_101101__11_0000_0110__1111_1011,   600,        0,     192, 0, 0
+vgacolors       long   $00000000,$0000AA00,$00AA0000,$00AAAA00,$AA000000,$AA00AA00,$AA550000,$AAAAAA00,$55555500,$5555FF00,$55FF5500,$55FFFF00,$FF555500,$FF55FF00,$FFFF5500,$FFFFFF00 
 
 '**********************************************************************************
 '
@@ -1146,7 +1160,7 @@ hdmi            setq    #6
 '
                 mov 	t1,hbase			   '
                 shl 	t1,#17                             '
-                add 	lutg8,t1                           ' add the pin base to he streamer constant
+                add 	immg32,t1                           ' add the pin base to he streamer constant
                 sub 	i_upporch,#2			   ' the driver will call 2 blank lines itself to preload the buffer, so sub #2 from up porch time
 
                 cogid   t1              		   ' get a cogid
@@ -1170,13 +1184,6 @@ p101            setq 	#3
                 mov     rcnt2a,affffffff 		   ' why?!                
                 
 
-
-'' ------- reload the palette. If bit31 set, don't reload, to prevent blinking while modifying the palette
-  
-                testb   paletteptr,#31 wc
-         if_nc  setq2   #255
-         if_nc  rdlong  $000, paletteptr                   'read palette
-
 '' -----   up porch (before the picture)
 
                 mov     hsync0,sync_000      	           ' init constants for sync
@@ -1191,7 +1198,7 @@ p101            setq 	#3
          	     call    #dli	                  ' call DL interpreter for line #0 at line #(-2) - 2 lines earlier, so it can start preloading data from PSRAM
                 xcont   m_bv,hsync0     
                 xcont   m_vi,hsync0
-                         rdfast  #64,buf1d                          ' prepare the HUB buffer for 4 scanlines
+                         rdfast  #256,buf1d                          ' prepare the HUB buffer for 4 scanlines
 
                 xcont   m_bs,hsync0                        ' horizontal sync
                 xzero   m_sn,hsync1
@@ -1209,10 +1216,11 @@ p301            xcont   m_bs,hsync0   			  ' make a right porch
                 xzero   m_sn,hsync1                       ' make hsync
                 call    #dli                              ' process the DL for line+2                
                 xcont   m_bv,hsync0
-                xcont   lutg8,#0			  ' display the line 
+                xcont   immg32,#0			  ' display the line 
+                 add     linenum,#1                        ' increment the current line number 
                  call    #sprite                           ' process sprites for line+1             
               
-                add     linenum,#1                        ' increment the current line number 
+
                 cmp     linenum,i_totalvis  wz            ' check if all lines displayed
     if_nz       jmp     #p301                             ' if not, display the next line
 
@@ -1249,9 +1257,6 @@ p307	        mov     framebuf2,dl wcz                   ' move this to framebuf2
     if_z        jmp     #preload2
                 cmp     t1,#%0001 wz			   ' 0001 - repeat
     if_z        jmp     #p390
-                cmp     t1,#%0011 wz			   ' 0011 - palette reload
-    if_z        jmp     #p391  
-
 p308            ret
    
 p390            rdlong  rdl,dlptr2                         ' read the next DL entry to repeat
@@ -1261,18 +1266,9 @@ p390            rdlong  rdl,dlptr2                         ' read the next DL en
                 getnib  rcnt2,framebuf2,#4                 ' read the pointer update counter
                 getword roffset,framebuf2,#0               ' read the offset to add
                 shr     roffset,#4                         ' clean the command field from offset
-                shl     roffset,#4                         ' and make it ready to add to the DL entry (address=20 upper bits)
+                shl     roffset,#6                         ' and make it ready to add to the DL entry (address=20 upper bits)
                 jmp     #dli                               ' now start repeating 
  
-'' --------  Reload palette. To do 
-
-p391           	getnib  t1,framebuf2,#2			   ' get a bank (0..15) of 16 colors
-         	shl     t1,#4				   ' compute the LUT address
-        	shr     framebuf2,#12			   ' compute the HUB address of 16 new colors
-         	setq2   #15				   ' load 16 entries
-         	altd    t1                                 ' from t1 LUT address
-        	rdlong  $000, framebuf2         	
-        	jmp     #dli                
       
 '' --------------- A display list interpreter end ------------------------------------------------------------------------    
 
@@ -1288,13 +1284,13 @@ blank           xcont   m_bs,hsync0                        ' horizontal sync
 '' -------------- Preload a line from PSRAM        
         
 preload         mov     buf1c,dlinum			   ' preload a line buffer #dlinum (0..3)
-                shl     buf1c,#10		           ' 1024 bytes per line
+                shl     buf1c,#12		           ' 4096 bytes per line
                 add     buf1c,buf1d			   ' add the start address (himem-debug-4096) : Todo: debug variable!
                 mov     buf1,buf1c
                 incmod  dlinum,#3
 
                 shr     framebuf2,#4                      ' get the PSRAM start address from DL - Todo: use new DL format
-                mov     buf2,a1024
+                mov     buf2,a4096
                 mov     cmd,framebuf2                      ' set the address
                 setnib  cmd, #%1011, #7                    ' attach the command - read burst from the external memory
                 setq    #2				   ' write 3 longs to the mailbox
@@ -1321,110 +1317,58 @@ p802            mov     t5,spritenum		   	' prepare a pointer to load sprite dat
                 alts    t5,#sprite1xy
                 getword sprite_x,0-0,#0                 ' and x
                 signx	sprite_x,#15
+                shl	sprite_x,#2			' now these are longs
                 alts    t5,#sprite1wh
                 getword sprite_h,0-0,#1		       	' get a sprite height
                 sub     sprite_h,#1
                 alts    t5,#sprite1wh
                 getword sprite_w,0-0,#0                 ' and width
+                shl	sprite_w,#2
 
-
-               	cmps	sprite_x,a1024 wcz	         
-     if_ge	jmp 	#p801                           ' go out if >1023
-                mov 	t9,#0
-                sub 	t9,sprite_w                      	
-     		cmps  	sprite_x,t9 wcz   		'
-     if_le	jmp 	#p801	                        ' go out if sprite out of screen at right
-     
-  		mov     t2,linenum			' display line # to check if sprite has to be displayed
+              
+                cmps	sprite_x,a4096 wcz
+     if_ge	jmp #p801          	
+     		cmps  sprite_x,##-128 wcz
+     if_le	jmp #p801		
+		mov     t2,linenum			' display line # to check if sprite has to be displayed
   		subs    t2,sprite_y wcz                 ' check if the sprite has to be displayed
-     if_c       jmp     #p801				' if not, go out
+     	if_c 	jmp     #p801				' if not, go out
                 cmp     t2,sprite_h wcz		    	' we have now the sprite line #, check, if it is not >= sprite height
-     if_gt      jmp     #p801				' if yes, go out
-                
+      	if_gt   jmp     #p801				' if yes, go out
                 mov     t3,spriteline			' compute the line buffer addres where to put the sprite line
-                shl     t3,#10			       	' =1024*spriteline where spriteline=0..3		' 
+                shl     t3,#12			       	' =4096*spriteline where spriteline=0..3		' 
                 add     t3,buf1d			' line buffer addr
-  		
+                
   		testb	sprite_x,#31 wc 		' check if sprite pos <0
-     if_nc      add     t3,sprite_x   			' if >=0 add xpos. If <0, the address is the start of the line  - now we have the address to where wmlong the sprite
-
+      	if_nc   add     t3,sprite_x   			' if not, add xpos, else xpos=0 - now we have the address to where wmlong the sprite
                 mul 	t2,sprite_w			' compute the offset to the sprite line data
-     if_c	add     sprite_w,sprite_x		' if sprite_x negative, shorten the width
-     if_c	sub 	t2,sprite_x			' and add the offset (sub negative) to the sprite data offset
- 
+   	if_c	add     sprite_w,sprite_x		' if sprite_x negative, shotren the width
+   	if_c	sub 	t2,sprite_x			' and add the offset (sub negative) to the sprite data offset
+  
                 alts    t5,#sprite1pointer		' get the pointer to the sprite (3 longs per sprite data)
                 add     t2,0-0				' then add the offset
-     if_c 	jmp     #p899		
-	
-	
-		mov 	t4,sprite_x	'
+	if_c    jmp #p899		
+				
+ 		mov 	t4,sprite_x	'
 		add	t4,sprite_w
-		sub     t4,a1024 wcz			' check if the sprite goes right off the screen
+		sub     t4,a4096 wcz			' check if the sprite goes right off the screen
 
 	if_nc	sub	sprite_w,t4			' if yes, make it narrower
 
 p899		mov 	t6,sprite_w
-	 	sub     t6,#1
-	 	shr	t6,#2				' bytes to longs
-
-                setq   	t6
-                rdlong 368,t2				' read sprite data to the cog
-                mov t8,sprite_w
-                and t8,#3 wz				' if width mod 4=0 we have full longs, nothing to do
-        if_z    jmp #p898
-         
-        
-                mov  t9,#368
-                add t9,t6				' find the last long of the sprite
-
-                subr t8,#4				' if modulo4=1, mask 3 bytes, if 2, mask 2, if 1, mask 3
-                mul t8,#8				' bits to shr
-                mov t7,##-1				' full of 1s
-                shr t7,t8				' SHR to make 0s for masking
-                altd t9,#0				' and mask 
-                and 0-0, t7
-               
-
-p898            setq   t6				' write the sprite data to the line buffer
-                wmlong 368,t3				
-                
-p801            djnf spritenum,#p802			' get the next sprite
-                incmod spriteline,#3			' prepare to fill the next line
-                ret
-	
-	
-{{		mov 	t7,a1023			' mask last part of the sprite if it gets out of the line
-		sub 	t7,sprite_x  			' compute how many bytes to mask
- 	'	and     t7,#511				' up to 512 pixels pre sprite, avoid overwriting HW regs with [t7]
-		fges t7,#0
-		fle t7,##512
-		mov 	t9,#0				' compute how many pixels to mask in the last long
-		sub 	t9,t7
-		and 	t9,#3
-
-		mul     t9,#8				' compute the mask
-		mov     t8,affffffff
-		shr     t8,t9
-		
-		shr 	t7,#2				' get the max longs to move if the sprite is at the edge 
-		mov 	t6,sprite_w
+		shr	t6,#2				' bytes to longs
 		sub     t6,#1				' longs to move for the full sprite width, -1 (setq adds 1)
-		shr 	t6,#2
-		fle	t6,t7				' if the sprite is on the edge, t7 is the limit 
 
                 setq   	t6
                 rdlong  368,t2				' read sprite data to the cog
- 
-		altd 	t7,#368				' mask the last long if needed
-                and 	0-0,t8
-                
+
                 setq   t6				' write the sprite data to the line buffer
-                wmlong  368,t3
+                wmlong  368,t3				
                 
 p801            djnf spritenum,#p802			' get the next sprite
                 incmod spriteline,#3			' prepare to fill the next line
                 ret
-}}                
+                
  
 '' -------------- Graphics line ------------------------------------------------------------
  
@@ -1444,7 +1388,6 @@ m_bs            long    0        'blanks before sync
 m_sn            long    0        'sync
 m_bv            long    0        'blanks before visible
 m_vi            long    0        'visible pixels #
-'m_border        long    0        'left/right borders
 i_upporch       long    0        'up porch lines
 i_vsync         long    0        'vsync lines
 i_downporch     long    0        'down porch lines
@@ -1457,6 +1400,7 @@ linenum         long    0
 frames          long    0
 dlinum long 0
 lutg8           long    $70880400 ' 0111_0000_1000_1000
+immg32		long    $B0810400 ' 1011_0000_1000_0001
 
 vblankptr       long    0
 modeptr         long    0
@@ -1467,13 +1411,13 @@ mailbox         long    0
 spriteptr          long 0
 
 cmd             long    0
-buf1            long    $80000-16384-4096
+buf1            long    $80000-16384-16384
 buf2            long    1024
 dlptr2          long    1
 dl              long    1
 
 buf1c long 0
-buf1d            long    $80000-16384-4096
+buf1d            long    $80000-16384-16384
 framebuf2       long    1
 hsync0          long    1
 hsync1          long    1
@@ -1556,8 +1500,6 @@ t9 long 0
 preloadaddr long 0
 preloadlineaddr long 0
 a1024 long 1024
-
-aa long 992
-a1023 long 1023
 a4096 long 4096
+a1023 long 1023
  fit 368

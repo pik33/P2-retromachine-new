@@ -8,7 +8,7 @@ startvideo
 dim ccc,x1,x2,y1,y2,r as ulong
 
 do
-  v.setmode(512+48)
+  v.setmode()
   v.cls(154,147)
   v.setfontfamily(0)
 
