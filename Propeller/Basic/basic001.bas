@@ -25,8 +25,7 @@ position 4,4
 
  dim key , key2 as ulong
 ''--- MAIN LOOP
-v.fastline(0,1023,575,40): position 0,0
-v.fastline(0,1023,0,40): position 0,0
+
 ' get key
 do
 waitvbl
@@ -39,8 +38,14 @@ if key<$80000000 then if rptcnt=25 then key3=key2 : rptcnt=21
 
 if key3<>0 then
   let key4=scantochar(key3) 
-  if key4>0 andalso key4<128 then v.putchar(key4)
-  if key4=141 then v.crlf():v.write("  ")
+  if key4=141 then 
+    v.crlf():v.write("  ")
+    
+  else if key4>0 andalso key4<128 then 
+    let line$=line$+chr$(key4)
+    v.putchar(key4)
+    endif
+
   key3=0
   endif
 
