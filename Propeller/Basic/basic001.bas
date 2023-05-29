@@ -10,6 +10,8 @@ dim audiocog,videocog as integer
 dim base as ulong
 dim mbox as ulong
 dim ansibuf(3) as ubyte
+dim textscreen (35,127) as ubyte
+dim line$ as string
 '-------------------------------------
 
 startpsram
@@ -22,14 +24,17 @@ v.setfontfamily(4)
 position 4,1 : print "P2 Retromachine BASIC version 0.01"
 position 4,3 : print "Ready"
 position 4,4
-
+for i=0 to 35: for j=0 to 127: textscreen(i,j)=32: next j: next i
  dim key , key2 as ulong
 ''--- MAIN LOOP
 
 ' get key
+
 do
+
 waitvbl
 let key=kbm.get_key()
+let leds=kbm.ledstates() 'numlock 1 capslock 2 scrollock 4
 
 if key>0 andalso key<$80000000 andalso (key and 255) <$E0 then let key2=key : let rpt=1 : let key3=key2
 if key>$80000000 then let rptcnt=0 : let rpt=0
@@ -37,14 +42,35 @@ if key=0 andalso rpt=1 then rptcnt+=1
 if key<$80000000 then if rptcnt=25 then key3=key2 : rptcnt=21
 
 if key3<>0 then
+
   let key4=scantochar(key3) 
+  if leds and 2 = 2 then 
+    if key4>96 andalso key4<123 then
+      key4-=32
+    else if key4>64 andalso key4<91 then 
+      key4+=32
+    else if key4>22 andalso key4<32 then 
+      key4-=9
+    else if key4>13 andalso key4<23 then 
+      key4+=39
+    endif
+  endif
+ 
+  if key4<127 then line$+=chr$(key4): textscreen(v.cursor_y,v.cursor_x/2)=key4 and 255 : v.putchar(key4)
+  if key3=43 then for i=0 to 7: line$+=" " : textscreen(v.cursor_y,v.cursor_x/2)=32 : v.write (" ") : next i 'tab
+  if key3=42 then 
+      if v.cursor_x>4 then 
+        line$=left$(line$,len(line$)-1): position v.cursor_x-2,v.cursor_y: v.putchar(32) : position v.cursor_x-2,v.cursor_y
+      else
+         line$="" : v.cursor_x=4
+      endif   
+   endif   
+ ' if key3= 'tab 43, bksp 42, del 76  
+ 
   if key4=141 then 
     v.crlf():v.write("  ")
-    
-  else if key4>0 andalso key4<128 then 
-    let line$=line$+chr$(key4)
-    v.putchar(key4)
-    endif
+  endif 
+
 
   key3=0
   endif
@@ -117,8 +143,13 @@ function scantochar(key)
 select case (key shr 8) and 255
 case 0
 return keys(4*(key and 255))
-case 2
+case 2,32
 return keys(4*(key and 255)+1)
+case 64
+return keys(4*(key and 255)+2)
+case 66,96
+return keys(4*(key and 255)+3)
+
 end select
 
 end function
