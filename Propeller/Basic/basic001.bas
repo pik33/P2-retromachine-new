@@ -28,8 +28,6 @@ for i=0 to 35: for j=0 to 127: textscreen(i,j)=32: next j: next i
  dim key , key2 as ulong
 ''--- MAIN LOOP
 
-' get key
-
 do
 
 waitvbl
@@ -56,7 +54,7 @@ if key3<>0 then
     endif
   endif
  
-  if key4<127 then line$+=chr$(key4): textscreen(v.cursor_y,v.cursor_x/2)=key4 and 255 : v.putchar(key4)
+  if key4>0 andalso key4<127 then line$+=chr$(key4): textscreen(v.cursor_y,v.cursor_x/2)=key4 and 255 : v.putchar(key4)
   if key3=43 then for i=0 to 7: line$+=" " : textscreen(v.cursor_y,v.cursor_x/2)=32 : v.write (" ") : next i 'tab
   if key3=42 then 
       if v.cursor_x>4 then 
@@ -69,7 +67,8 @@ if key3<>0 then
  
   if key4=141 then 
     v.crlf():v.write("  ")
-  endif 
+    interpret(line$): line$=""
+    endif 
 
 
   key3=0
@@ -77,6 +76,20 @@ if key3<>0 then
 
 loop
 
+'-----------------------------------
+
+sub interpret(line$)
+
+line$=ltrim$(ucase$(line$))
+let c$=left$(line$,1)
+if c$>="0" andalso c$<="9" then 
+  print "This is a program line"
+else
+  print "This is immediate command"  
+endif
+print "  Ready"
+  v.write("  ")  
+end sub
 
 '----------------------------------
 sub startpsram
