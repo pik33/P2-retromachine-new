@@ -37,9 +37,14 @@ dim psram as class using "psram4.spin2"		' PSRAM driver
 ' Replace this with your keyboard driver. It has to provide readkey() which returns the pressed key code or zero if no key pressed
 ' To do: add a standard USB keyboard driver here.
 
-dim kbd as class using "keyboard.spin2"
+dim kbd as class using "usbnew.spin2"
 
 '-----------------------------------------------------------------------------------------------
+
+function readkey() as ulong
+return kbd.get_key()
+end function
+
 
 dim videocog as integer
 dim hdmicog as integer

@@ -1,41 +1,9 @@
 const _clkfreq = 336956522
 
-#define PSRAM4
-'#define PSRAM16
-
-#ifdef PSRAM16
-dim v as class using "hg009.spin2"
-dim psram as class using "psram.spin2"
-#endif
-
-#ifdef PSRAM4
 dim v as class using "hg009-4.spin2"
-dim psram as class using "psram4.spin2"
-#endif
-
 dim kbm as class using "usbnew.spin2"
 dim paula as class using "audio093b-8-sc.spin2"
-'long #0: the sample phase accumulator: use it as read only although you -can- change this while playing (not recommended, the driver cog writes there at every sample)
-'long #1: the current sample generated, 2 words, right:left
-'long #2: the sample pointer.
-'         Set bit #31 to 0 if the sample is 8 bit, 1 for 16 bit. 
-'         Set bit #30 to 1 to start playing the sample from the beginning
-'         Set bit #29 to 1 to synchronize channels 0 and 1 for playing stereo without the phase error
-'         Set bit #28 to 1 to use interleaved samples (as in .wav file) with fractional skip enabled 
-'long #3: sample loop start point
-'long #4: sample loop end point. 
-'         If the sample has to no loop and stop at the end, set loop start=end of sample, loop end=loop start +1 or 2 (for 16 bit)
-'long #5: volume and pan
-'         word #10: volume, 0..16384(=1). Values more than 16384 could cause clipping if sample is normalized
-'         word #11: pan. 16384: full left, 8192: center, 0: full right
-'long #6  period and skip
-'         word #11: period. This is the number of Paula cycles between two samples. 
-'         word #12: skip 
-'         From version 0.93 it is 8.8 fixed point, so set it to 256 for 8 bit or 512 for 16-bit samples. (was: 1 and 2) 
-'         Setting higher skip value skips the samples while playing, allows for higher frequencies for the same period
-'long #7  was: (reserved, unused. The planned usage is ADSR stuff.)
-'         Command, bit 31=set sample rate, bit 30 - set sample source (1=hub,0=psram)
-
+dim psram as class using "psram4.spin2"
 #include "dir.bi"
 
 dim audiocog,videocog as integer
@@ -44,29 +12,10 @@ dim mbox as ulong
 dim ansibuf(3) as ubyte
 dim textscreen (35,127) as ubyte
 dim line$ as string
-dim testaudio(883) as ushort
-
-
-
 '-------------------------------------
 
 startpsram
 startvideo
-let audiocog,base=paula.start(0,0,0)
-waitms(1)
-
-dpoke base+20,0
-lpoke base+8,varptr(atari_spl) 
-lpoke base+12,1684
-lpoke base+16,1686
-dpoke base+22,8192
-dpoke base+24,79
-dpoke base+26,256
-lpoke base+28,$40000000
-
-
-waitms(50)
-dpoke base+20,16384
 kbm.start()
 kbm.mouse_set_limits(1023,575)
 cls
@@ -91,7 +40,7 @@ if key=0 andalso rpt=1 then rptcnt+=1
 if key<$80000000 then if rptcnt=25 then key3=key2 : rptcnt=21
 
 if key3<>0 then
-  lpoke base+8,varptr(atari_spl)+$C0000000 
+
   let key4=scantochar(key3) 
   if leds and 2 = 2 then 
     if key4>96 andalso key4<123 then
@@ -105,11 +54,8 @@ if key3<>0 then
     endif
   endif
  
-  if key4>0 andalso key4<127 andalso v.cursor_x<254 then line$+=chr$(key4): textscreen(v.cursor_y,v.cursor_x/2)=key4 : v.putchar(key4)
-  if key4>0 andalso key4<127 andalso v.cursor_x=254 then lpoke base+8,varptr(atari_spl)+$C0000000 : lpoke base+12,0: lpoke base+16,1000: waitms(500):lpoke base+16,1686: lpoke base+12,1684
-
-
-  if key3=43 then for i=0 to 7: line$+=" " : textscreen(v.cursor_y,v.cursor_x/2)=32 : v.write (" ") : next i  
+  if key4>0 andalso key4<127 then line$+=chr$(key4): textscreen(v.cursor_y,v.cursor_x/2)=key4 and 255 : v.putchar(key4)
+  if key3=43 then for i=0 to 7: line$+=" " : textscreen(v.cursor_y,v.cursor_x/2)=32 : v.write (" ") : next i 'tab
   if key3=42 then 
       if v.cursor_x>4 then 
         line$=left$(line$,len(line$)-1): position v.cursor_x-2,v.cursor_y: v.putchar(32) : position v.cursor_x-2,v.cursor_y
@@ -117,7 +63,6 @@ if key3<>0 then
          line$="" : v.cursor_x=4
       endif   
    endif   
-   
  ' if key3= 'tab 43, bksp 42, del 76  
  
   if key4=141 then 
@@ -140,7 +85,7 @@ let c$=left$(line$,1)
 if c$>="0" andalso c$<="9" then 
   print "This is a program line"
 else
-  print "This is an immediate command"  
+  print "This is immediate command"  
 endif
 print "  Ready"
   v.write("  ")  
@@ -501,7 +446,3 @@ const   key_rightarrow=206'//USB_HID_BOOT_USAGE_ID[79,0];    //206;
 const   key_leftarrow=207 '//USB_HID_BOOT_USAGE_ID[80,0];    //207;
 const   key_downarrow=208 '//USB_HID_BOOT_USAGE_ID[81,0];    //208;
 const   key_uparrow=209   '//USB_HID_BOOT_USAGE_ID[82,0];    //209;
-
-asm shared
-atari_spl file "atari.spl"
-end asm

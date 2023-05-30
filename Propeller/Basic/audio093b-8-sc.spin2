@@ -82,7 +82,7 @@ repeat iii from 0 to 7
   long[base+32*iii+16]:=2 
   word[base+32*iii+20]:=0
   word[base+32*iii+22]:=8192
-  word[base+32*iii+24]:=400+2*iii
+  word[base+32*iii+24]:=4000+2*iii
   word[base+32*iii+26]:=2
   long [base+32*iii+8]:=@null | $C0000000
   
