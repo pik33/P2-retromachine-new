@@ -1,7 +1,7 @@
 const _clkfreq = 336956522
 
-#define PSRAM4
-'#define PSRAM16
+'#define PSRAM4
+#define PSRAM16
 
 #ifdef PSRAM16
 dim v as class using "hg009.spin2"
@@ -108,9 +108,10 @@ if key3<>0 then
   if key4>0 andalso key4<127 andalso v.cursor_x<254 then line$+=chr$(key4): textscreen(v.cursor_y,v.cursor_x/2)=key4 : v.putchar(key4)
   if key4>0 andalso key4<127 andalso v.cursor_x=254 then lpoke base+8,varptr(atari_spl)+$C0000000 : lpoke base+12,0: lpoke base+16,1000: waitms(500):lpoke base+16,1686: lpoke base+12,1684
 
+  if (key3 and 255) = 43 andalso v.cursor_x>=240 then lpoke base+8,varptr(atari_spl)+$C0000000 : lpoke base+12,0: lpoke base+16,1000: waitms(500):lpoke base+16,1686: lpoke base+12,1684
 
-  if key3=43 then for i=0 to 7: line$+=" " : textscreen(v.cursor_y,v.cursor_x/2)=32 : v.write (" ") : next i  
-  if key3=42 then 
+  if (key3 and 255) = 43 andalso v.cursor_x<240 then let x=(v.cursor_x mod 16)/2: for i=x to 7: line$+=" " : textscreen(v.cursor_y,v.cursor_x/2)=32 : v.write (" ") : next i  
+  if (key3 and 255) = 42 then 
       if v.cursor_x>4 then 
         line$=left$(line$,len(line$)-1): position v.cursor_x-2,v.cursor_y: v.putchar(32) : position v.cursor_x-2,v.cursor_y
       else
@@ -135,17 +136,61 @@ loop
 
 sub interpret(line$)
 
-line$=ltrim$(ucase$(line$))
+line$=ltrim$(lcase$(line$))
 let c$=left$(line$,1)
-if c$>="0" andalso c$<="9" then 
-  print "This is a program line"
-else
-  print "This is an immediate command"  
-endif
+if c$>="0" andalso c$<="9" then print "This is a program line": goto 101 
+
+let l=len(line$)
+' find the first separator. Here it can be space, (,+-/*=:
+let i=0: do: i+=1 : loop until isseparator(mid$(line$,i,1)) orelse i>=l
+if mid$(line$,i,1)=" " then let j=i: do: j=j+1: loop until mid$(line$,j,1)<>" " 
+
+
+if i<l then i-=1
+let command$=left$(line$,i)  : let line$=right$(line$,l-i)
+' here command$ can be a command (print, new,...) but it can be also a variable in the assignment var=expr or var op expr. A command has to have space or ( or eol after it. 
+' A variable can not have these except space before operator
+
+let cmd=iscommand(command$)
+if cmd<0 then print "This is not a command" : goto 102
+
+' here we will decode and execute a command
+let args=cargs(cmd)
+' find arguments. They have to have format text,text,
+print "This is a command and it should have ";args;" arguments"
+if args=0 then ' we expect eol or :
+  if i=l then execute(cmd) ': goto 101
+  let l=len(line$):   i=0: do: i+=1 : c$=mid$(line$,i,1): loop until c$<>" " orelse i>=l
+  if i>=l then execute(cmd): goto 101  
+  if c$=":" then line$=right$(line$,l-1):execute(cmd): goto 101
+  print"  Error: unexpected ";ltrim$(line$):goto 101
+endif  
+102 let i=1 ' here will be checked if this is an assignment
+101 let i=1
+
 print "  Ready"
-  v.write("  ")  
+v.write("  ")  
 end sub
 
+function isseparator(s as string) as boolean
+
+if s=" " orelse s=":" orelse s="(" orelse s="=" orelse s="+" orelse s="-" orelse s="*" orelse s="/" then return true else return false
+end function
+
+function iscommand(s as string) as integer
+for i=0 to maxcommand: if s=command(i) then return i
+next i
+return -1
+end function
+
+sub execute(cmd,arg1=0,arg2=0,arg3=0,arg4=0)
+
+select case cmd
+case 0              'cls
+cls:print ""
+case 1
+end select
+end sub
 '----------------------------------
 sub startpsram
 psram.startx(0, 0, 11, -1)
@@ -221,24 +266,30 @@ return keys(4*(key and 255)+3)
 end select
 
 end function
+const maxcommand=8
+dim shared as string command(maxcommand)={_
+"cls","new","plot","draw","print","circle","fcircle","box","frame"}
+dim shared as integer cargs(maxcommand)={
+ 0,0,2,2,-1,3,3,4,4} ' these are argument number for commands. If -1, it is not defined, if from..to , low byte is to, high byte is from
 
 
-dim shared as ubyte keys(1023)={_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-97,65,23,14,_
-98,66,0,0,_
-99,67,25,16,_
-100,68,0,0,_
-101,69,24,15,_
-102,70,0,0,_
-103,71,0,0,_
-104,72,0,0,_
-105,73,0,0,_
-106,74,0,0,_
-107,75,0,0,_
+
+dim shared as ubyte keys(1023)={
+ 0,0,0,0, 			'0
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 97,65,23,14,_
+ 98,66,0,0,_
+ 99,67,25,16,_
+ 100,68,0,0,_
+ 101,69,24,15,_
+ 102,70,0,0,_
+ 103,71,0,0,_
+ 104,72,0,0,_
+ 105,73,0,0,_
+ 106,74,0,0,_
+ 107,75,0,0,_
 108,76,31,22,_
 109,77,0,0,_
 110,78,26,17,_
