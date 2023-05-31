@@ -55,14 +55,14 @@ startvideo
 let audiocog,base=paula.start(0,0,0)
 waitms(1)
 
-dpoke base+20,0
-lpoke base+8,varptr(atari_spl) 
-lpoke base+12,1684
-lpoke base+16,1686
-dpoke base+22,8192
-dpoke base+24,79
-dpoke base+26,256
-lpoke base+28,$40000000
+'dpoke base+20,0
+'lpoke base+8,varptr(atari_spl) 
+'lpoke base+12,1684
+'lpoke base+16,1686
+'dpoke base+22,8192
+'dpoke base+24,79
+'dpoke base+26,256
+'lpoke base+28,$40000000
 
 
 waitms(50)
@@ -79,19 +79,20 @@ for i=0 to 35: for j=0 to 127: textscreen(i,j)=32: next j: next i
  dim key , key2 as ulong
 ''--- MAIN LOOP
 
+
 do
 
 waitvbl
-let key=kbm.get_key()
+let key=kbm.get_key() 
 let leds=kbm.ledstates() 'numlock 1 capslock 2 scrollock 4
-
-if key>0 andalso key<$80000000 andalso (key and 255) <$E0 then let key2=key : let rpt=1 : let key3=key2
+if key>0 andalso key<4 then paula.play(0,@atari2_spl,44100,16384,0,1758): waitms(10): paula.stop(0)
+if key>3 andalso key<$80000000 andalso (key and 255) <$E0 then let key2=key : let rpt=1 : let key3=key2
 if key>$80000000 then let rptcnt=0 : let rpt=0
 if key=0 andalso rpt=1 then rptcnt+=1
 if key<$80000000 then if rptcnt=25 then key3=key2 : rptcnt=21
 
 if key3<>0 then
-  lpoke base+8,varptr(atari_spl)+$C0000000 
+  paula.play(0,@atari_spl,44100,16384,1684) 
   let key4=scantochar(key3) 
   if leds and 2 = 2 then 
     if key4>96 andalso key4<123 then
@@ -106,9 +107,9 @@ if key3<>0 then
   endif
  
   if key4>0 andalso key4<127 andalso v.cursor_x<254 then line$+=chr$(key4): textscreen(v.cursor_y,v.cursor_x/2)=key4 : v.putchar(key4)
-  if key4>0 andalso key4<127 andalso v.cursor_x=254 then lpoke base+8,varptr(atari_spl)+$C0000000 : lpoke base+12,0: lpoke base+16,1000: waitms(500):lpoke base+16,1686: lpoke base+12,1684
+  if key4>0 andalso key4<127 andalso v.cursor_x=254 then paula.play(0,@atari2_spl,44100,16384,0,1758): waitms(300): paula.stop(0)
 
-  if (key3 and 255) = 43 andalso v.cursor_x>=240 then lpoke base+8,varptr(atari_spl)+$C0000000 : lpoke base+12,0: lpoke base+16,1000: waitms(500):lpoke base+16,1686: lpoke base+12,1684
+  if (key3 and 255) = 43 andalso v.cursor_x>=240 then paula.play(0,@atari2_spl,44100,16384,0,1758): waitms(300): paula.stop(0)
 
   if (key3 and 255) = 43 andalso v.cursor_x<240 then let x=(v.cursor_x mod 16)/2: for i=x to 7: line$+=" " : textscreen(v.cursor_y,v.cursor_x/2)=32 : v.write (" ") : next i  
   if (key3 and 255) = 42 then 
@@ -122,7 +123,7 @@ if key3<>0 then
  ' if key3= 'tab 43, bksp 42, del 76  
  
   if key4=141 then 
-    v.crlf():v.write("  ")
+    v.crlf()
     interpret(line$): line$=""
     endif 
 
@@ -136,34 +137,58 @@ loop
 
 sub interpret(line$)
 
-line$=ltrim$(lcase$(line$))
-let c$=left$(line$,1)
-if c$>="0" andalso c$<="9" then print "This is a program line": goto 101 
+dim part$(125)
 
-let l=len(line$)
-' find the first separator. Here it can be space, (,+-/*=:
-let i=0: do: i+=1 : loop until isseparator(mid$(line$,i,1)) orelse i>=l
-if mid$(line$,i,1)=" " then let j=i: do: j=j+1: loop until mid$(line$,j,1)<>" " 
+' Pass 1: Split the line to parts
+
+line$=trim$(lcase$(line$)):let d$="" : let l=len(line$)
+i=0 : let j=0: 
+
+do
+  do : i=i+1: let c$=mid$(line$,i,1) : let d$+=c$ :  loop until isseparator(c$) orelse i>=l
+  if isseparator(c$) then i-=1 : d$=left$(d$,len(d$)-1)
+  part$(j)=d$: j=j+1 : d$=""
+
+  do : i=i+1: let c$=mid$(line$,i,1) : let d$+=c$ :  loop until ispar(c$) orelse not isseparator(c$) orelse i>=l
+  if ispar(c$) andalso len(d$)=1 then part$(j)=d$ : j+=1: d$=""
+  if ispar(c$) andalso len(d$)>1 then i-=1: d$=left$(d$,len(d$)-1) : part$(j)=d$: j=j+1 : d$=""
+  if len(c$)>0 and not isseparator(c$) then i-=1 : d$=left$(d$,len(d$)-1): part$(j)=d$: j=j+1 : d$= "" 
+  
+
+loop until i>=l
+
+' now remove parts that are spaces
+
+for i=0 to j-1: part$(i)=trim$(part$(i)): next i
+i=0
+do 
+  if len(part$(i))=0 then 
+    if i=j-1 then j-=1 : exit
+    if i<j-1 then for k=i to j-2 : part$(k)=part$(k+1): next k: j-=1 :  if i>0 then i-=1 
+  endif
+ i+=1: loop until i>=j-1
 
 
-if i<l then i-=1
-let command$=left$(line$,i)  : let line$=right$(line$,l-i)
-' here command$ can be a command (print, new,...) but it can be also a variable in the assignment var=expr or var op expr. A command has to have space or ( or eol after it. 
-' A variable can not have these except space before operator
+'---------------------------------------
 
-let cmd=iscommand(command$)
-if cmd<0 then print "This is not a command" : goto 102
+'Pass 2: check the syntax
 
-' here we will decode and execute a command
+' the first part has to be either number o
+
+
+'for i=0 to j-1: print part$(i), len(part$(i)): next i : print j
+
+if len(part$(0))=0 then goto 102
+if isint(part$(0)) then print "  This is a program line": goto 101 
+let cmd=iscommand(part$(0)) 
+if cmd<0 then print "  Unknown command: ";part$(0) : goto 102
 let args=cargs(cmd)
 ' find arguments. They have to have format text,text,
-print "This is a command and it should have ";args;" arguments"
+' print "This is a command and it should have ";args;" arguments"
 if args=0 then ' we expect eol or :
-  if i=l then execute(cmd) ': goto 101
-  let l=len(line$):   i=0: do: i+=1 : c$=mid$(line$,i,1): loop until c$<>" " orelse i>=l
-  if i>=l then execute(cmd): goto 101  
-  if c$=":" then line$=right$(line$,l-1):execute(cmd): goto 101
-  print"  Error: unexpected ";ltrim$(line$):goto 101
+  if j=1 then execute(cmd) : goto 101 ' no more parts
+  if part$(1)=":" then execute(cmd) : goto 101 ' TODO interpret the rests
+  print"  Error: unexpected ";part$(1) : goto 101
 endif  
 102 let i=1 ' here will be checked if this is an assignment
 101 let i=1
@@ -172,9 +197,22 @@ print "  Ready"
 v.write("  ")  
 end sub
 
+function isint(s as string) as boolean
+
+if len(s)=0 then return false
+for i=1 to len(s): let m$=mid$(s,i,1) : if m$<"0" orelse m$>"9" then return false
+next i
+return true
+end function
+
+function ispar(s as string) as boolean
+
+if s="(" orelse s=")" then return true else return false
+end function
+
 function isseparator(s as string) as boolean
 
-if s=" " orelse s=":" orelse s="(" orelse s="=" orelse s="+" orelse s="-" orelse s="*" orelse s="/" then return true else return false
+if s=" " orelse s=":" orelse s="(" orelse s="=" orelse s="+" orelse s="-" orelse s="*" orelse s="/" orelse s=")" then return true else return false
 end function
 
 function iscommand(s as string) as integer
@@ -188,7 +226,9 @@ sub execute(cmd,arg1=0,arg2=0,arg3=0,arg4=0)
 select case cmd
 case 0              'cls
 cls:print ""
-case 1
+case 1		    'new
+cls: position 4,1 : print "P2 Retromachine BASIC version 0.01" 
+print " "   ' todo: clear all program structures
 end select
 end sub
 '----------------------------------
@@ -555,4 +595,5 @@ const   key_uparrow=209   '//USB_HID_BOOT_USAGE_ID[82,0];    //209;
 
 asm shared
 atari_spl file "atari.spl"
+atari2_spl file "atari2.spl" '1758
 end asm

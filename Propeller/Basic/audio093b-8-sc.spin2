@@ -6,8 +6,6 @@
 '-------------------------------------------------------------------
 con
 
-'_clkfreq = 354693878  ' This is 100x Amiga PAL 3546895, 360 x SID (PAL) 
-
 
 left= 14
 right=15
@@ -89,6 +87,27 @@ repeat iii from 0 to 7
 cog:=coginit(16,@audio,@mailboxaddr)
 waitms(100)
 return cog,base
+
+' a simple play procedure to not poke everything. 
+
+pub play(channel,sample,splfreq,vol,len,loop=-1) |base2
+
+base2:=@channel1[0]+32*channel
+long[base2+8]:=sample+$C0000000 
+long[base2+12]:= len
+if loop >0 
+  long[base2+16]:= loop
+else
+  long[base2+16]:= len+2
+word[base2+20]:=vol
+word[base2+24]:= 3546911/splfreq 
+word[base2+26]:=256 ' todo: use skip to make accurate sample rate
+long[base2+28]:=$40000000
+    
+pub stop(channel) 'silence it
+
+word[@channel1[0]+32*channel+20]:=0
+
 
 '--------------------------------------------------------------
 '------ PASM driver code --------------------------------------
