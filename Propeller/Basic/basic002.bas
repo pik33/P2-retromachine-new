@@ -27,8 +27,8 @@ dim textscreen (35,127) as ubyte
 dim line$ as string
 dim testaudio(883) as ushort
 
-
-
+type parts as string(125)
+dim part$ as parts
 '-------------------------------------
 
 startpsram
@@ -118,12 +118,16 @@ loop
 
 sub interpret(line$)
 
-dim part$(125)
+ 
+dim i
 
 ' Pass 1: Split the line to parts
-
+' 1a : extract the first command, split the line to first command and the rest
 line$=trim$(lcase$(line$)):let d$="" : let l=len(line$)
-i=0 : let j=0: 
+let d=instr(1,line$,":"): if d>0 then let rest$=right$(line$,len(line$)-d):line$=left$(line$,d-1)' : print d,line$,rest$
+' 1b : split the command to parts
+
+let i=0 : let j=0 
 
 do
   do : i=i+1: let c$=mid$(line$,i,1) : let d$+=c$ :  loop until isseparator(c$) orelse i>=l
@@ -154,23 +158,15 @@ do
 
 'Pass 2: check the syntax
 
-' the first part has to be either number o
+' the first part has to be either a number, a command or a variable name
 
 
-'for i=0 to j-1: print part$(i), len(part$(i)): next i : print j
+' for i=0 to j-1: print part$(i), len(part$(i)): next i : print j
 
 if len(part$(0))=0 then goto 102
-if isint(part$(0)) then print "  This is a program line": goto 101 
-let cmd=iscommand(part$(0)) 
-if cmd<0 then print "  Unknown command: ";part$(0) : goto 102
-let args=cargs(cmd)
-' find arguments. They have to have format text,text,
-' print "This is a command and it should have ";args;" arguments"
-if args=0 then ' we expect eol or :
-  if j=1 then execute(cmd) : goto 101 ' no more parts
-  if part$(1)=":" then execute(cmd) : goto 101 ' TODO interpret the rests
-  print"  Error: unexpected ";part$(1) : goto 101
-endif  
+if isdec(part$(0)) then print "  This is a program line": goto 101  '<-- TODO: add a lone to a program
+let cmd=iscommand(part$(0)) : if cmd>0 then execute(cmd,part$) :goto 101
+'' here will be dragon (var=expr)
 102 let i=1 ' here will be checked if this is an assignment
 101 let i=1
 
@@ -178,13 +174,49 @@ print "  Ready"
 v.write("  ")  
 end sub
 
+
+function isnum(s as string) as boolean
+
+dim i,l,m$,ds,es
+ds=0: es=0
+l=len(s): if l=0 then return false
+m$=mid$(s,1,1) : if (m$<"0" orelse m$>"9") andalso m$<>"." andalso m$<>"$" andalso m$<>"%" then return false
+if m$="." then ds=1
+if l>1 then 
+  for i=2 to l
+    m$=mid$(s,i,1) : if (m$<"0" orelse m$>"9") andalso m$<>"_" andalso m$<>"." andalso m$<>"E" andalso m$<>"e" then return false
+    if m$="." then ds+=1: if ds>1 then return false
+    if m$="E" orelse m$="e" then es+=1: if es>1 then return false
+  next i
+endif
+return true
+end function  
+  
 function isint(s as string) as boolean
 
-if len(s)=0 then return false
-for i=1 to len(s): let m$=mid$(s,i,1) : if m$<"0" orelse m$>"9" then return false
-next i
+dim i,l,m$,ds,es
+
+l=len(s): if l=0 then return false
+m$=mid$(s,1,1) : if (m$<"0" orelse m$>"9") andalso m$<>"$" andalso m$<>"%" then return false
+
+if l>1 then 
+  for i=2 to l
+    m$=mid$(s,i,1) : if (m$<"0" orelse m$>"9") andalso m$<>"_"  then return false
+  next i
+endif
 return true
-end function
+end function  
+
+function isdec(s as string) as boolean
+
+dim i,l,m$,ds,es
+
+l=len(s): if l=0 then return false
+for i=2 to l
+    m$=mid$(s,i,1) : if (m$<"0" orelse m$>"9") andalso m$<>"_"  then return false
+  next i
+return true
+end function 
 
 function ispar(s as string) as boolean
 
@@ -193,7 +225,7 @@ end function
 
 function isseparator(s as string) as boolean
 
-if s=" " orelse s=":" orelse s="(" orelse s="=" orelse s="+" orelse s="-" orelse s="*" orelse s="/" orelse s=")" then return true else return false
+if s=" " orelse s=":" orelse s="(" orelse s="=" orelse s="+" orelse s="-" orelse s="*" orelse s="/" orelse s=")" orelse s="," then return true else return false
 end function
 
 function iscommand(s as string) as integer
@@ -202,14 +234,21 @@ next i
 return -1
 end function
 
-sub execute(cmd,arg1=0,arg2=0,arg3=0,arg4=0)
+
+const maxcommand=8
+dim shared as string command(maxcommand)={_
+"cls","new","plot","draw","print","circle","fcircle","box","frame"}
+
+sub execute(cmd,args=nil as parts)
 
 select case cmd
-case 0              'cls
-cls:print ""
-case 1		    'new
-cls: position 4,1 : print "P2 Retromachine BASIC version 0.01" 
-print " "   ' todo: clear all program structures
+case 0              	'cls
+  cls:print ""
+case 1		    	'new
+  cls: position 4,1 : print "P2 Retromachine BASIC version 0.01" 
+  print " "   ' todo: clear all program structures
+case 2			'plot
+  
 end select
 end sub
 '----------------------------------
@@ -287,9 +326,7 @@ return keys(4*(key and 255)+3)
 end select
 
 end function
-const maxcommand=8
-dim shared as string command(maxcommand)={_
-"cls","new","plot","draw","print","circle","fcircle","box","frame"}
+
 dim shared as integer cargs(maxcommand)={
  0,0,2,2,-1,3,3,4,4} ' these are argument number for commands. If -1, it is not defined, if from..to , low byte is to, high byte is from
 
