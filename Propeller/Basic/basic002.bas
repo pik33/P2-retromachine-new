@@ -29,6 +29,17 @@ dim testaudio(883) as ushort
 
 type parts as string(125)
 dim part$ as parts
+
+union expr_result
+  dim iresult as integer
+  dim uresult as ulong
+  dim lresult as longint
+  dim ulresult as ulongint
+  dim fresult as double
+  dim sresult as string
+  end union
+
+
 '-------------------------------------
 
 startpsram
@@ -57,7 +68,8 @@ position 4,1 : print "P2 Retromachine BASIC version 0.01"
 position 4,3 : print "Ready"
 position 4,4
 for i=0 to 35: for j=0 to 127: textscreen(i,j)=32: next j: next i
- dim key , key2 as ulong
+dim key , key2 as ulong
+ 
 ''--- MAIN LOOP
 
 
@@ -126,7 +138,7 @@ dim i
 line$=trim$(lcase$(line$)):let d$="" : let l=len(line$)
 let d=instr(1,line$,":"): if d>0 then let rest$=right$(line$,len(line$)-d):line$=left$(line$,d-1)' : print d,line$,rest$
 ' 1b : split the command to parts
-
+for i=0 to 125: part$(i)="": next i
 let i=0 : let j=0 
 
 do
@@ -174,17 +186,49 @@ print "  Ready"
 v.write("  ")  
 end sub
 
+function isoperator(s as string) as integer
+
+select case s
+case "+"
+  return 0
+case "-"
+  return 1
+case "or"
+  return 2
+    
+case "*"
+  return 256
+case "/"
+  return 257
+case "and"
+  return 258
+case "div"
+  return 258
+case "mod"
+  return 258
+
+case "++"        
+  return 512
+case "--"  
+  return 513
+  
+  
+end select
+return -1  
+end function
+
 
 function isnum(s as string) as boolean
 
 dim i,l,m$,ds,es
 ds=0: es=0
 l=len(s): if l=0 then return false
-m$=mid$(s,1,1) : if (m$<"0" orelse m$>"9") andalso m$<>"." andalso m$<>"$" andalso m$<>"%" then return false
+m$=mid$(s,1,1) : if (m$<"0" orelse m$>"9") andalso m$<>"." andalso m$<>"$" andalso m$<>"%" andalso m$<>"-" then return false
 if m$="." then ds=1
 if l>1 then 
   for i=2 to l
-    m$=mid$(s,i,1) : if (m$<"0" orelse m$>"9") andalso m$<>"_" andalso m$<>"." andalso m$<>"E" andalso m$<>"e" then return false
+    m$=mid$(s,i,1) : if (m$<"0" orelse m$>"9") andalso m$<>"_" andalso m$<>"." andalso m$<>"E" andalso m$<>"e" andalso m$<>"-" then return false
+    if m$="-" andalso lcase$(mid$(s,i-1,1))<>"e" then return false
     if m$="." then ds+=1: if ds>1 then return false
     if m$="E" orelse m$="e" then es+=1: if es>1 then return false
   next i
@@ -197,7 +241,7 @@ function isint(s as string) as boolean
 dim i,l,m$,ds,es
 
 l=len(s): if l=0 then return false
-m$=mid$(s,1,1) : if (m$<"0" orelse m$>"9") andalso m$<>"$" andalso m$<>"%" then return false
+m$=mid$(s,1,1) : if (m$<"0" orelse m$>"9") andalso m$<>"$" andalso m$<>"%" andalso m$<>"-" then return false
 
 if l>1 then 
   for i=2 to l
@@ -251,7 +295,57 @@ case 2			'plot
   
 end select
 end sub
+
+
+function expr(part as parts, start=0 as integer) as expr_result,integer,integer 'iresult, uresult, fresult, sresult, end, type
+
+'rtype=i,u,l,ul,f,s - 0,1,2,3,4,5 or rtype negative when error
+' -1 ( expected
+
+dim eresult as expr_result
+dim endpos as integer
+dim rtype as integer
+dim isn, si as boolean
+endpos=-1: rtype=-1
+' (expr)
+if part(start)="(" then 
+  eresult,endpos,rtype =expr(part,start+1)
+  if part(endpos+1)<>")" then return eresult, endpos, -1 else endpos+=1: goto 110   'let -1 be error - ( expected
+  endif
+
+' "string"
+
+if isstr(part(start)) then 
+  eresult.sresult=mid$(part(start),2,len(part(start)-1))
+  rtype=5: endpos=startpos+1 :goto 110
+  endif
+
+' float or int
+
+let isn=isnum(part(start)): let isi=isint(part(start))
+if isi then 
+  eresult.iresult=val%(part(start)) ' todo: do something with int64s
+  if left$(part(start),1)="-" then endpos=start+1: rtype=0 else endpos=start+1:rtype=1
+  goto 110
+  endif
+  
+if isn and (not isi) then
+  eresult.fresult=val(part(start)) 
+  endpos=start+1: rtype=4: goto 110 
+  endif
+
+' now check what we have after the expr  
+110 if part(endpos) ="" then return eresult,endpos,rtype
+operator=isoperator(part(endpos))
+if operator>-1 then eresult2,endpos2,rtype2=expr(part,endpos) : eresult3=do_operator(operator, eresult, rtype, eresult2, rtype2) ' todo: do something with operators priority 
+return eresult,-1,-1
+end function
 '----------------------------------
+
+function do_operator(op as integer, a as expr_result,b as integer, c as expr_result, d as integer) as expr_result
+return nil
+end function
+
 sub startpsram
 psram.startx(0, 0, 11, -1)
 mbox=psram.getMailbox(0)
