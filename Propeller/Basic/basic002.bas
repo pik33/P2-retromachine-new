@@ -27,8 +27,14 @@ dim textscreen (35,127) as ubyte
 dim line$ as string
 dim testaudio(883) as ushort
 
-type parts as string(125)
-dim part$ as parts
+class part
+  dim part$ as string
+  dim part_type as integer
+  dim priority as integer
+end class
+
+type parts as part(125) 
+dim lparts as parts
 
 union expr_result
   dim iresult as integer
@@ -131,37 +137,63 @@ loop
 sub interpret(line$)
 
  
-dim i
+dim i,j
 
 ' Pass 1: Split the line to parts
+
+dim separators(125): for i=0 to 125: separators(i)=0 :next i
+for i=0 to 125: lparts(i).part$="": next i
+
 ' 1a : extract the first command, split the line to first command and the rest
+
 line$=trim$(lcase$(line$)):let d$="" : let l=len(line$)
 let d=instr(1,line$,":"): if d>0 then let rest$=right$(line$,len(line$)-d):line$=left$(line$,d-1)' : print d,line$,rest$
-' 1b : split the command to parts
-for i=0 to 125: part$(i)="": next i
-let i=0 : let j=0 
 
-do
-  do : i=i+1: let c$=mid$(line$,i,1) : let d$+=c$ :  loop until isseparator(c$) orelse i>=l
-  if isseparator(c$) then i-=1 : d$=left$(d$,len(d$)-1)
-  part$(j)=d$: j=j+1 : d$=""
+' 1b: find separators
 
-  do : i=i+1: let c$=mid$(line$,i,1) : let d$+=c$ :  loop until ispar(c$) orelse not isseparator(c$) orelse i>=l
-  if ispar(c$) andalso len(d$)=1 then part$(j)=d$ : j+=1: d$=""
-  if ispar(c$) andalso len(d$)>1 then i-=1: d$=left$(d$,len(d$)-1) : part$(j)=d$: j=j+1 : d$=""
-  if len(c$)>0 and not isseparator(c$) then i-=1 : d$=left$(d$,len(d$)-1): part$(j)=d$: j=j+1 : d$= "" 
+i=0: j=0 : do: i+=1 : let c$=mid$(line$,i,1) 
+if isseparator(c$) then separators(j)=i: j+=1
+loop until i>l:separators(j)=i
+
+for i=0 to j: print separators(i): next i
+' 1c : split the command to parts
+
+let k=1
+for i=0 to j-1 
+lparts(0).part$=mid$(line$,1,separators(0))
+let p1=separators(i): let p2=separators(i+1)
+lparts(k).part$=mid$(line$,p1+1,p2-1) : k+=1
+lparts(k).part$=mid$(line$,p1,1) : k+=1
+
+next i
+
+j=k
+
+
+'let i=0 : let j=0 
+
+'do
+'  do : i=i+1: let c$=mid$(line$,i,1) : let d$+=c$ :  loop until isseparator(c$)  orelse i>=l
+'  if isseparator(c$) then i-=1 
+'  lparts(j).part$=d$: j=j+1 : d$=""''
+
+'  do : i=i+1: let c$=mid$(line$,i,1) : let d$+=c$ :  loop until ispar(c$) orelse isear(c$) orelse not isseparator(c$) orelse i>=l
+'  if (ispar(c$) orelse isear(c$)) andalso len(d$)=1 then lparts(j).part$=d$ : j+=1: d$=""
+'  if (ispar(c$) orelse isear(c$)) andalso len(d$)>1 then i-=1: d$=left$(d$,len(d$)-1) : lparts(j).part$=d$: j=j+1 : d$=""
+
+'  if len(c$)>0 and not isseparator(c$) then i-=1 : d$=left$(d$,len(d$)-1): lparts(j).part$=d$: j=j+1 : d$= "" 
   
 
-loop until i>=l
+'loop until i>=l
 
 ' now remove parts that are spaces
 
-for i=0 to j-1: part$(i)=trim$(part$(i)): next i
+for i=0 to j-1: lparts(i).part$=trim$(lparts(i).part$): next i
 i=0
 do 
-  if len(part$(i))=0 then 
+  if len(lparts(i).part$)=0 then 
     if i=j-1 then j-=1 : exit
-    if i<j-1 then for k=i to j-2 : part$(k)=part$(k+1): next k: j-=1 :  if i>0 then i-=1 
+    if i<j-1 then for k=i to j-2 : lparts(k)=lparts(k+1): next k: j-=1 :  if i>0 then i-=1 
   endif
  i+=1: loop until i>=j-1
 
@@ -170,21 +202,15 @@ do
 
 'Pass 2: check the syntax
 
-' the first part has to be either a number, a command or a variable name
+for i=0 to j-1: print lparts(i).part$, len(lparts(i).part$), lparts(i).part_type,lparts(i).priority : next i : print j    'DEBUG
 
-
-' for i=0 to j-1: print part$(i), len(part$(i)): next i : print j
-
-if len(part$(0))=0 then goto 102
-if isdec(part$(0)) then print "  This is a program line": goto 101  '<-- TODO: add a lone to a program
-let cmd=iscommand(part$(0)) : if cmd>0 then execute(cmd,part$) :goto 101
-'' here will be dragon (var=expr)
-102 let i=1 ' here will be checked if this is an assignment
-101 let i=1
-
-print "  Ready"
-v.write("  ")  
+if len(lparts(0).part$)=0 then goto 101						' empty line, nothing to do
+if isdec(lparts(0).part$) then print "  This is a program line": goto 101  	'<-- TODO: add a lone to a program
+let cmd=iscommand(lparts(0).part$) : if cmd>=0 then execute(cmd,lparts(0).part$) :goto 101	' execite immediate line
+' to do here: immediate assignment
+101 print "  Ready" : v.write("  ")  
 end sub
+
 
 function isoperator(s as string) as integer
 
@@ -267,9 +293,14 @@ function ispar(s as string) as boolean
 if s="(" orelse s=")" then return true else return false
 end function
 
+function isear(s as string) as boolean
+
+if s="""" then return true else return false
+end function
+
 function isseparator(s as string) as boolean
 
-if s=" " orelse s=":" orelse s="(" orelse s="=" orelse s="+" orelse s="-" orelse s="*" orelse s="/" orelse s=")" orelse s="," then return true else return false
+if s=" " orelse s=":" orelse s="(" orelse s="=" orelse s="+" orelse s="-" orelse s="*" orelse s="/" orelse s=")" orelse s="," orelse s="""" then return true else return false
 end function
 
 function iscommand(s as string) as integer
@@ -285,9 +316,10 @@ dim shared as string command(maxcommand)={_
 
 sub execute(cmd,args=nil as parts)
 
+print cmd
 select case cmd
 case 0              	'cls
-  cls:print ""
+  cls: print ""
 case 1		    	'new
   cls: position 4,1 : print "P2 Retromachine BASIC version 0.01" 
   print " "   ' todo: clear all program structures
@@ -297,7 +329,7 @@ end select
 end sub
 
 
-function expr(part as parts, start=0 as integer) as expr_result,integer,integer 'iresult, uresult, fresult, sresult, end, type
+function expr(lpart as parts, start as integer) as expr_result,integer,integer 'iresult, uresult, fresult, sresult, end, type
 
 'rtype=i,u,l,ul,f,s - 0,1,2,3,4,5 or rtype negative when error
 ' -1 ( expected
@@ -308,36 +340,36 @@ dim rtype as integer
 dim isn, si as boolean
 endpos=-1: rtype=-1
 ' (expr)
-if part(start)="(" then 
-  eresult,endpos,rtype =expr(part,start+1)
-  if part(endpos+1)<>")" then return eresult, endpos, -1 else endpos+=1: goto 110   'let -1 be error - ( expected
+if lpart(start).part$="(" then 
+  eresult,endpos,rtype =expr(lpart,start+1)
+  if lpart(endpos+1).part$<>")" then return eresult, endpos, -1 else endpos+=1: goto 110   'let -1 be error - ( expected
   endif
 
 ' "string"
 
-if isstr(part(start)) then 
-  eresult.sresult=mid$(part(start),2,len(part(start)-1))
+if isstr(lpart(start).part$) then 
+  eresult.sresult=mid$(lpart(start).part$,2,len(lpart(start).part$)-1)
   rtype=5: endpos=startpos+1 :goto 110
   endif
 
 ' float or int
 
-let isn=isnum(part(start)): let isi=isint(part(start))
+let isn=isnum(lpart(start).part$): let isi=isint(lpart(start).part$)
 if isi then 
-  eresult.iresult=val%(part(start)) ' todo: do something with int64s
-  if left$(part(start),1)="-" then endpos=start+1: rtype=0 else endpos=start+1:rtype=1
+  eresult.iresult=val%(lpart(start).part$) ' todo: do something with int64s
+  if left$(lpart(start).part$,1)="-" then endpos=start+1: rtype=0 else endpos=start+1:rtype=1
   goto 110
   endif
   
 if isn and (not isi) then
-  eresult.fresult=val(part(start)) 
+  eresult.fresult=val(lpart(start).part$) 
   endpos=start+1: rtype=4: goto 110 
   endif
 
 ' now check what we have after the expr  
-110 if part(endpos) ="" then return eresult,endpos,rtype
-operator=isoperator(part(endpos))
-if operator>-1 then eresult2,endpos2,rtype2=expr(part,endpos) : eresult3=do_operator(operator, eresult, rtype, eresult2, rtype2) ' todo: do something with operators priority 
+110 if lpart(endpos).part$ ="" then return eresult,endpos,rtype
+operator=isoperator(lpart(endpos).part$)
+if operator>-1 then eresult2,endpos2,rtype2=expr(lpart,endpos) : eresult3=do_operator(operator, eresult, rtype, eresult2, rtype2) ' todo: do something with operators priority 
 return eresult,-1,-1
 end function
 '----------------------------------
