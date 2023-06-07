@@ -53,14 +53,6 @@ startvideo
 let audiocog,base=paula.start(0,0,0)
 waitms(1)
 
-'dpoke base+20,0
-'lpoke base+8,varptr(atari_spl) 
-'lpoke base+12,1684
-'lpoke base+16,1686
-'dpoke base+22,8192
-'dpoke base+24,79
-'dpoke base+26,256
-'lpoke base+28,$40000000
 
 
 waitms(50)
@@ -77,7 +69,6 @@ for i=0 to 35: for j=0 to 127: textscreen(i,j)=32: next j: next i
 dim key , key2 as ulong
  
 ''--- MAIN LOOP
-
 
 do
 
@@ -151,21 +142,35 @@ let d=instr(1,line$,":"): if d>0 then let rest$=right$(line$,len(line$)-d):line$
 
 ' 1b: find separators
 
-i=0: j=0 : do: i+=1 : let c$=mid$(line$,i,1) 
+separators(0)=0
+i=0: j=1 : do: i+=1 : let c$=mid$(line$,i,1) 
 if isseparator(c$) then separators(j)=i: j+=1
 loop until i>l:separators(j)=i
 
-for i=0 to j: print separators(i): next i
 ' 1c : split the command to parts
 
-let k=1
+let k=0
 for i=0 to j-1 
-lparts(0).part$=mid$(line$,1,separators(0))
-let p1=separators(i): let p2=separators(i+1)
-lparts(k).part$=mid$(line$,p1+1,p2-1) : k+=1
-lparts(k).part$=mid$(line$,p1,1) : k+=1
-
+  let p1=separators(i): let p2=separators(i+1)
+  let p$=mid$(line$,p1,1): if p$<>" " andalso p$<>"" then lparts(k).part$=p$ : k+=1 
+  let p$=mid$(line$,p1+1,p2-p1-1) : if p$<>" " andalso p$<>"" then lparts(k).part$=p$ : k+=1 
 next i
+
+
+i=0
+do
+  if lparts(i).part$<>"""" then i+=1 : goto 110
+  let q=i: do: let p$=lparts(i+1).part$ : lparts(q).part$=lparts(q).part$+p$: for j=i+1 to k: lparts(j)=lparts(j+1) : next j: k-=1 :  loop until p$="""" orelse i>=k   
+110 loop until i>=k
+
+i=0 '---------------------------------------------------------------------------------------------------- I am here. Make "" -> "
+ do : print i, right$(lparts(i).part$,1),left$(lparts(i+1).part$,1)
+ if right$(lparts(i).part$,1)="""" andalso left$(lparts(i+1).part$,1)="""" then 
+ print "kwas"
+ lparts(i).part$=lparts(i).part$+lparts(i+1).part$
+ for j=i+1 to k: lparts(j)=lparts(j+1): next j
+ endif
+ i+=1 : loop until i>=k
 
 j=k
 
