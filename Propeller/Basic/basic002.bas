@@ -128,9 +128,9 @@ loop
 sub interpret(line$)
 
  
-dim i,j
+dim i,j,k,q
 
-' Pass 1: Split the line to parts
+' Pass 1: Split the line to parts, detect and concatenate strings
 
 dim separators(125): for i=0 to 125: separators(i)=0 :next i
 for i=0 to 125: lparts(i).part$="": next i
@@ -156,61 +156,67 @@ for i=0 to j-1
   let p$=mid$(line$,p1+1,p2-p1-1) : if p$<>" " andalso p$<>"" then lparts(k).part$=p$ : k+=1 
 next i
 
+' 1d : find strings
 
 i=0
 do
-  if lparts(i).part$<>"""" then i+=1 : goto 110
-  let q=i: do: let p$=lparts(i+1).part$ : lparts(q).part$=lparts(q).part$+p$: for j=i+1 to k: lparts(j)=lparts(j+1) : next j: k-=1 :  loop until p$="""" orelse i>=k   
+  if lparts(i).part$<>"""" then i+=1  :goto 110
+  let q=i: do: let p$=lparts(i+1).part$ : lparts(q).part$=lparts(q).part$+p$: for j=i+1 to k: lparts(j)=lparts(j+1) : next j: k-=1 :  loop until p$="""" orelse i>=k  
+  if p$<>"""" then k+=1:i+=1
 110 loop until i>=k
 
-i=0 '---------------------------------------------------------------------------------------------------- I am here. Make "" -> "
- do : print i, right$(lparts(i).part$,1),left$(lparts(i+1).part$,1)
- if right$(lparts(i).part$,1)="""" andalso left$(lparts(i+1).part$,1)="""" then 
- print "kwas"
- lparts(i).part$=lparts(i).part$+lparts(i+1).part$
- for j=i+1 to k: lparts(j)=lparts(j+1): next j
+' 1e : concatenate strings if "" detected between
+ 
+i=0 : do
+ if right$(lparts(i).part$,1)="""" andalso left$(lparts(i+1).part$,1)=""""  then 
+   lparts(i).part$=lparts(i).part$+right$(lparts(i+1).part$,len(lparts(i+1).part$)-1)
+   for j=i+1 to k: lparts(j)=lparts(j+1): next j :
+   i-=1 : k-=1 ' do not move i if concatenated
  endif
- i+=1 : loop until i>=k
-
-j=k
+ i+=1 : loop until i>=k 
 
 
-'let i=0 : let j=0 
 
-'do
-'  do : i=i+1: let c$=mid$(line$,i,1) : let d$+=c$ :  loop until isseparator(c$)  orelse i>=l
-'  if isseparator(c$) then i-=1 
-'  lparts(j).part$=d$: j=j+1 : d$=""''
+' 1f : now remove parts that are spaces
 
-'  do : i=i+1: let c$=mid$(line$,i,1) : let d$+=c$ :  loop until ispar(c$) orelse isear(c$) orelse not isseparator(c$) orelse i>=l
-'  if (ispar(c$) orelse isear(c$)) andalso len(d$)=1 then lparts(j).part$=d$ : j+=1: d$=""
-'  if (ispar(c$) orelse isear(c$)) andalso len(d$)>1 then i-=1: d$=left$(d$,len(d$)-1) : lparts(j).part$=d$: j=j+1 : d$=""
-
-'  if len(c$)>0 and not isseparator(c$) then i-=1 : d$=left$(d$,len(d$)-1): lparts(j).part$=d$: j=j+1 : d$= "" 
-  
-
-'loop until i>=l
-
-' now remove parts that are spaces
-
-for i=0 to j-1: lparts(i).part$=trim$(lparts(i).part$): next i
+for i=0 to k-1: lparts(i).part$=trim$(lparts(i).part$): next i
 i=0
 do 
   if len(lparts(i).part$)=0 then 
-    if i=j-1 then j-=1 : exit
-    if i<j-1 then for k=i to j-2 : lparts(k)=lparts(k+1): next k: j-=1 :  if i>0 then i-=1 
+    if i=j-1 then k-=1 : exit
+    if i<k-1 then for j=i to k-2 : lparts(j)=lparts(j+1): next j: k-=1 :  if i>0 then i-=1 
   endif
- i+=1: loop until i>=j-1
+ i+=1: loop until i>=k-1
 
 
 '---------------------------------------
 
-'Pass 2: check the syntax
 
-for i=0 to j-1: print lparts(i).part$, len(lparts(i).part$), lparts(i).part_type,lparts(i).priority : next i : print j    'DEBUG
+' Pass  2
 
 if len(lparts(0).part$)=0 then goto 101						' empty line, nothing to do
-if isdec(lparts(0).part$) then print "  This is a program line": goto 101  	'<-- TODO: add a lone to a program
+if isdec(lparts(0).part$) then print "  This is a program line": goto 101  	'<-- TODO: add a line to a program
+
+'  2a: find all (), set priority for parts
+
+let p=0: let maxp=0
+for i=0 to k-1
+  if lparts(i).part$="(" then  p+=1 
+  if lparts(i).part$=")" then p-=1
+  if p>maxp then maxp=p
+  lparts(i).priority=p 
+next i
+
+for i=0 to k-1: print lparts(i).part$,lparts(i).priority: next i
+
+
+
+'Pass 2: check the syntax
+
+'for i=0 to j-1: print lparts(i).part$, len(lparts(i).part$), lparts(i).part_type,lparts(i).priority : next i : print k    'DEBUG
+
+
+
 let cmd=iscommand(lparts(0).part$) : if cmd>=0 then execute(cmd,lparts(0).part$) :goto 101	' execite immediate line
 ' to do here: immediate assignment
 101 print "  Ready" : v.write("  ")  
@@ -287,7 +293,7 @@ function isdec(s as string) as boolean
 dim i,l,m$,ds,es
 
 l=len(s): if l=0 then return false
-for i=2 to l
+for i=1 to l
     m$=mid$(s,i,1) : if (m$<"0" orelse m$>"9") andalso m$<>"_"  then return false
   next i
 return true
