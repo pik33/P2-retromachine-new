@@ -1,7 +1,7 @@
 '-------------------------------------------------------------------------------------------------------------
 '
 ' Prop2play - a multiformat player for the P2
-' v. 0.32 - 20230523
+' v. 0.32a - 20230613
 ' pik33@o2.pl
 ' with a lot of code and help from the P2 community
 ' MIT license
@@ -129,8 +129,8 @@ end sub
 ' ------------------------ Constant and addresses -------------------------------------------------------------
 
 const HEAPSIZE = 16384
-const version$="Prop2play v.0.32"
-const statusline$=" Propeller2 multiformat player v. 0.32 --- 2023.05.23 --- pik33@o2.pl --- use an USB keyboard and mouse to control --- arrows up,down move - pgup/pgdn or w/s move 10 positions - enter selects - tab switches panels - +,- controls volume - 1..4 switch channels on/off - 5,6 stereo separation - 7,8,9 sample rate - a,d SID speed - x,z SID subtune - R rescans current directory ------"
+const version$="Prop2play v.0.32q"
+const statusline$=" Propeller2 multiformat player v. 0.32q --- 2023.06.13 --- pik33@o2.pl --- use an USB keyboard and mouse to control --- arrows up,down move - pgup/pgdn or w/s move 10 positions - enter selects - tab switches panels - +,- controls volume - 1..4 switch channels on/off - 5,6 stereo separation - 7,8,9 sample rate - a,d SID speed - x,z SID subtune - R rescans current directory ------"
 const hubset338=%1_111011__11_1111_0111__1111_1011 '338_666_667 =30*44100 
 const hubset336=%1_101101__11_0000_0110__1111_1011 '336_956_522 =paula*95
 const hubset331=%1_110000__11_0110_1100__1111_1011  '331776000 = 27*48000
@@ -1146,11 +1146,11 @@ e=geterr()
 360 if e=4 then										' error #4=file not found - create a new file
   close #5										' todo: react to other errors (message box?)
   open currentdir$+"dirlist.txt" for output as #5
-  print #5,".."+space$(36)								' this file system has no .. - it needs to be manually added
+  print #5,".."+space$(75)								' this file system has no .. - it needs to be manually added
   filename$ = dir$("*", fbDirectory)							' find all directories
   while filename$ <> "" andalso filename$ <> nil
     if len(filename$)<77 then filename$=filename$+space$(77-len(filename$))		' the string has to be exactly 38 characters 
-    filename$=right$(filename$,78)							' which enables to use get when reading
+    filename$=right$(filename$,77)							' which enables to use get when reading
     print #5, filename$									' write directory name to the file
     filename$ = dir$()
     if waveplaying orelse mp3playing then getwave

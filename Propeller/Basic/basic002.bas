@@ -129,6 +129,8 @@ sub interpret(line$)
 
  
 dim i,j,k,q
+dim eresult as expr_result
+dim etype
 
 ' Pass 1: Split the line to parts, detect and concatenate strings
 
@@ -195,7 +197,7 @@ do
 ' Pass  2
 
 if len(lparts(0).part$)=0 then goto 101						' empty line, nothing to do
-if isdec(lparts(0).part$) then print "  This is a program line": goto 101  	'<-- TODO: add a line to a program
+
 
 '  2a: find all (), set priority for parts
 
@@ -207,7 +209,50 @@ for i=0 to k-1
   lparts(i).priority=p 
 next i
 
-for i=0 to k-1: print lparts(i).part$,lparts(i).priority: next i
+' 2b find part types 0 operators 256 commands 512 data(nums, strings)
+
+for i=0 to k-1
+lparts(i).part_type=isoperator(lparts(i).part$): if lparts(i).part_type>=0 then goto 120
+lparts(i).part_type=iscommand(lparts(i).part$): if lparts(i).part_type>=0 then goto 120
+let b1=isnum(lparts(i).part$):let b2=isint(lparts(i).part$):let b3=isdec(lparts(i).part$)
+if b1 andalso b2 andalso b3 then lparts(i).part_type=512 : goto 120 			' pure decimal for line num
+if b1 andalso b2 andalso (not b3) then lparts(i).part_type=513 : goto 120 		' integer
+if b1 andalso (not b2) andalso (not b3) then lparts(i).part_type=514 :goto 120 		' float
+if isstring(lparts(i).part$) then lparts(i).part_type=514 : goto 120			' string
+if ispar(lparts(i).part$) then lparts(i).part_type=515 : goto 120			' ()
+lparts(i).part_type=isassign(lparts(i).part$) : if lparts(i).part_type>=0 then goto 120
+if isname(lparts(i).part$) then lparts(i).part_type=516 : goto 120
+lparts(i).part_type=-1
+120 next i 
+
+'2c try to evaluate expressions
+
+for i=maxp to 0 step -1
+  j=0
+  do
+    if lparts(j).priority=i then 
+      let estart=j 
+      do : j+=1 : loop until lparts(j).priority<i orelse j>=k 
+      let eend=j : eresult,etype=expr(estart,eend)
+      endif
+    j+=1
+  loop until j>=k
+next i 
+ 
+  
+if isdec(lparts(0).part$) then print "  This is a program line": goto 101  	'<-- TODO: add a line to a program
+
+' if we are here, this is not a program line to add, so try to execute this
+
+if lparts(0).part_type>=256 andalso lparts(0).part_type<512 then execute (lparts(i).part_type) ' print "  this is a command to execute"
+if lparts(0).part_type=516 andalso lparts(1).part_type>=32  andalso lparts(1).part_type<64 then print "  this is assigning to a name"
+if lparts(0).part_type=516 andalso lparts(1).part_type=515 then print "  this is calling a function or assigning to an array"
+
+
+
+
+
+for i=0 to k-1: print lparts(i).part$,lparts(i).priority, lparts(i).part_type: next i : print maxp
 
 
 
@@ -232,27 +277,74 @@ case "-"
   return 1
 case "or"
   return 2
-    
+case "xor"
+  return 3
 case "*"
-  return 256
+  return 4
 case "/"
-  return 257
+  return 5
 case "and"
-  return 258
+  return 6
 case "div"
-  return 258
+  return 7
 case "mod"
-  return 258
-
-case "++"        
-  return 512
-case "--"  
-  return 513
+  return 8
+case "shl"
+  return 9
+case "shr" 
+  return 10
+case "^"
+  return 11
+case "not"
+  return 12
+case "@"
+  return 13
+case "++"        ' not the case as + are separated, todo
+  return 14
+case "--"        ' the same
+  return 15
   
   
 end select
 return -1  
 end function
+
+function isassign(s as string) as integer
+
+select case s
+case "="
+  return 32
+case "-="
+  return 33
+case "+="
+  return 34
+case "*="
+  return 35
+case "/="
+  return 36
+  
+end select
+return -1  
+end function
+
+function isname(s as string) as boolean
+
+' name can be (_a)(1a_.)($%!)
+
+dim i,l,m$ 
+ 
+l=len(s): if l=0 then return false
+m$=mid$(s,1,1) : if (m$<"a" orelse m$>"z")  andalso m$<>"_" then return false
+if l>2 then 
+  for i=2 to l
+    m$=mid$(s,i,1) : if (i<l) andalso (m$<"a" orelse m$>"z") andalso (m$<"0" orelse m$>"9") andalso m$<>"_" andalso m$<>"." then return false
+    if (i=l) andalso (m$<"a" orelse m$>"z") andalso (m$<"0" orelse m$>"9") andalso m$<>"_" andalso m$<>"$" andalso m$<>"%" andalso m$<>"!" then return false
+  next i
+endif
+
+
+return true
+end function  
 
 
 function isnum(s as string) as boolean
@@ -315,11 +407,15 @@ if s=" " orelse s=":" orelse s="(" orelse s="=" orelse s="+" orelse s="-" orelse
 end function
 
 function iscommand(s as string) as integer
-for i=0 to maxcommand: if s=command(i) then return i
+dim i
+for i=0 to maxcommand: if s=command(i) then return 256+i
 next i
 return -1
 end function
 
+function isstring(s as string) as boolean
+if left$(s,1)="""" andalso right$(s,1)="""" then return true else return false
+end function
 
 const maxcommand=8
 dim shared as string command(maxcommand)={_
@@ -327,7 +423,7 @@ dim shared as string command(maxcommand)={_
 
 sub execute(cmd,args=nil as parts)
 
-print cmd
+cmd-=256
 select case cmd
 case 0              	'cls
   cls: print ""
@@ -335,37 +431,38 @@ case 1		    	'new
   cls: position 4,1 : print "P2 Retromachine BASIC version 0.01" 
   print " "   ' todo: clear all program structures
 case 2			'plot
-  
+  do_plot
 end select
 end sub
 
 
-function expr(lpart as parts, start as integer) as expr_result,integer,integer 'iresult, uresult, fresult, sresult, end, type
+function expr(estart as integer, eend as integer) as expr_result,integer 'result,type
 
 'rtype=i,u,l,ul,f,s - 0,1,2,3,4,5 or rtype negative when error
 ' -1 ( expected
 
 dim eresult as expr_result
+/'
 dim endpos as integer
 dim rtype as integer
 dim isn, si as boolean
 endpos=-1: rtype=-1
 ' (expr)
-if lpart(start).part$="(" then 
-  eresult,endpos,rtype =expr(lpart,start+1)
-  if lpart(endpos+1).part$<>")" then return eresult, endpos, -1 else endpos+=1: goto 110   'let -1 be error - ( expected
+if lparts(estart).part$="(" then 
+  eresult,rtype =expr(start+1,0)
+  if lpart(endpos+1).part$<>")" then return eresult,-1 else endpos+=1: goto 110   'let -1 be error - ( expected
   endif
 
 ' "string"
 
-if isstr(lpart(start).part$) then 
+if isstr(lparts(start).part$) then 
   eresult.sresult=mid$(lpart(start).part$,2,len(lpart(start).part$)-1)
   rtype=5: endpos=startpos+1 :goto 110
   endif
 
 ' float or int
 
-let isn=isnum(lpart(start).part$): let isi=isint(lpart(start).part$)
+let isn=isnum(lparts(start).part$): let isi=isint(lpart(start).part$)
 if isi then 
   eresult.iresult=val%(lpart(start).part$) ' todo: do something with int64s
   if left$(lpart(start).part$,1)="-" then endpos=start+1: rtype=0 else endpos=start+1:rtype=1
@@ -373,21 +470,31 @@ if isi then
   endif
   
 if isn and (not isi) then
-  eresult.fresult=val(lpart(start).part$) 
+  eresult.fresult=val(lparts(start).part$) 
   endpos=start+1: rtype=4: goto 110 
   endif
 
 ' now check what we have after the expr  
-110 if lpart(endpos).part$ ="" then return eresult,endpos,rtype
-operator=isoperator(lpart(endpos).part$)
-if operator>-1 then eresult2,endpos2,rtype2=expr(lpart,endpos) : eresult3=do_operator(operator, eresult, rtype, eresult2, rtype2) ' todo: do something with operators priority 
-return eresult,-1,-1
+110 if lparts(endpos).part$ ="" then return eresult,rtype
+operator=isoperator(lparts(endpos).part$)
+if operator>-1 then eresult2,rtype2=expr(endpos,0) : eresult3=do_operator(operator, eresult, rtype, eresult2, rtype2) ' todo: do something with operators priority 
+'/
+return eresult,-1
 end function
 '----------------------------------
 
 function do_operator(op as integer, a as expr_result,b as integer, c as expr_result, d as integer) as expr_result
 return nil
 end function
+
+
+sub do_plot
+
+
+end sub
+
+
+
 
 sub startpsram
 psram.startx(0, 0, 11, -1)
