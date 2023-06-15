@@ -1,6 +1,6 @@
 '********************************************************************************************
 ' Displaylisted PSRAM HDMI for P2 Retromachine
-' Version 0.10 alpha - 20221122
+' Version 0.07 alpha - 20220328
 ' 1 cog, 1024x576 32 bpp graphics with sprites
 ' (c) 2012-2022 Piotr Kardasz pik33@o2.pl
 ' MIT license
@@ -871,8 +871,7 @@ return long[@ataripalette+4*c]
 ''---------- Clear the screen, set its foreground/background color  
 
 pub cls(fc,bc):c
-c:=long[@ataripalette+4*bc]
-debug(uhex(c))
+c:=bc
 ram.fill(s_buf_ptr,c,4*buflen,0,4)  
 setwritecolors(fc,bc)
 cursor_x:=0
