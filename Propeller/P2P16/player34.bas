@@ -184,7 +184,7 @@ dim q as integer
 dim prawdata,prawdata2 as ubyte pointer
 dim err as integer
 
-dim speed, r as ulong
+dim speed as ulong
 dim version,offset,load,startsong,flags, init, play, songs, song  as ushort
 dim dump as ushort
 dim b as ubyte

@@ -36,7 +36,7 @@ end class
 type parts as part(125) 
 dim lparts as parts
 
-union expr_result
+union eresult
   dim iresult as integer
   dim uresult as ulong
   dim lresult as longint
@@ -44,6 +44,11 @@ union expr_result
   dim fresult as double
   dim sresult as string
   end union
+
+class expr_result
+dim result as eresult
+dim result_type as ubyte ' 0 i 1 u 2 i64 3 u64 4f 5s 6 error
+end class
 
 
 '-------------------------------------
@@ -92,7 +97,7 @@ const token_rpar=20
 const token_lpar=21
 const token_lpar=21
 
-
+dim ct as integer
  
 ''--- MAIN LOOP
 
@@ -155,7 +160,7 @@ sub interpret(line$)
 
  
 dim i,j,k,q
-dim eresult as expr_result
+dim result as expr_result
 dim etype
 
 ' Pass 1: Split the line to parts, detect and concatenate strings
@@ -481,6 +486,7 @@ dim shared as string command(maxcommand)={_
 function execute(pos as integer) as integer
 
 let cmd=lparts(pos).token
+ct=pos+1
 select case cmd
 case 32              	'cls
   cls: print "" : return -1
@@ -493,51 +499,68 @@ end select
 end function
 
 
-function expr(estart as integer, eend as integer) as expr_result,integer 'result,type
+function term() as expr_result
 
-'rtype=i,u,l,ul,f,s - 0,1,2,3,4,5 or rtype negative when error
-' -1 ( expected
-
-dim eresult as expr_result
-/'
-dim endpos as integer
-dim rtype as integer
-dim isn, si as boolean
-endpos=-1: rtype=-1
-' (expr)
-if lparts(estart).part$="(" then 
-  eresult,rtype =expr(start+1,0)
-  if lpart(endpos+1).part$<>")" then return eresult,-1 else endpos+=1: goto 110   'let -1 be error - ( expected
-  endif
-
-' "string"
-
-if isstr(lparts(start).part$) then 
-  eresult.sresult=mid$(lpart(start).part$,2,len(lpart(start).part$)-1)
-  rtype=5: endpos=startpos+1 :goto 110
-  endif
-
-' float or int
-
-let isn=isnum(lparts(start).part$): let isi=isint(lpart(start).part$)
-if isi then 
-  eresult.iresult=val%(lpart(start).part$) ' todo: do something with int64s
-  if left$(lpart(start).part$,1)="-" then endpos=start+1: rtype=0 else endpos=start+1:rtype=1
-  goto 110
-  endif
-  
-if isn and (not isi) then
-  eresult.fresult=val(lparts(start).part$) 
-  endpos=start+1: rtype=4: goto 110 
-  endif
-
-' now check what we have after the expr  
-110 if lparts(endpos).part$ ="" then return eresult,rtype
-operator=isoperator(lparts(endpos).part$)
-if operator>-1 then eresult2,rtype2=expr(endpos,0) : eresult3=do_operator(operator, eresult, rtype, eresult2, rtype2) ' todo: do something with operators priority 
-'/
-return eresult,-1
+dim t1, t2 as expr_result
+return t1
 end function
+
+
+function expr() as expr_result
+
+dim t1, t2 as expr_result
+dim op as integer
+
+  t1 = term()
+  op = lparts(ct).token
+
+  do while (op = token_plus orelse op = token_minus orelse op = token_and orelse op=token_or)
+    ct+=1
+    t2 = term() 
+'    DEBUG_PRINTF("expr: %d %d %d\n", t1, op, t2);
+    select case op
+    
+      case token_plus
+      t1=do_plus(t1,t2)
+     
+    case token_minus
+      t1=do_minus(t1,t2)
+     
+    case token_and
+      t1=do_and(t1,t2)
+     
+    case token_or
+      t1=do_or(t1,t2)
+   end select  
+     
+    op = lparts(ct).token
+   loop
+'  DEBUG_PRINTF("expr: %d\n", t1);
+  return t1
+end function
+
+
+
+function do_plus(t1 as expr_result ,t2 as expr_result) as expr_result
+'todo
+return t1
+end function
+
+function do_minus(t1 as expr_result ,t2 as expr_result) as expr_result
+'todo
+return t1
+end function
+
+function do_and(t1 as expr_result ,t2 as expr_result) as expr_result
+'todo
+return t1
+end function
+
+function do_or(t1 as expr_result ,t2 as expr_result) as expr_result
+'todo
+return t1
+end function
+
 '----------------------------------
 
 function do_operator(op as integer, a as expr_result,b as integer, c as expr_result, d as integer) as expr_result
@@ -547,7 +570,15 @@ end function
 
 sub do_plot
 
+dim t1,t2 as expr_result
 
+t1=expr()
+if lparts(ct).token<> token_comma then 
+   print"  Error" ' todo: error codes etc
+else
+  ct+=1
+  t2=expr()
+endif
 end sub
 
 
