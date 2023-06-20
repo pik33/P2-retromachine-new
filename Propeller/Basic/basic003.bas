@@ -95,7 +95,12 @@ const token_semicolon=18
 const token_ear=19
 const token_rpar=20
 const token_lpar=21
-const token_lpar=21
+const token_decimal=512
+const token_integer=513
+const token_float=514
+const token_string=515
+const token_name=515
+
 
 dim ct as integer
  
@@ -499,43 +504,87 @@ end select
 end function
 
 
-function term() as expr_result
+'getvar will go there
+'if the next token is not ( then find variable by name, reutrn its value and change token to 1024+var index ?
+'if the next token is  ( then find function by name, call do_function,change the token to 2048+fn index ?
 
-dim t1, t2 as expr_result
+function getvalue() as expr_result
+
+dim t1 as expr_result
+dim op as integer
+op=lparts(ct)token
+ct+=1
+select case op
+  case token_decimal
+    t1=t1 ' todo 
+  case token_integer
+    t1=t1 ' todo 
+  case token_float
+    t1=t1 ' todo 
+  case token_string
+    t1=t1 ' todo 
+  case token_name  '' we may got token with var or fun # after evaluation (?) 
+    getvar()
+  case token_lpar
+    expr() :ct+=1 ' todo check left par
+end select    
 return t1
 end function
 
+function muldiv() as expr_result
+
+dim t1, t2 as expr_result
+dim op as integer
+
+t1 = getvalue()
+op = lparts(ct).token
+do while (op = token_mul orelse op = token_div orelse op = token_fdiv orelse op=token_mod orelse op=token_shl orelse op=token_shr orelse op=token_power)
+  ct+=1
+  t2 = getvalue() 
+  select case op
+    case token_mul
+      t1=do_mul(t1,t2)
+    case token_div
+      t1=do_div(t1,t2)
+    case token_fdiv
+      t1=do_fdiv(t1,t2)
+    case token_mod
+      t1=do_mod(t1,t2)
+    case token_shl
+      t1=do_shl(t1,t2)
+    case token_shr
+      t1=do_shr(t1,t2)
+    case token_power
+      t1=do_power(t1,t2)
+  end select  
+  op = lparts(ct).token
+  loop
+return t1
+end function
 
 function expr() as expr_result
 
 dim t1, t2 as expr_result
 dim op as integer
 
-  t1 = term()
-  op = lparts(ct).token
+t1 = muldiv()
+op = lparts(ct).token
 
-  do while (op = token_plus orelse op = token_minus orelse op = token_and orelse op=token_or)
-    ct+=1
-    t2 = term() 
-'    DEBUG_PRINTF("expr: %d %d %d\n", t1, op, t2);
-    select case op
-    
-      case token_plus
+do while (op = token_plus orelse op = token_minus orelse op = token_and orelse op=token_or)
+  ct+=1
+  t2 = muldiv() 
+  select case op
+    case token_plus
       t1=do_plus(t1,t2)
-     
     case token_minus
       t1=do_minus(t1,t2)
-     
     case token_and
       t1=do_and(t1,t2)
-     
     case token_or
       t1=do_or(t1,t2)
    end select  
-     
-    op = lparts(ct).token
+   op = lparts(ct).token
    loop
-'  DEBUG_PRINTF("expr: %d\n", t1);
   return t1
 end function
 
@@ -560,6 +609,42 @@ function do_or(t1 as expr_result ,t2 as expr_result) as expr_result
 'todo
 return t1
 end function
+
+function do_mul(t1 as expr_result ,t2 as expr_result) as expr_result
+'todo
+return t1
+end function
+
+function do_div(t1 as expr_result ,t2 as expr_result) as expr_result
+'todo
+return t1
+end function
+
+function do_fdiv(t1 as expr_result ,t2 as expr_result) as expr_result
+'todo
+return t1
+end function
+
+function do_mod(t1 as expr_result ,t2 as expr_result) as expr_result
+'todo
+return t1
+end function
+
+function do_shl(t1 as expr_result ,t2 as expr_result) as expr_result
+'todo
+return t1
+end function
+
+function do_shr(t1 as expr_result ,t2 as expr_result) as expr_result
+'todo
+return t1
+end function
+
+function do_power(t1 as expr_result ,t2 as expr_result) as expr_result
+'todo
+return t1
+end function
+
 
 '----------------------------------
 
