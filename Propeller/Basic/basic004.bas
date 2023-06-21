@@ -345,16 +345,16 @@ case ";"
   return 18
 case """"
   return 19
-
 case "^"
   return 12
-
 case ")"
   return 20
 case "("        ' not the case as + are separated, todo
   return 21
 case ":"        ' the same
   return 22
+case " "
+  return 255  
 end select
 return 0
 end function
@@ -507,7 +507,7 @@ end function
 ' Expression decoder/evaluator
 '------------------------------------------------------------------------------------------------------------
 
-function expr(ct as integer) as expr_result,integer
+function expr() as expr_result
 
 ' On input: ct = current token position
 ' On output: expression result value and a new ct
@@ -515,12 +515,12 @@ function expr(ct as integer) as expr_result,integer
 dim t1, t2 as expr_result
 dim op as integer
 
-t1,ct = muldiv(ct)             			' call higher priority operator check. It will itself call getval/getvar if no multiplies or divides
+t1 = muldiv()             			' call higher priority operator check. It will itself call getval/getvar if no multiplies or divides
 op = lparts(ct).token				' that idea is from github adamdunkels/ubasic
 
 do while (op = token_plus orelse op = token_minus orelse op = token_and orelse op=token_or)
   ct+=1
-  t2,ct = muldiv(ct) 
+  t2 = muldiv() 
   select case op
     case token_plus
       t1=do_plus(t1,t2)
@@ -533,20 +533,23 @@ do while (op = token_plus orelse op = token_minus orelse op = token_and orelse o
   end select  
   op = lparts(ct).token
   loop
-return t1,ct
+return t1
 end function
 
 
-function muldiv(ct as integer) as expr_result,integer
+function muldiv() as expr_result
 
 dim t1, t2 as expr_result
 dim op as integer
 
-t1,ct = getvalue(ct)                       	' get a value to do the operation
+t1 = getvalue()    
+    print t1.result.uresult
+    print t1.result_type
+    return t1                     	' get a value to do the operation
 op = lparts(ct).token
 do while (op = token_mul orelse op = token_div orelse op = token_fdiv orelse op=token_mod orelse op=token_shl orelse op=token_shr orelse op=token_power)
   ct+=1
-  t2,ct = getvalue(ct) 
+  t2 = getvalue() 
   select case op
     case token_mul
       t1=do_mul(t1,t2)
@@ -565,19 +568,24 @@ do while (op = token_mul orelse op = token_div orelse op = token_fdiv orelse op=
   end select  
   op = lparts(ct).token
   loop
-return t1,ct
+    print t1.result.uresult
+    print t1.result_type  
+return t1
 end function
 
-function getvalue(ct as integer) as expr_result,integer
+function getvalue() as expr_result
 
 dim t1 as expr_result
 dim op as integer
 
 op=lparts(ct).token
-ct+=1
+
 select case op
   case token_decimal
     t1.result.uresult=val%(lparts(ct).part$): t1.result_type=1 ' todo token_int64
+    print t1.result.uresult
+    print lparts(ct).part$
+    print t1.result_type
   case token_integer
     t1.result.iresult=val%(lparts(ct).part$): t1.result_type=0  
   case token_float
@@ -585,11 +593,14 @@ select case op
   case token_string
     t1.result.sresult=lparts(ct).part$: t1.result_type=5  
   case token_name  '' we may got token with var or fun # after evaluation (?) 
-    t1,ct=getvar(ct)
+    t1=getvar()
   case token_lpar
-    t1,ct=expr(ct) ' todo check left par
+    t1=expr() ' todo check left par
 end select    
-return t1,ct
+ct+=1
+    print t1.result.uresult
+    print t1.result_type
+return t1
 end function
 
 
@@ -597,11 +608,11 @@ end function
 'if the next token is not ( then find variable by name, reutrn its value and change token to 1024+var index ?
 'if the next token is  ( then find function by name, call do_function,change the token to 2048+fn index ?
 
-function getvar(ct as integer) as expr_result,integer
+function getvar() as expr_result
 dim t1 as expr_result
 t1.result.iresult=0 : t1.result_type=0 ' mockup
 ct+=1
-return t1,ct
+return t1
 end function
 
 
@@ -678,13 +689,13 @@ end function
 sub do_plot
 
 dim t1,t2 as expr_result
-dim ct as integer
-t1,ct=expr(1) : print "ct= "; ct, "result=";t1.result.iresult,"result type= ",t1.result_type
+ct=1 ' ct should be a parameter
+t1=expr() : print "ct= "; ct, "result=";t1.result.iresult,"result type= ",t1.result_type
 if lparts(ct).token<> token_comma then 
    print"  Error" ' todo: error codes etc
 else
   ct+=1
-  t2,ct=expr(ct)
+  t2=expr()
 endif
 end sub
 
