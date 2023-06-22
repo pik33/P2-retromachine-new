@@ -1,6 +1,7 @@
 class expr_result
   dim uresult as integer
-  dim result_type as ubyte  
+  dim result_type as ulong
+  dim sresult as string
 end class
  
 '---------------------------------------
