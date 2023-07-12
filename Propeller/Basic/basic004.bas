@@ -30,7 +30,6 @@ dim testaudio(883) as ushort
 class part
   dim part$ as string
   dim token as integer
-  dim priority as integer
 end class
 
 type parts as part(125) 
@@ -74,7 +73,7 @@ kbm.mouse_set_limits(1023,575)
 cls
 v.setfontfamily(4)
 
-position 4,1 : print "P2 Retromachine BASIC version 0.03"
+position 4,1 : print "P2 Retromachine BASIC version 0.04"
 position 4,3 : print "Ready"
 position 4,4
 for i=0 to 35: for j=0 to 127: textscreen(i,j)=32: next j: next i
@@ -174,24 +173,25 @@ sub interpret(line$)
 dim i,j,k,q
 dim result as expr_result
 dim etype
-
+_gc_collect()
 ' Pass 1: Split the line to parts, detect and concatenate strings
 
 dim separators(125): for i=0 to 125: separators(i)=0 :next i
 for i=0 to 125: lparts(i).part$="": next i
-'print "1"
+print "1"
 ' 1a : extract the first command, split the line to first command and the rest
 
 line$=trim$(lcase$(line$)):let d$="" : let l=len(line$) 
-let d=instr(1,line$,":"): if d>0 then let rest$=right$(line$,len(line$)-d):line$=left$(line$,d-1)' : print d,line$,rest$
-'print "1a"
+if l=0 then goto 101
+let d=instr(1,line$,":"): if d>0 andalso d<len(line$)  then let rest$=right$(line$,len(line$)-d):line$=left$(line$,d-1)' : print d,line$,rest$
+print "1a"
 ' 1b: find separators
 
 separators(0)=0
 i=0: j=1 : do: i+=1 : let c$=mid$(line$,i,1) 
 if isseparator(c$) then separators(j)=i: j+=1 
 loop until i>l:separators(j)=i
-'print "1b"
+print "1b"
 ' 1c : split the command to parts
 
 let k=0
@@ -200,7 +200,7 @@ for i=0 to j-1
   if p1>0 then let p$=mid$(line$,p1,1):  if p$<>" " andalso p$<>"" then lparts(k).part$=p$ : k+=1 
   let p$=mid$(line$,p1+1,p2-p1-1)  : if p$<>" " andalso p$<>"" then lparts(k).part$=p$ : k+=1 
 next i
-'print "1c"
+print "1c"
 'for i=0 to k-1: print lparts(i).part$,lparts(i).priority, lparts(i).token: next i 
 ' 1d : find strings
 
@@ -210,7 +210,7 @@ do
   let q=i: do: let p$=lparts(i+1).part$ : lparts(q).part$=lparts(q).part$+p$: for j=i+1 to k: lparts(j)=lparts(j+1) : next j: k-=1 :  loop until p$="""" orelse i>=k  
   if p$<>"""" then k+=1:i+=1
 110 loop until i>=k
-'print "1d"
+print "1d"
 ' 1e : concatenate strings if "" detected between
  
 i=0 : do
@@ -220,7 +220,7 @@ i=0 : do
    i-=1 : k-=1 ' do not move i if concatenated
  endif
  i+=1 : loop until i>=k 
-'print "1e"
+print "1e"
 
 
 ' 1f : now remove parts that are spaces
@@ -233,7 +233,7 @@ do
     if i<k-1 then for j=i to k-2 : lparts(j)=lparts(j+1): next j: k-=1 :  if i>0 then i-=1 
   endif
  i+=1: loop until i>=k-1
-'print "1f"
+print "1f"
 
 '---------------------------------------
 
@@ -245,13 +245,13 @@ if len(lparts(0).part$)=0 then goto 101						' empty line, nothing to do
 
 '  2a: find all (), set priority for parts
 
-let p=0: let maxp=0
-for i=0 to k-1
-  if lparts(i).part$="(" then  p+=1 
-  if lparts(i).part$=")" then p-=1
-  if p>maxp then maxp=p
-  lparts(i).priority=p 
-next i
+'let p=0: let maxp=0
+'for i=0 to k-1
+'  if lparts(i).part$="(" then  p+=1 
+'  if lparts(i).part$=")" then p-=1
+'  if p>maxp then maxp=p
+'  lparts(i).priority=p 
+'next i
 
 ' 2b find part types 0 operators 256 commands 512 data(nums, strings)
 
