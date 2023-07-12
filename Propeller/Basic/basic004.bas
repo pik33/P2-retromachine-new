@@ -1,5 +1,5 @@
 const _clkfreq = 336956522
-
+const HEAPSIZE=16384
 '#define PSRAM4
 #define PSRAM16
 
@@ -46,15 +46,22 @@ union eresult
   end union
 
 class expr_result
-dim result as eresult
-dim result_type as ubyte ' 0 i 1 u 2 i64 3 u64 4f 5s 6 error
-end class
+  dim iresult as integer
+  dim uresult as ulong
+  dim lresult as longint
+  dim ulresult as ulongint
+  dim sresult as string
+  dim fresult as double
 
+dim result_type as ulong ' 0 i 1 u 2 i64 3 u64 4f 5s 6 error
+end class
+dim plot_color,plot_x,plot_y as integer
 
 '-------------------------------------
 
 startpsram
 startvideo
+plot_color=154 : plot_x=0: plot_y=0
 let audiocog,base=paula.start(0,0,0)
 waitms(1)
 
@@ -172,28 +179,29 @@ dim etype
 
 dim separators(125): for i=0 to 125: separators(i)=0 :next i
 for i=0 to 125: lparts(i).part$="": next i
-
+'print "1"
 ' 1a : extract the first command, split the line to first command and the rest
 
-line$=trim$(lcase$(line$)):let d$="" : let l=len(line$)
+line$=trim$(lcase$(line$)):let d$="" : let l=len(line$) 
 let d=instr(1,line$,":"): if d>0 then let rest$=right$(line$,len(line$)-d):line$=left$(line$,d-1)' : print d,line$,rest$
-
+'print "1a"
 ' 1b: find separators
 
 separators(0)=0
 i=0: j=1 : do: i+=1 : let c$=mid$(line$,i,1) 
-if isseparator(c$) then separators(j)=i: j+=1
+if isseparator(c$) then separators(j)=i: j+=1 
 loop until i>l:separators(j)=i
-
+'print "1b"
 ' 1c : split the command to parts
 
 let k=0
 for i=0 to j-1 
-  let p1=separators(i): let p2=separators(i+1)
-  let p$=mid$(line$,p1,1): if p$<>" " andalso p$<>"" then lparts(k).part$=p$ : k+=1 
-  let p$=mid$(line$,p1+1,p2-p1-1) : if p$<>" " andalso p$<>"" then lparts(k).part$=p$ : k+=1 
+  let p1=separators(i): let p2=separators(i+1)' : print p1,p2
+  if p1>0 then let p$=mid$(line$,p1,1):  if p$<>" " andalso p$<>"" then lparts(k).part$=p$ : k+=1 
+  let p$=mid$(line$,p1+1,p2-p1-1)  : if p$<>" " andalso p$<>"" then lparts(k).part$=p$ : k+=1 
 next i
-
+'print "1c"
+'for i=0 to k-1: print lparts(i).part$,lparts(i).priority, lparts(i).token: next i 
 ' 1d : find strings
 
 i=0
@@ -202,7 +210,7 @@ do
   let q=i: do: let p$=lparts(i+1).part$ : lparts(q).part$=lparts(q).part$+p$: for j=i+1 to k: lparts(j)=lparts(j+1) : next j: k-=1 :  loop until p$="""" orelse i>=k  
   if p$<>"""" then k+=1:i+=1
 110 loop until i>=k
-
+'print "1d"
 ' 1e : concatenate strings if "" detected between
  
 i=0 : do
@@ -212,7 +220,7 @@ i=0 : do
    i-=1 : k-=1 ' do not move i if concatenated
  endif
  i+=1 : loop until i>=k 
-
+'print "1e"
 
 
 ' 1f : now remove parts that are spaces
@@ -225,7 +233,7 @@ do
     if i<k-1 then for j=i to k-2 : lparts(j)=lparts(j+1): next j: k-=1 :  if i>0 then i-=1 
   endif
  i+=1: loop until i>=k-1
-
+'print "1f"
 
 '---------------------------------------
 
@@ -275,8 +283,7 @@ if lparts(0).token=516 andalso lparts(1).token=515 then print "  this is calling
 let pos=execute(0) ' print "  this is a command to execute"
 
 
-
-for i=0 to k-1: print lparts(i).part$,lparts(i).priority, lparts(i).token: next i : print maxp
+'for i=0 to k-1: print lparts(i).part$,lparts(i).priority, lparts(i).token: next i : print maxp
 
 
 
@@ -475,6 +482,8 @@ case "box"
   return 39
 case "frame"
   return 40
+case "color"
+  return 41
  
 end select
 return 0  
@@ -484,9 +493,11 @@ function isstring(s as string) as boolean
 if left$(s,1)="""" andalso right$(s,1)="""" then return true else return false
 end function
 
-const maxcommand=8
+const maxcommand=9
 dim shared as string command(maxcommand)={_
-"cls","new","plot","draw","print","circle","fcircle","box","frame"}
+"cls","new","plot","draw","print","circle","fcircle","box","frame","color"}
+
+'--------------------- A main execute point 
 
 function execute(pos as integer) as integer
 
@@ -499,7 +510,11 @@ case 33		    	'new
   cls: position 4,1 : print "P2 Retromachine BASIC version 0.01" : return -1
   print " "   ' todo: clear all program structures
 case 34			'plot
-  do_plot
+  do_plot : return -1
+case 35			'plot
+  do_draw  : return -1
+case 41			'color
+  do_color  : return -1
 end select
 end function
 
@@ -543,8 +558,8 @@ dim t1, t2 as expr_result
 dim op as integer
 
 t1 = getvalue()    
-    print t1.result.uresult
-    print t1.result_type
+ '   print "In muldiv: "; t1.uresult,
+ '   print t1.result_type
     return t1                     	' get a value to do the operation
 op = lparts(ct).token
 do while (op = token_mul orelse op = token_div orelse op = token_fdiv orelse op=token_mod orelse op=token_shl orelse op=token_shr orelse op=token_power)
@@ -568,8 +583,8 @@ do while (op = token_mul orelse op = token_div orelse op = token_fdiv orelse op=
   end select  
   op = lparts(ct).token
   loop
-    print t1.result.uresult
-    print t1.result_type  
+'    print t1.uresult
+'   print t1.result_type  
 return t1
 end function
 
@@ -582,24 +597,25 @@ op=lparts(ct).token
 
 select case op
   case token_decimal
-    t1.result.uresult=val%(lparts(ct).part$): t1.result_type=1 ' todo token_int64
-    print t1.result.uresult
-    print lparts(ct).part$
-    print t1.result_type
+    t1.uresult=val%(lparts(ct).part$): t1.result_type=1 ' todo token_int64
+'    print "In getvalue: "; t1.uresult,
+'    print lparts(ct).part$,
+'    print t1.result_type
   case token_integer
-    t1.result.iresult=val%(lparts(ct).part$): t1.result_type=0  
+    t1.iresult=val%(lparts(ct).part$)
+    t1.result_type=0  
   case token_float
-    t1.result.fresult=val%(lparts(ct).part$): t1.result_type=4  
+    t1.fresult=val%(lparts(ct).part$): t1.result_type=4  
   case token_string
-    t1.result.sresult=lparts(ct).part$: t1.result_type=5  
-  case token_name  '' we may got token with var or fun # after evaluation (?) 
-    t1=getvar()
-  case token_lpar
-    t1=expr() ' todo check left par
+    t1.sresult=lparts(ct).part$: t1.result_type=5  
+'  case token_name  '' we may got token with var or fun # after evaluation (?) 
+'    t1=getvar()
+'  case token_lpar
+'    t1=expr() ' todo check left par
 end select    
 ct+=1
-    print t1.result.uresult
-    print t1.result_type
+  '  print "Debug from getvalue: "; t1.uresult, t1.iresult, t1.fresult, t1.sresult, "result type: ", t1.result_type
+
 return t1
 end function
 
@@ -610,7 +626,7 @@ end function
 
 function getvar() as expr_result
 dim t1 as expr_result
-t1.result.iresult=0 : t1.result_type=0 ' mockup
+t1.uresult=0 : t1.result_type=0 ' mockup
 ct+=1
 return t1
 end function
@@ -689,15 +705,80 @@ end function
 sub do_plot
 
 dim t1,t2 as expr_result
+dim a1,a2 as integer
 ct=1 ' ct should be a parameter
-t1=expr() : print "ct= "; ct, "result=";t1.result.iresult,"result type= ",t1.result_type
+t1=expr() ': print "ct= "; ct, "result=";t1.uresult,"result type= ",t1.result_type
 if lparts(ct).token<> token_comma then 
    print"  Error" ' todo: error codes etc
 else
   ct+=1
   t2=expr()
 endif
+select case t1.result_type
+  case 0: a1=t1.iresult
+  case 1: a1=t1.uresult
+  case 4: a1=round(t1.fresult)
+  case 5: a1=val(t1.sresult)
+end select
+select case t2.result_type
+  case 0: a2=t2.iresult
+  case 1: a2=t2.uresult
+  case 4: a2=round(t2.fresult)
+  case 5: a2=val(t2.sresult)
+end select 
+plot_x=a1
+plot_y=a2
+v.putpixel(a1,a2,plot_color) 
 end sub
+
+sub do_color
+
+dim t1 as expr_result
+dim a1 as integer
+ct=1 ' ct should be a parameter
+t1=expr()' : print "ct= "; ct, "result=";t1.uresult,"result type= ",t1.result_type
+
+select case t1.result_type
+  case 0: a1=t1.iresult
+  case 1: a1=t1.uresult
+  case 4: a1=round(t1.fresult)
+  case 5: a1=val(t1.sresult)
+end select
+plot_color=a1 ': print a1
+end sub
+
+sub do_draw
+
+dim t1,t2 as expr_result
+dim a1,a2 as integer
+ct=1 ' ct should be a parameter
+t1=expr()' : print "ct= "; ct, "result=";t1.uresult,"result type= ",t1.result_type
+if lparts(ct).token<> token_comma then 
+   print"  Error" ' todo: error codes etc
+else
+  ct+=1
+  t2=expr() ': print "ct= "; ct, "result=";t1.uresult,"result type= ",t1.result_type
+endif
+select case t1.result_type
+  case 0: a1=t1.iresult
+  case 1: a1=t1.uresult
+  case 4: a1=round(t1.fresult)
+  case 5: a1=val(t1.sresult)
+end select
+select case t2.result_type
+  case 0: a2=t2.iresult
+  case 1: a2=t2.uresult
+  case 4: a2=round(t2.fresult)
+  case 5: a2=val(t2.sresult)
+end select 
+
+v.draw(plot_x,plot_y,a1,a2,plot_color) 
+plot_x=a1
+plot_y=a2
+end sub
+
+
+'---------------- Hepler functions
 
 sub startpsram
 psram.startx(0, 0, 11, -1)

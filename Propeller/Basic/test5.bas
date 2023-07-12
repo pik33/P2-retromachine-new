@@ -1,28 +1,26 @@
-class expr_result
-  dim uresult as integer
-  dim result_type as ulong
-  dim sresult as string
+class a
+  dim b as integer
+  dim c as integer
+  dim d as integer
+  dim e as integer
 end class
  
-'---------------------------------------
-print muldiv().uresult
-'-------------------------------------
+print f().b
 
-function muldiv() as expr_result
+function f() as a
 
-dim t3 as expr_result
+dim g as a
 
-t3.uresult=23456
-print "Returned uresult: ";getvalue().uresult
-t3 = getvalue()
-print "Assigned uresult:";t3.uresult
-print
-return t3    
+g.b=23456
+print "Returned: "; h().b
+g = h()
+print "Assigned:"; g.b
+return g    
 end function
 
-function getvalue() as expr_result
+function h() as a
 
-dim t4 as expr_result
-t4.uresult=2
-return t4
+dim i as a
+i.b=2
+return i
 end function
