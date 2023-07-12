@@ -125,6 +125,7 @@ c_white         =   15
 
 timingsxxt      =  $70810000   ' streamer imm->pins
 
+
 var
 
 long buf_ptr           'initial main buffer pointer
@@ -290,7 +291,7 @@ long mailbox0
 long displaylist[12]              ' now 8 longs is sufficient for a DL for simple modes
 long emptydl[2]
 byte pixelbuf
-
+long xres,yres
 long ccc[2]
 byte cursor[128]
 obj
@@ -409,7 +410,8 @@ dl_ptr:=@emptydl[0]
 
 if cog>0 
    waitvbl(1)						    	' if the driver is active, wait for vblank to set the new mode and DL	
-  
+xres:=1024
+yres:=576  
 ppl:=(timings[3])
 cpl:=timings[7]<<1                                      	' now cpl is longs per line
 cpl1:=cpl '' todo remove
@@ -892,6 +894,7 @@ cursor_x:=0
 cursor_y:=0
 spr17x:=4*cursor_x
 spr17y:=16*cursor_y   
+
 ''---------- Output a char at the cursor position, move the cursor 
 
 pub putchar(achar) | c,x,y,l,newcpl
@@ -949,7 +952,7 @@ spr17x:=4*cursor_x
 spr17y:=16*cursor_y   
 ''-----------  Scroll the screen one line up
 
-pub scrollup() | i
+pub scrollup(start=0, end=576 , amount=16) | i
 	
 repeat i from 0 to 559 
   ram.read1($80000-4096-1024-s_debug, s_buf_ptr+(i+16)*4*s_cpl1, 4*s_cpl1)

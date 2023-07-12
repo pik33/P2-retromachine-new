@@ -526,7 +526,7 @@ end function
 ' Expression decoder/evaluator
 '------------------------------------------------------------------------------------------------------------
 
-function expr(ct as integer) as expr_result,integer
+function expr( ) as expr_result 
 
 ' On input: ct = current token position
 ' On output: expression result value and a new ct
@@ -534,12 +534,12 @@ function expr(ct as integer) as expr_result,integer
 dim t1, t2 as expr_result
 dim op as integer
 
-t1,ct = muldiv(ct)             			' call higher priority operator check. It will itself call getval/getvar if no multiplies or divides
+t1 = muldiv()             			' call higher priority operator check. It will itself call getval/getvar if no multiplies or divides
 op = lparts(ct).token				' that idea is from github adamdunkels/ubasic
 
 do while (op = token_plus orelse op = token_minus orelse op = token_and orelse op=token_or)
   ct+=1
-  t2,ct = muldiv(ct) 
+  t2 = muldiv() 
   select case op
     case token_plus
       t1=do_plus(t1,t2)
@@ -552,23 +552,23 @@ do while (op = token_plus orelse op = token_minus orelse op = token_and orelse o
   end select  
   op = lparts(ct).token
   loop
-return t1,ct
+return t1 
 end function
 
 
-function muldiv(ct as integer) as expr_result,integer
+function muldiv() as expr_result
 
 dim t1, t2 as expr_result
 dim op as integer
 
-t1,ct = getvalue(ct)    
+t1 = getvalue()    
  '   print "In muldiv: "; t1.uresult,
  '   print t1.result_type
-    return t1 ,ct                    	' get a value to do the operation
+    return t1                     	' get a value to do the operation
 op = lparts(ct).token
 do while (op = token_mul orelse op = token_div orelse op = token_fdiv orelse op=token_mod orelse op=token_shl orelse op=token_shr orelse op=token_power)
   ct+=1
-  t2,ct = getvalue(ct) 
+  t2 = getvalue() 
   select case op
     case token_mul
       t1=do_mul(t1,t2)
@@ -589,10 +589,10 @@ do while (op = token_mul orelse op = token_div orelse op = token_fdiv orelse op=
   loop
 '    print t1.uresult
 '   print t1.result_type  
-return t1,ct
+return t1
 end function
 
-function getvalue(ct as integer) as expr_result,integer
+function getvalue() as expr_result
 
 dim t1 as expr_result
 dim op as integer
@@ -620,7 +620,7 @@ end select
 ct+=1
   '  print "Debug from getvalue: "; t1.uresult, t1.iresult, t1.fresult, t1.sresult, "result type: ", t1.result_type
 
-return t1,ct
+return t1
 end function
 
 
@@ -628,11 +628,11 @@ end function
 'if the next token is not ( then find variable by name, reutrn its value and change token to 1024+var index ?
 'if the next token is  ( then find function by name, call do_function,change the token to 2048+fn index ?
 
-function getvar(ct as integer) as expr_result,integer
+function getvar() as expr_result
 dim t1 as expr_result
 t1.uresult=0 : t1.result_type=0 ' mockup
 ct+=1
-return t1,ct
+return t1
 end function
 
 
@@ -642,7 +642,7 @@ dim t1 as expr_result
 dim a1 as integer
 dim r as integer
 
-t1,ct=expr(ct)
+t1=expr()
 
 select case t1.result_type
   case 0: a1=t1.iresult : r=0
