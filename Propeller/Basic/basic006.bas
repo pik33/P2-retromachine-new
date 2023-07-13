@@ -62,6 +62,7 @@ const token_box=39
 const token_frame=40
 const token_color=41
 
+const token_end=254
 const token_space=255
  
 const token_decimal=512
@@ -200,15 +201,17 @@ sub interpret(line$)
 dim i,j,k,q
 dim result as expr_result
 dim etype as integer
+dim separators(125)
 
 ' a workaround to prevent the gc from disabling prints
-108 close #0
-_gc_collect()
-open SendRecvDevice(@v.putchar, nil, nil) as #0
+'108 close #0
+'_gc_collect()
+'open SendRecvDevice(@v.putchar, nil, nil) as #0
 
 ' ---------------------------------------------------  Pass 1: Split the line to parts, detect and concatenate strings
 
-dim separators(125): for i=0 to 125: separators(i)=0 :next i
+
+108 for i=0 to 125: separators(i)=0 :next i
 for i=0 to 125: lparts(i).part$="": next i
 
 ' 1a : extract the first command, split the line to first command and the rest
@@ -283,6 +286,7 @@ if isstring(lparts(i).part$) then lparts(i).token=token_string : lparts(i).part$
 if isname(lparts(i).part$) then lparts(i).token=token_name : goto 102						' name
 lparts(i).token=-1
 102 next i 
+lparts(k).token=token_end
 
 '2b determine a type of the line
   
@@ -295,7 +299,7 @@ if lparts(0).token=516 andalso lparts(1).token=515 then print "  this is calling
 let pos=execute(0) ' print "  this is a command to execute"
 if rest$<>"" then line$=rest$: goto 108
 
-101 v.writeln("  Ready") : v.write("  ")  
+101 v.writeln("") : v.writeln("  Ready") : v.write("  ")  
 end sub
 
 '------------------------------ Helper functions for the tokenizer -------------------------------------------
@@ -369,6 +373,7 @@ select case s
   case "box"         : return token_box
   case "frame"       : return token_frame
   case "color"       : return token_color
+  case "print"	     : return token_print
   case else          : return 0  
 end select
 end function
@@ -466,6 +471,7 @@ case token_plot     : do_plot  : return -1
 case token_draw	    : do_draw  : return -1
 case token_fcircle  : do_fcircle : return -1  
 case token_color    : do_color :return -1  
+case token_print    : do_print :return -1  
 end select
 end function
 
@@ -712,10 +718,43 @@ sub do_color
 
 dim a1,r as integer
 a1,r=getintres(ct)
-
- 
 if r<>0 then printerror(r) else plot_color=a1 
 end sub
+
+sub do_print ' todo reconfigurable editor start position
+
+dim t1 as expr_result
+dim r as integer
+ct=1
+if lparts(ct).token=token_end then print: goto 811
+do
+t1=expr()
+if lparts(ct).token=token_comma then
+  if t1.result_type=result_int then print t1.iresult,
+  if t1.result_type=result_uint then print t1.uresult,
+  if t1.result_type=result_float then print t1.fresult,
+  if t1.result_type=result_string then print t1.sresult,
+endif  
+if lparts(ct).token=token_semicolon then 
+  if t1.result_type=result_int then print t1.iresult;
+  if t1.result_type=result_uint then print t1.uresult;
+  if t1.result_type=result_float then print t1.fresult;
+  if t1.result_type=result_string then print t1.sresult;
+endif
+if lparts(ct).token=token_end then 
+  if t1.result_type=result_int then print t1.iresult
+  if t1.result_type=result_uint then print t1.uresult
+  if t1.result_type=result_float then print t1.fresult
+  if t1.result_type=result_string then print t1.sresult
+endif 
+if lparts(ct).token=token_end then goto 811
+ct+=1
+
+loop until lparts(ct).token=token_end
+
+
+811 end sub
+
 
 sub do_draw
 
