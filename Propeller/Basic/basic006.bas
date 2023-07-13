@@ -558,7 +558,7 @@ select case op
     t1.iresult=val%(lparts(ct).part$)
     t1.result_type=0  
   case token_float
-    t1.fresult=val%(lparts(ct).part$): t1.result_type=4  
+    t1.fresult=val(lparts(ct).part$): t1.result_type=4  
   case token_string
     t1.sresult=lparts(ct).part$: t1.result_type=5  
 '  case token_name  '' we may got token with var or fun # after evaluation (?) 
@@ -610,20 +610,18 @@ end function
 function do_plus(t1 as expr_result ,t2 as expr_result) as expr_result
 'todo
 
-
-if t1.result_type=result_uint andalso t2.result_type=result_uint then t1.uresult+=t2.uresult: return t1
-if t1.result_type=result_uint andalso t2.result_type=result_int then t1.iresult=t1.uresult+t2.iresult: t1.result_type=result_int : return t1
-if t1.result_type=result_uint andalso t2.result_type=result_float then t1.fresult=t1.uresult+t2.fresult: t1.result_type=result_float : return t1
-if t1.result_type=result_int andalso t2.result_type=result_uint then t1.iresult+=t2.uresult: return t1
-if t1.result_type=result_int andalso t2.result_type=result_int then t1.iresult+=t2.iresult:  return t1
-if t1.result_type=result_int andalso t2.result_type=result_float then t1.fresult=t1.iresult+t2.fresult: t1.result_type=result_float : return t1
-if t1.result_type=result_float andalso t2.result_type=result_uint then t1.fresult+=t2.uresult: return t1
-if t1.result_type=result_float andalso t2.result_type=result_int then t1.fresult+=t2.iresult: return t1
-if t1.result_type=result_float andalso t2.result_type=result_float then t1.fresult+=t2.fresult: return t1
-if t1.result_type=result_string andalso t2.result_type<>result_string then t1.uresult=2 :t1.result_type=result_error: return t1
-if t2.result_type=result_string andalso t1.result_type<>result_string then t1.uresult=2 :t1.result_type=result_error: return t1
-if t1.result_type=result_string andalso t2.result_type=result_string then t1.sresult=t1.sresult+t2.sresult : return t1
-
+if t1.result_type=result_uint andalso t2.result_type=result_uint then t1.uresult+=t2.uresult :return t1
+if t1.result_type=result_uint andalso t2.result_type=result_int then t1.iresult=t1.uresult+t2.iresult: t1.result_type=result_int :return t1
+if t1.result_type=result_uint andalso t2.result_type=result_float then t1.fresult=cast(single,t1.uresult)+t2.fresult: t1.result_type=result_float :return t1
+if t1.result_type=result_int andalso t2.result_type=result_uint then t1.iresult+=t2.uresult:return t1
+if t1.result_type=result_int andalso t2.result_type=result_int then t1.iresult+=t2.iresult:return t1
+if t1.result_type=result_int andalso t2.result_type=result_float then t1.fresult=cast(single,t1.iresult)+t2.fresult: t1.result_type=result_float :return t1
+if t1.result_type=result_float andalso t2.result_type=result_uint then t1.fresult=t1.fresult+cast(single,t2.uresult) :return t1
+if t1.result_type=result_float andalso t2.result_type=result_int then t1.fresult=t1.fresult+cast(single,t2.iresult) :return t1
+if t1.result_type=result_float andalso t2.result_type=result_float then t1.fresult+=t2.fresult:return t1
+if t1.result_type=result_string andalso t2.result_type<>result_string then t1.uresult=2 :t1.result_type=result_error:return t1
+if t2.result_type=result_string andalso t1.result_type<>result_string then t1.uresult=2 :t1.result_type=result_error:return t1
+if t1.result_type=result_string andalso t2.result_type=result_string then t1.sresult=t1.sresult+t2.sresult :return t1
 return t1
 end function
 
