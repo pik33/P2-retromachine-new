@@ -18,7 +18,7 @@ dim paula as class using "audio093b-8-sc.spin2"
 
 #include "dir.bi"
 
-const ver$="P2 Retromachine BASIC version 0.05"
+const ver$="P2 Retromachine BASIC version 0.06"
 
 ' ----------------------- Tokens -----------------------------------------
 
@@ -105,6 +105,8 @@ dim line$ as string
 dim testaudio(883) as ushort
 
 dim plot_color,plot_x,plot_y as integer
+dim editor_spaces as integer
+dim paper,ink as integer
 dim ct as integer
 
 '----------------------------------------------------------------------------
@@ -114,6 +116,8 @@ dim ct as integer
 startpsram
 startvideo
 plot_color=154 : plot_x=0: plot_y=0
+editor_spaces=2
+paper=147: ink=154
 let audiocog,base=paula.start(0,0,0)
 waitms(50)
 dpoke base+20,16384
@@ -122,9 +126,9 @@ kbm.mouse_set_limits(1023,575)
 cls
 v.setfontfamily(4) 				' use ST Mono font
 
-position 4,1 : print ver$
-position 4,3 : print "Ready"
-position 4,4
+position 0,1 : print space$(editor_spaces);ver$
+position 0,3 : print space$(editor_spaces);"Ready"
+print space$(editor_spaces);
 for i=0 to 35: for j=0 to 127: textscreen(i,j)=32: next j: next i
 dim key , key2 as ulong
  
@@ -180,7 +184,7 @@ if key3<>0 then
  ' To do: arrows and DEL; use textscreen array to implement fullscreen editing
  
   if key4=141 then 
-    v.crlf()
+    v.crlf() : print space$(editor_spaces);
     interpret(line$): line$=""
     endif 
 
@@ -513,7 +517,7 @@ dim op as integer
 t1 = getvalue()    
  '   print "In muldiv: "; t1.uresult,
  '   print t1.result_type
-    return t1                     	' get a value to do the operation
+ '   return t1                     	' get a value to do the operation
 op = lparts(ct).token
 do while (op = token_mul orelse op = token_div orelse op = token_fdiv orelse op=token_mod orelse op=token_shl orelse op=token_shr orelse op=token_power)
   ct+=1
@@ -536,8 +540,7 @@ do while (op = token_mul orelse op = token_div orelse op = token_fdiv orelse op=
   end select  
   op = lparts(ct).token
   loop
-'    print t1.uresult
-'   print t1.result_type  
+ 
 return t1
 end function
 
@@ -606,9 +609,11 @@ return a1,r
 
 end function
 
+'----------------------------------------------------------------------------------------------------------------------------
+'-------------------------------------- Functions that do operators and commands --------------------------------------------
+'----------------------------------------------------------------------------------------------------------------------------
 
 function do_plus(t1 as expr_result ,t2 as expr_result) as expr_result
-'todo
 
 if t1.result_type=result_uint andalso t2.result_type=result_uint then t1.uresult+=t2.uresult :return t1
 if t1.result_type=result_uint andalso t2.result_type=result_int then t1.iresult=t1.uresult+t2.iresult: t1.result_type=result_int :return t1
@@ -622,27 +627,56 @@ if t1.result_type=result_float andalso t2.result_type=result_float then t1.fresu
 if t1.result_type=result_string andalso t2.result_type<>result_string then t1.uresult=2 :t1.result_type=result_error:return t1
 if t2.result_type=result_string andalso t1.result_type<>result_string then t1.uresult=2 :t1.result_type=result_error:return t1
 if t1.result_type=result_string andalso t2.result_type=result_string then t1.sresult=t1.sresult+t2.sresult :return t1
-return t1
+t1.uresult=4 : t1.result_type=result_error: return t1
 end function
 
 function do_minus(t1 as expr_result ,t2 as expr_result) as expr_result
-'todo
-return t1
+
+if t1.result_type=result_uint andalso t2.result_type=result_uint then 
+    if t2.uresult<t1.uresult then  t1.uresult-=t2.uresult : return t1 else t1.iresult=t1.uresult-t2.uresult : t1.result_type=result_int : return t1
+    endif
+if t1.result_type=result_uint andalso t2.result_type=result_int then t1.iresult=t1.uresult-t2.iresult: t1.result_type=result_int :return t1
+if t1.result_type=result_uint andalso t2.result_type=result_float then t1.fresult=cast(single,t1.uresult)-t2.fresult: t1.result_type=result_float :return t1
+if t1.result_type=result_int andalso t2.result_type=result_uint then t1.iresult-=t2.uresult:return t1
+if t1.result_type=result_int andalso t2.result_type=result_int then t1.iresult-=t2.iresult:return t1
+if t1.result_type=result_int andalso t2.result_type=result_float then t1.fresult=cast(single,t1.iresult)-t2.fresult: t1.result_type=result_float :return t1
+if t1.result_type=result_float andalso t2.result_type=result_uint then t1.fresult=t1.fresult-cast(single,t2.uresult) :return t1
+if t1.result_type=result_float andalso t2.result_type=result_int then t1.fresult=t1.fresult-cast(single,t2.iresult) :return t1
+if t1.result_type=result_float andalso t2.result_type=result_float then t1.fresult-=t2.fresult:return t1
+if t1.result_type=result_string orelse t2.result_type=result_string then t1.uresult=3: t1.result_type=result_error: return t1
+t1.uresult=5 : t1.result_type=result_error:return t1
 end function
 
 function do_and(t1 as expr_result ,t2 as expr_result) as expr_result
-'todo
-return t1
+
+if t1.result_type=result_int then t1.uresult=cast(ulong,t1.iresult) : t1.result_type=result_uint
+if t2.result_type=result_int then t2.uresult=cast(ulong,t2.iresult) : t2.result_type=result_uint
+if t1.result_type=result_string orelse t2.result_type=result_string orelse t1.result_type=result_float orelse t2.result_type=result_float then t1.uresult=6: t1.result_type=result_error: return t1
+t1.uresult=t1.uresult and t2.uresult :return t1
+t1.uresult=7 : t1.result_type=result_error:return t1
 end function
 
 function do_or(t1 as expr_result ,t2 as expr_result) as expr_result
-'todo
-return t1
+if t1.result_type=result_int then t1.uresult=cast(ulong,t1.iresult) : t1.result_type=result_uint
+if t2.result_type=result_int then t2.uresult=cast(ulong,t2.iresult) : t2.result_type=result_uint
+if t1.result_type=result_string orelse t2.result_type=result_string orelse t1.result_type=result_float orelse t2.result_type=result_float then t1.uresult=6: t1.result_type=result_error: return t1
+t1.uresult=t1.uresult or t2.uresult :return t1
+t1.uresult=7 : t1.result_type=result_error:return t1
 end function
 
 function do_mul(t1 as expr_result ,t2 as expr_result) as expr_result
-'todo
-return t1
+
+if t1.result_type=result_uint andalso t2.result_type=result_uint then t1.uresult*=t2.uresult :return t1
+if t1.result_type=result_uint andalso t2.result_type=result_int then t1.iresult=t1.uresult*t2.iresult: t1.result_type=result_int :return t1
+if t1.result_type=result_uint andalso t2.result_type=result_float then t1.fresult=cast(single,t1.uresult)*t2.fresult: t1.result_type=result_float :return t1
+if t1.result_type=result_int andalso t2.result_type=result_uint then t1.iresult*=t2.uresult:return t1
+if t1.result_type=result_int andalso t2.result_type=result_int then t1.iresult*=t2.iresult:return t1
+if t1.result_type=result_int andalso t2.result_type=result_float then t1.fresult=cast(single,t1.iresult)*t2.fresult: t1.result_type=result_float :return t1
+if t1.result_type=result_float andalso t2.result_type=result_uint then t1.fresult=t1.fresult*cast(single,t2.uresult) :return t1
+if t1.result_type=result_float andalso t2.result_type=result_int then t1.fresult=t1.fresult*cast(single,t2.iresult) :return t1
+if t1.result_type=result_float andalso t2.result_type=result_float then t1.fresult*=t2.fresult:return t1
+if t1.result_type=result_string orelse t2.result_type=result_string then t1.uresult=8: t1.result_type=result_error: return t1
+t1.uresult=9 : t1.result_type=result_error:return t1
 end function
 
 function do_div(t1 as expr_result ,t2 as expr_result) as expr_result
@@ -724,9 +758,10 @@ sub do_print ' todo reconfigurable editor start position
 dim t1 as expr_result
 dim r as integer
 ct=1
-if lparts(ct).token=token_end then print: goto 811
+if lparts(ct).token=token_end then print: print space$(editor_spaces) : goto 811
 do
 t1=expr()
+  if t1.result_type=result_error then printerror(t1.uresult): goto 811
 if lparts(ct).token=token_comma then
   if t1.result_type=result_int then print t1.iresult,
   if t1.result_type=result_uint then print t1.uresult,
@@ -746,6 +781,7 @@ if lparts(ct).token=token_end then
   if t1.result_type=result_string then print t1.sresult
 endif 
 if lparts(ct).token=token_end then goto 811
+if lparts(ct).token <>token_comma andalso lparts(ct).token <>token_semicolon andalso lparts(ct).token <>token_end then print "Error: ";lparts(ct).part$ :goto 811 
 ct+=1
 
 loop until lparts(ct).token=token_end
@@ -1189,6 +1225,13 @@ sub init_error_strings
 errors$(0)=""
 errors$(1)="Expected number, got something else."
 errors$(2)="Cannot add a number to a string."
+errors$(3)="Cannot substract strings."
+errors$(4)="Unknown error while adding."
+errors$(5)="Unknown error while substracting."
+errors$(6)="Cannot do logic operation on string or float."
+errors$(7)="Unknown error while doing logic operation."
+errors$(8)="Cannot multiply strings."
+errors$(9)="Unknown error while multiplying."
 end sub
         
 sub printerror(err as integer)
