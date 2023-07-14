@@ -93,6 +93,40 @@ class expr_result
   dim result_type as ulong ' 0 i 1 u 4f 5s 6 error, 2,3 reserved for int64
 end class
 
+class integer_variable
+  dim name as string
+  dim value as integer
+end class
+
+class uint_variable
+  dim name as string
+  dim value as ulong
+end class
+
+
+class float_variable
+  dim name as string
+  dim value as single
+end class
+
+class string_variable
+  dim name as string
+  dim value as string
+end class
+
+' to do : move these out of the heap into the psram...
+
+dim ivariables as integer_variable(1023) ' how to make this better?? let's start from 1k vars available....   
+dim uvariables as uint_variable(1023) ' how to make this better?? let's start from 1k vars available....   
+dim fvariables as float_variable(1023) ' how to make this better?? let's start from 1k vars available....   
+dim svariables as string_variable(1023) ' how to make this better?? let's start from 1k vars available....   
+
+dim ivarnum as integer
+dim uvarnum as integer
+dim fvarnum as integer
+dim svarnum as integer
+
+
 type parts as part(125) 
 dim lparts as parts
 
@@ -118,6 +152,7 @@ startvideo
 plot_color=154 : plot_x=0: plot_y=0
 editor_spaces=2
 paper=147: ink=154
+ivarnum=0 : uvarnum=0 : fvarnum=0 : svarnum=0
 let audiocog,base=paula.start(0,0,0)
 waitms(50)
 dpoke base+20,16384
@@ -295,7 +330,7 @@ lparts(k).token=token_end
 '2b determine a type of the line
   
 if isdec(lparts(0).part$) then print "  This is a program line": goto 101  								'<-- TODO: add a line to a program
-if lparts(0).token=516 andalso lparts(1).token>=32  andalso lparts(1).token<64 then print "  this is assigning to a name" : goto 101    '<-- TODO: assign a variable
+if lparts(0).token=516 andalso lparts(1).token>=token_assign_eq  andalso lparts(1).token<token_assign_div then print "this is assigning to a name" : do_assign : goto 101    '<-- TODO: assign a variable
 if lparts(0).token=516 andalso lparts(1).token=515 then print "  this is calling a function or assigning to an array" : goto 101
 
 ' if we are here, this is not a program line to add, so try to execute this
@@ -479,6 +514,66 @@ case token_print    : do_print :return -1
 end select
 end function
 
+'-------------------------------------------------------------------------------------
+'------------------ Assigning to a variable ------------------------------------------
+'-------------------------------------------------------------------------------------
+
+sub do_assign
+
+dim i,j,ctt as integer
+dim t1 as expr_result
+ctt=ct: print ct
+
+let varname$=lparts(0).part$: print varname$
+let suffix$=right$(varname$,1)
+ct=2: t1=expr()
+if suffix$="$" andalso t1.result_type<>result_string then printerror(15):goto 501
+if suffix$="!" andalso t1.result_type<>result_float andalso t1.result_type<>result_uint andalso t1.result_type<>result_int then printerror(16):goto 501
+if suffix$="%" andalso t1.result_type<>result_uint then printerror(17):goto 501
+if suffix$<>"$" andalso suffix$<>"!" andalso suffix$<>"%" andalso t1.result_type<>result_uint andalso t1.result_type<>result_int then printerror(18): goto 501
+if t1.result_type=result_error then printerror(t1.uresult): goto 501
+/'
+'select case t1.result_type
+'    case result_int:    goto 502
+'    case result_uint:   goto 503
+'    case result_float:  goto 504
+'    case result_string: goto 505
+'    end select
+
+502
+i=-1: j=-1
+if ivarnum>0 then
+  for i=0 to ivarnum
+    if variables(i).name=varname$ then j=i: exit
+  next i
+endif
+print varname$,t1.result_type,t1.uresult, t1.fresult, t1.sresult
+
+i=-1: j=-1 
+if varnum>0 then
+  for i=0 to varnum
+    if variables(i).name=varname$ then j=i: exit
+  next i
+endif
+if j=-1 then
+  variables(varnum).name=varname$
+  variables(varnum).vartype=t1.result_type
+  select case t1.result_type
+    case result_int: variables(varnum).place=new integer: variables(varnum).place(0)=t1.iresult
+    case result_uint: variables(varnum).place=new ulong: variables(varnum).place(0)=t1.uresult
+    case result_float: variables(varnum).place=new single: variables(varnum).place(0)=t1.fresult
+    case result_string: variables(varnum).place=varname$
+    end select
+    varnum +=1
+endif
+print varnum,variables(varnum-1).name,variables(varnum-1).place(0),variables(varnum-1).vartype
+if variables(varnum-1).vartype=5  then print variables(varnum-1).place
+'/
+501 end sub
+
+
+
+
 '------------------------------------------------------------------------------------------------------------
 ' Expression decoder/evaluator
 '------------------------------------------------------------------------------------------------------------
@@ -492,11 +587,13 @@ dim t1, t2 as expr_result
 dim op as integer
 
 t1 = muldiv()             			' call higher priority operator check. It will itself call getval/getvar if no multiplies or divides
+if t1.result_type=result_error then return t1
 op = lparts(ct).token				' that idea is from github adamdunkels/ubasic
 
 do while (op = token_plus orelse op = token_minus orelse op = token_and orelse op=token_or)
   ct+=1
   t2 = muldiv() 
+  if t2.result_type=result_error then return t2
   select case op
     case token_plus    : t1=do_plus(t1,t2)
     case token_minus   : t1=do_minus(t1,t2)
@@ -515,13 +612,13 @@ dim t1, t2 as expr_result
 dim op as integer
 
 t1 = getvalue()    
- '   print "In muldiv: "; t1.uresult,
- '   print t1.result_type
- '   return t1                     	' get a value to do the operation
+if t1.result_type=result_error then return t1
+
 op = lparts(ct).token
 do while (op = token_mul orelse op = token_div orelse op = token_fdiv orelse op=token_mod orelse op=token_shl orelse op=token_shr orelse op=token_power)
   ct+=1
   t2 = getvalue() 
+  if t2.result_type=result_error then return t2
   select case op
     case token_mul
       t1=do_mul(t1,t2)
@@ -554,9 +651,6 @@ op=lparts(ct).token
 select case op
   case token_decimal
     t1.uresult=val%(lparts(ct).part$): t1.result_type=1 ' todo token_int64
-'    print "In getvalue: "; t1.uresult,
-'    print lparts(ct).part$,
-'    print t1.result_type
   case token_integer
     t1.iresult=val%(lparts(ct).part$)
     t1.result_type=0  
@@ -566,8 +660,10 @@ select case op
     t1.sresult=lparts(ct).part$: t1.result_type=5  
 '  case token_name  '' we may got token with var or fun # after evaluation (?) 
 '    t1=getvar()
-'  case token_lpar
-'    t1=expr() ' todo check left par
+  case token_lpar
+    ct+=1
+    t1=expr()
+    if lparts(ct).token<>token_rpar then t1.result_type=result_error: t1.uresult=14 : return t1
 end select    
 ct+=1
   '  print "Debug from getvalue: "; t1.uresult, t1.iresult, t1.fresult, t1.sresult, "result type: ", t1.result_type
@@ -614,6 +710,8 @@ end function
 '----------------------------------------------------------------------------------------------------------------------------
 
 function do_plus(t1 as expr_result ,t2 as expr_result) as expr_result
+
+
 
 if t1.result_type=result_uint andalso t2.result_type=result_uint then t1.uresult+=t2.uresult :return t1
 if t1.result_type=result_uint andalso t2.result_type=result_int then t1.iresult=t1.uresult+t2.iresult: t1.result_type=result_int :return t1
@@ -680,32 +778,66 @@ t1.uresult=9 : t1.result_type=result_error:return t1
 end function
 
 function do_div(t1 as expr_result ,t2 as expr_result) as expr_result
-'todo
-return t1
+if t1.result_type=result_string orelse t2.result_type=result_string then t1.uresult=10: t1.result_type=result_error: return t1
+if t1.result_type=result_float then t1.result_type=result_int : t1.iresult=cast(integer,t1.fresult)
+if t2.result_type=result_float then t2.result_type=result_int : t2.iresult=cast(integer,t2.fresult)
+if t1.result_type=result_uint andalso t2.result_type=result_uint then t1.uresult/=t2.uresult :return t1
+if t1.result_type=result_uint andalso t2.result_type=result_int then t1.iresult=t1.uresult/t2.iresult: t1.result_type=result_int :return t1
+if t1.result_type=result_int andalso t2.result_type=result_uint then t1.iresult/=t2.uresult :return t1
+if t1.result_type=result_int andalso t2.result_type=result_int then t1.iresult=t1.iresult/t2.iresult: return t1
+t1.uresult=11 : t1.result_type=result_error:return t1
 end function
 
 function do_fdiv(t1 as expr_result ,t2 as expr_result) as expr_result
-'todo
+
+if t1.result_type=result_string orelse t2.result_type=result_string then t1.uresult=10: t1.result_type=result_error: return t1
+if t1.result_type=result_int then t1.result_type=result_float : t1.fresult=cast(single,t1.iresult) 
+if t1.result_type=result_uint then t1.result_type=result_float : t1.fresult=cast(single,t1.uresult) 
+if t2.result_type=result_int then t2.result_type=result_float : t2.fresult=cast(single,t2.iresult) 
+if t2.result_type=result_uint then t2.result_type=result_float : t2.fresult=cast(single,t2.uresult) 
+if t1.result_type=result_float andalso t2.result_type=result_float then t1.fresult/=t2.fresult:return t1
+t1.uresult=11 : t1.result_type=result_error:return t1
 return t1
 end function
 
 function do_mod(t1 as expr_result ,t2 as expr_result) as expr_result
-'todo
-return t1
+
+if t1.result_type=result_string orelse t2.result_type=result_string then t1.uresult=10: t1.result_type=result_error: return t1
+if t1.result_type=result_float then t1.result_type=result_int : t1.iresult=cast(integer,t1.fresult)
+if t2.result_type=result_float then t2.result_type=result_int : t2.iresult=cast(integer,t2.fresult)
+if t1.result_type=result_uint andalso t2.result_type=result_uint then t1.uresult=t1.uresult mod t2.uresult :return t1
+if t1.result_type=result_uint andalso t2.result_type=result_int then t1.iresult=t1.uresult mod t2.iresult: t1.result_type=result_int :return t1
+if t1.result_type=result_int andalso t2.result_type=result_uint then t1.iresult=t1.iresult mod t2.uresult :return t1
+if t1.result_type=result_int andalso t2.result_type=result_int then t1.iresult=t1.iresult mod t2.iresult: return t1
+t1.uresult=11 : t1.result_type=result_error:return t1
 end function
 
 function do_shl(t1 as expr_result ,t2 as expr_result) as expr_result
-'todo
-return t1
+
+if t1.result_type=result_int then t1.uresult=cast(ulong,t1.iresult) : t1.result_type=result_uint
+if t2.result_type=result_int then t2.uresult=cast(ulong,t2.iresult) : t2.result_type=result_uint
+if t1.result_type=result_string orelse t2.result_type=result_string orelse t1.result_type=result_float orelse t2.result_type=result_float then t1.uresult=6: t1.result_type=result_error: return t1
+t1.uresult=t1.uresult shl t2.uresult :return t1
+t1.uresult=7 : t1.result_type=result_error:return t1
 end function
 
 function do_shr(t1 as expr_result ,t2 as expr_result) as expr_result
-'todo
-return t1
+
+if t1.result_type=result_int then t1.uresult=cast(ulong,t1.iresult) : t1.result_type=result_uint
+if t2.result_type=result_int then t2.uresult=cast(ulong,t2.iresult) : t2.result_type=result_uint
+if t1.result_type=result_string orelse t2.result_type=result_string orelse t1.result_type=result_float orelse t2.result_type=result_float then t1.uresult=6: t1.result_type=result_error: return t1
+t1.uresult=t1.uresult shr t2.uresult :return t1
+t1.uresult=7 : t1.result_type=result_error:return t1
 end function
 
 function do_power(t1 as expr_result ,t2 as expr_result) as expr_result
-'todo
+if t1.result_type=result_string orelse t2.result_type=result_string then t1.uresult=12: t1.result_type=result_error: return t1
+if t1.result_type=result_int then t1.result_type=result_float : t1.fresult=cast(single,t1.iresult) 
+if t1.result_type=result_uint then t1.result_type=result_float : t1.fresult=cast(single,t1.uresult) 
+if t2.result_type=result_int then t2.result_type=result_float : t2.fresult=cast(single,t2.iresult) 
+if t2.result_type=result_uint then t2.result_type=result_float : t2.fresult=cast(single,t2.uresult) 
+if t1.result_type=result_float andalso t2.result_type=result_float then t1.fresult=t1.fresult^t2.fresult:return t1
+t1.uresult=13 : t1.result_type=result_error:return t1
 return t1
 end function
 
@@ -1232,11 +1364,20 @@ errors$(6)="Cannot do logic operation on string or float."
 errors$(7)="Unknown error while doing logic operation."
 errors$(8)="Cannot multiply strings."
 errors$(9)="Unknown error while multiplying."
+errors$(10)="Cannot divide strings."
+errors$(11)="Unknown error while dividing."
+errors$(12)="Cannot compute a power of a string."
+errors$(13)="Unknown error while computing a power."
+errors$(14)="Right parenthesis expected."
+errors$(15)="Expected string."
+errors$(16)="Expected float."
+errors$(17)="Expected unsigned integer."
+errors$(18)="Expected integer."
 end sub
         
 sub printerror(err as integer)
 
-v.write("  Error " ): v.write(v.inttostr(err)) : v.write(": ")  : v.writeln(errors$(err))
+v.write("Error " ): v.write(v.inttostr(err)) : v.write(": ")  : v.writeln(errors$(err))
 end sub
  
  
