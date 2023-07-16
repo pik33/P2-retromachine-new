@@ -61,6 +61,8 @@ const token_fcircle=38
 const token_box=39
 const token_frame=40
 const token_color=41
+const token_for=42
+const token_next=43
 
 const token_end=254
 const token_space=255
@@ -144,6 +146,7 @@ dim plot_color,plot_x,plot_y as integer
 dim editor_spaces as integer
 dim paper,ink as integer
 dim ct as integer
+dim progend as integer
 
 '----------------------------------------------------------------------------
 '-----------------------------Program start ---------------------------------
