@@ -499,8 +499,8 @@ end function
 
 function execute(pos as integer) as integer
 
-dim testptr as any pointer
-testptr=@do_fcircle : print testptr
+'dim testptr as any pointer
+var testptr=@do_fcircle  : print testptr
 
 let cmd=lparts(pos).token
 ct=pos+1
@@ -510,9 +510,7 @@ case token_new      : cls : position 4,1 : print ver$ : print :test_log(test_log
 case token_plot     : do_plot  : test_log(test_log_idx)="Called plot" : test_log_idx+=1 :print: for i=0 to test_log_idx-1: print test_log(i): next i : test_log_idx=0: return -1
 case token_draw	    : do_draw  : test_log(test_log_idx)="Called draw" : test_log_idx+=1 :print: for i=0 to test_log_idx-1: print test_log(i): next i : test_log_idx=0: return -1
 case token_fcircle 
-     asm
-     call testptr
-     end asm  
+     testptr
      test_log(test_log_idx)="Called fcircle" : test_log_idx+=1 :print: for i=0 to test_log_idx-1: print test_log(i): next i : test_log_idx=0: return -1  
 case token_color    : do_color :test_log(test_log_idx)="Called color" : test_log_idx+=1 :print: for i=0 to test_log_idx-1: print test_log(i): next i : test_log_idx=0: return -1  
 case token_print    : do_print :test_log(test_log_idx)="Called print" : test_log_idx+=1 :print: for i=0 to test_log_idx-1: print test_log(i): next i : test_log_idx=0: return -1  
@@ -1070,7 +1068,7 @@ plot_y=a2
 end sub
 
 
-sub do_fcircle
+function do_fcircle() as integer
 
 dim t1,t2,t3 as expr_result
 dim a1,a2,a3 as integer
@@ -1105,7 +1103,8 @@ select case t3.result_type
 end select 
 v.fcircle(a1,a2,a3,plot_color) 
  
-800 end sub
+800 return 0
+end function
 
 
 
