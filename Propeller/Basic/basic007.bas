@@ -18,7 +18,7 @@ dim paula as class using "audio093b-8-sc.spin2"
 
 #include "dir.bi"
 
-const ver$="P2 Retromachine BASIC version 0.06"
+const ver$="P2 Retromachine BASIC version 0.07"
 
 ' ----------------------- Tokens -----------------------------------------
 
@@ -89,11 +89,15 @@ class part
   dim token as integer
 end class
 
-class expr_result
+  union aresult
   dim iresult as integer
   dim uresult as ulong
   dim sresult as string
   dim fresult as double
+  end union
+  
+class expr_result
+  dim result as aresult
   dim result_type as ulong ' 0 i 1 u 4f 5s 6 error, 2,3 reserved for int64
 end class
 
@@ -147,7 +151,7 @@ dim editor_spaces as integer
 dim paper,ink as integer
 dim ct as integer
 dim progend as integer
-
+dim stack(128) as part
 '----------------------------------------------------------------------------
 '-----------------------------Program start ---------------------------------
 '----------------------------------------------------------------------------
@@ -525,16 +529,16 @@ let varname$=lparts(0).part$
 i=-1: j=-1
 let suffix$=right$(varname$,1)
 ct=2: t1=expr()
-if t1.result_type=result_error then printerror(t1.uresult): goto 501
+if t1.result_type=result_error then printerror(t1.result.uresult): goto 501
 if suffix$="$" andalso t1.result_type<>result_string then printerror(15):goto 501
 if suffix$="!" andalso t1.result_type<>result_float andalso t1.result_type<>result_uint andalso t1.result_type<>result_int then printerror(16):goto 501
 if suffix$="%" andalso t1.result_type<>result_uint then printerror(17):goto 501
 if suffix$<>"$" andalso suffix$<>"!" andalso suffix$<>"%" andalso t1.result_type<>result_uint andalso t1.result_type<>result_int then printerror(18): goto 501
 
-if suffix$="!" andalso t1.result_type=result_int then t1.result_type=result_float: t1.fresult=t1.iresult
-if suffix$="!" andalso t1.result_type=result_uint then t1.result_type=result_float: t1.fresult=t1.uresult
+if suffix$="!" andalso t1.result_type=result_int then t1.result_type=result_float: t1.result.fresult=t1.result.iresult
+if suffix$="!" andalso t1.result_type=result_uint then t1.result_type=result_float: t1.result.fresult=t1.result.uresult
 
-if suffix$<>"$" andalso suffix$<>"!" andalso suffix$<>"%" andalso t1.result_type=result_uint  then t1.result_type=result_int: t1.iresult=t1.uresult
+if suffix$<>"$" andalso suffix$<>"!" andalso suffix$<>"%" andalso t1.result_type=result_uint  then t1.result_type=result_int: t1.result.iresult=t1.result.uresult
 
 if suffix$="$"  then
   if svarnum>0 then
@@ -544,10 +548,10 @@ if suffix$="$"  then
   endif
 if  j=-1 andalso svarnum<maxvars then   
   svariables(svarnum).name=varname$
-  svariables(svarnum).value=t1.sresult
+  svariables(svarnum).value=t1.result.sresult
   svarnum+=1
 else if j>-1 then
-  svariables(j).value=t1.sresult
+  svariables(j).value=t1.result.sresult
 else printerror(19) : goto 501
 endif  
   
@@ -560,10 +564,10 @@ if suffix$<>"$" andalso suffix$<>"!" andalso suffix$<>"%"  then
   endif
 if  j=-1 andalso ivarnum<maxvars then   
   ivariables(ivarnum).name=varname$
-  ivariables(ivarnum).value=t1.iresult
+  ivariables(ivarnum).value=t1.result.iresult
   ivarnum+=1
 else if j>-1 then   
-  ivariables(j).value=t1.iresult
+  ivariables(j).value=t1.result.iresult
 else printerror(19) : goto 501
 endif  
   
@@ -576,10 +580,10 @@ if suffix$="%" then
   endif
 if  j=-1 andalso uvarnum<maxvars then   
   uvariables(uvarnum).name=varname$
-  uvariables(uvarnum).value=t1.uresult
+  uvariables(uvarnum).value=t1.result.uresult
   uvarnum+=1
 else if j>-1 then
-  uvariables(j).value=t1.uresult
+  uvariables(j).value=t1.result.uresult
 else printerror(19) : goto 501
 endif    
   
@@ -591,10 +595,10 @@ if suffix$="!" then
   endif
 if  j=-1 andalso fvarnum<maxvars then   
   fvariables(fvarnum).name=varname$
-  fvariables(fvarnum).value=t1.fresult
+  fvariables(fvarnum).value=t1.result.fresult
   fvarnum+=1
 else if j>-1 then
-  fvariables(j).value=t1.fresult
+  fvariables(j).value=t1.result.fresult
 else printerror(19) : goto 501
 endif   
 
@@ -680,25 +684,25 @@ if op=token_minus then m=-1: ct+=1 : op=lparts(ct).token
 select case op
   
   case token_decimal
-    if m=1 then t1.uresult=m*val%(lparts(ct).part$): t1.result_type=result_uint ' todo token_int64
-    if m=-1 then t1.iresult=m*val%(lparts(ct).part$): t1.result_type=result_int ' todo token_int64
+    if m=1 then t1.result.uresult=m*val%(lparts(ct).part$): t1.result_type=result_uint ' todo token_int64
+    if m=-1 then t1.result.iresult=m*val%(lparts(ct).part$): t1.result_type=result_int ' todo token_int64
   case token_integer
-    t1.iresult=m*val%(lparts(ct).part$)
+    t1.result.iresult=m*val%(lparts(ct).part$)
     t1.result_type=0  
   case token_float
-    if m=1 then t1.fresult=1.0*val(lparts(ct).part$): t1.result_type=4  
-    if m=-1 then t1.fresult=-1.0*val(lparts(ct).part$): t1.result_type=4  
+    if m=1 then t1.result.fresult=1.0*val(lparts(ct).part$): t1.result_type=4  
+    if m=-1 then t1.result.fresult=-1.0*val(lparts(ct).part$): t1.result_type=4  
   case token_string
-    t1.sresult=lparts(ct).part$: t1.result_type=5  
+    t1.result.sresult=lparts(ct).part$: t1.result_type=5  
   case token_name  '' we may got token with var or fun # after evaluation (?) 
     t1=getvar(m)
   case token_lpar
     ct+=1
     t1=expr()
-    if lparts(ct).token<>token_rpar then t1.result_type=result_error: t1.uresult=14 : return t1
+    if lparts(ct).token<>token_rpar then t1.result_type=result_error: t1.result.uresult=14 : return t1
 end select    
 ct+=1
-  '  print "Debug from getvalue: "; t1.uresult, t1.iresult, t1.fresult, t1.sresult, "result type: ", t1.result_type
+  '  print "Debug from getvalue: "; t1.result.uresult, t1.result.iresult, t1.result.fresult, t1.result.sresult, "result type: ", t1.result_type
 
 return t1
 end function
@@ -724,9 +728,9 @@ if suffix$="$" then
   for i=0 to svarnum-1
       if svariables(i).name=varname$ then j=i : exit
     next i
-  if  j=-1 then t1.result_type=result_error:  t1.uresult=20 : goto 701  ' not found   
+  if  j=-1 then t1.result_type=result_error:  t1.result.uresult=20 : goto 701  ' not found   
   t1.result_type=result_string
-  t1.sresult=svariables(j).value
+  t1.result.sresult=svariables(j).value
   goto 701
 endif  
   
@@ -734,13 +738,13 @@ if suffix$="%" then
   for i=0 to uvarnum-1
       if uvariables(i).name=varname$ then j=i : exit
     next i
-  if  j=-1 then t1.result_type=result_error:  t1.uresult=20 : goto 701  ' not found   
+  if  j=-1 then t1.result_type=result_error:  t1.result.uresult=20 : goto 701  ' not found   
   if m=1 then
     t1.result_type=result_uint
-    t1.uresult=uvariables(j).value
+    t1.result.uresult=uvariables(j).value
   else
     t1.result_type=result_int
-    t1.uresult=m*uvariables(j).value   
+    t1.result.uresult=m*uvariables(j).value   
   endif  
   goto 701
 endif 
@@ -749,18 +753,18 @@ if suffix$="!" then
   for i=0 to fvarnum-1
       if fvariables(i).name=varname$ then j=i : exit
     next i
-  if  j=-1 then t1.result_type=result_error:  t1.uresult=20 : goto 701  ' not found   
+  if  j=-1 then t1.result_type=result_error:  t1.result.uresult=20 : goto 701  ' not found   
   t1.result_type=result_float
-  t1.fresult=m*fvariables(j).value
+  t1.result.fresult=m*fvariables(j).value
   goto 701
 endif 
 
 for i=0 to ivarnum-1
   if ivariables(i).name=varname$ then j=i : exit
 next i
-if  j=-1 then t1.result_type=result_error:  t1.uresult=20 : goto 701  ' not found   
+if  j=-1 then t1.result_type=result_error:  t1.result.uresult=20 : goto 701  ' not found   
 t1.result_type=result_int
-t1.iresult=m*ivariables(j).value
+t1.result.iresult=m*ivariables(j).value
 
 
 
@@ -777,11 +781,11 @@ dim r as integer
 
 t1=expr()
 select case t1.result_type
-  case 0: a1=t1.iresult : r=0
-  case 1: a1=t1.uresult : r=0
-  case 4: a1=round(t1.fresult) : r=0
-  case 5: a1=val(t1.sresult) :r=0
-  case result_error: a1=0: r=t1.uresult
+  case 0: a1=t1.result.iresult : r=0
+  case 1: a1=t1.result.uresult : r=0
+  case 4: a1=round(t1.result.fresult) : r=0
+  case 5: a1=val(t1.result.sresult) :r=0
+  case result_error: a1=0: r=t1.result.uresult
   case else : a1=0 : r=1
 
 end select
@@ -796,131 +800,131 @@ end function
 function do_plus(t1 as expr_result ,t2 as expr_result) as expr_result
 
 
-if t1.result_type=result_uint andalso t2.result_type=result_uint then t1.uresult+=t2.uresult :return t1
-if t1.result_type=result_uint andalso t2.result_type=result_int then t1.iresult=t1.uresult+t2.iresult: t1.result_type=result_int :return t1
-if t1.result_type=result_uint andalso t2.result_type=result_float then t1.fresult=cast(single,t1.uresult)+t2.fresult: t1.result_type=result_float :return t1
-if t1.result_type=result_int andalso t2.result_type=result_uint then t1.iresult+=t2.uresult: return t1
-if t1.result_type=result_int andalso t2.result_type=result_int then t1.iresult+=t2.iresult:return t1
-if t1.result_type=result_int andalso t2.result_type=result_float then t1.fresult=cast(single,t1.iresult)+t2.fresult: t1.result_type=result_float :return t1
-if t1.result_type=result_float andalso t2.result_type=result_uint then t1.fresult=t1.fresult+cast(single,t2.uresult) :return t1
-if t1.result_type=result_float andalso t2.result_type=result_int then t1.fresult=t1.fresult+cast(single,t2.iresult) :return t1
-if t1.result_type=result_float andalso t2.result_type=result_float then t1.fresult+=t2.fresult:return t1
-if t1.result_type=result_string andalso t2.result_type<>result_string then t1.uresult=2 :t1.result_type=result_error:return t1
-if t2.result_type=result_string andalso t1.result_type<>result_string then t1.uresult=2 :t1.result_type=result_error:return t1
-if t1.result_type=result_string andalso t2.result_type=result_string then t1.sresult=t1.sresult+t2.sresult :return t1
-t1.uresult=4 : t1.result_type=result_error: return t1
+if t1.result_type=result_uint andalso t2.result_type=result_uint then t1.result.uresult+=t2.result.uresult :return t1
+if t1.result_type=result_uint andalso t2.result_type=result_int then t1.result.iresult=t1.result.uresult+t2.result.iresult: t1.result_type=result_int :return t1
+if t1.result_type=result_uint andalso t2.result_type=result_float then t1.result.fresult=cast(single,t1.result.uresult)+t2.result.fresult: t1.result_type=result_float :return t1
+if t1.result_type=result_int andalso t2.result_type=result_uint then t1.result.iresult+=t2.result.uresult: return t1
+if t1.result_type=result_int andalso t2.result_type=result_int then t1.result.iresult+=t2.result.iresult:return t1
+if t1.result_type=result_int andalso t2.result_type=result_float then t1.result.fresult=cast(single,t1.result.iresult)+t2.result.fresult: t1.result_type=result_float :return t1
+if t1.result_type=result_float andalso t2.result_type=result_uint then t1.result.fresult=t1.result.fresult+cast(single,t2.result.uresult) :return t1
+if t1.result_type=result_float andalso t2.result_type=result_int then t1.result.fresult=t1.result.fresult+cast(single,t2.result.iresult) :return t1
+if t1.result_type=result_float andalso t2.result_type=result_float then t1.result.fresult+=t2.result.fresult:return t1
+if t1.result_type=result_string andalso t2.result_type<>result_string then t1.result.uresult=2 :t1.result_type=result_error:return t1
+if t2.result_type=result_string andalso t1.result_type<>result_string then t1.result.uresult=2 :t1.result_type=result_error:return t1
+if t1.result_type=result_string andalso t2.result_type=result_string then t1.result.sresult=t1.result.sresult+t2.result.sresult :return t1
+t1.result.uresult=4 : t1.result_type=result_error: return t1
 end function
 
 function do_minus(t1 as expr_result ,t2 as expr_result) as expr_result
 
 if t1.result_type=result_uint andalso t2.result_type=result_uint then 
-    if t2.uresult<t1.uresult then  t1.uresult-=t2.uresult : return t1 else t1.iresult=t1.uresult-t2.uresult : t1.result_type=result_int : return t1
+    if t2.result.uresult<t1.result.uresult then  t1.result.uresult-=t2.result.uresult : return t1 else t1.result.iresult=t1.result.uresult-t2.result.uresult : t1.result_type=result_int : return t1
     endif
-if t1.result_type=result_uint andalso t2.result_type=result_int then t1.iresult=t1.uresult-t2.iresult: t1.result_type=result_int :return t1
-if t1.result_type=result_uint andalso t2.result_type=result_float then t1.fresult=cast(single,t1.uresult)-t2.fresult: t1.result_type=result_float :return t1
-if t1.result_type=result_int andalso t2.result_type=result_uint then t1.iresult-=t2.uresult:return t1
-if t1.result_type=result_int andalso t2.result_type=result_int then t1.iresult-=t2.iresult:return t1
-if t1.result_type=result_int andalso t2.result_type=result_float then t1.fresult=cast(single,t1.iresult)-t2.fresult: t1.result_type=result_float :return t1
-if t1.result_type=result_float andalso t2.result_type=result_uint then t1.fresult=t1.fresult-cast(single,t2.uresult) :return t1
-if t1.result_type=result_float andalso t2.result_type=result_int then t1.fresult=t1.fresult-cast(single,t2.iresult) :return t1
-if t1.result_type=result_float andalso t2.result_type=result_float then t1.fresult-=t2.fresult:return t1
-if t1.result_type=result_string orelse t2.result_type=result_string then t1.uresult=3: t1.result_type=result_error: return t1
-t1.uresult=5 : t1.result_type=result_error:return t1
+if t1.result_type=result_uint andalso t2.result_type=result_int then t1.result.iresult=t1.result.uresult-t2.result.iresult: t1.result_type=result_int :return t1
+if t1.result_type=result_uint andalso t2.result_type=result_float then t1.result.fresult=cast(single,t1.result.uresult)-t2.result.fresult: t1.result_type=result_float :return t1
+if t1.result_type=result_int andalso t2.result_type=result_uint then t1.result.iresult-=t2.result.uresult:return t1
+if t1.result_type=result_int andalso t2.result_type=result_int then t1.result.iresult-=t2.result.iresult:return t1
+if t1.result_type=result_int andalso t2.result_type=result_float then t1.result.fresult=cast(single,t1.result.iresult)-t2.result.fresult: t1.result_type=result_float :return t1
+if t1.result_type=result_float andalso t2.result_type=result_uint then t1.result.fresult=t1.result.fresult-cast(single,t2.result.uresult) :return t1
+if t1.result_type=result_float andalso t2.result_type=result_int then t1.result.fresult=t1.result.fresult-cast(single,t2.result.iresult) :return t1
+if t1.result_type=result_float andalso t2.result_type=result_float then t1.result.fresult-=t2.result.fresult:return t1
+if t1.result_type=result_string orelse t2.result_type=result_string then t1.result.uresult=3: t1.result_type=result_error: return t1
+t1.result.uresult=5 : t1.result_type=result_error:return t1
 end function
 
 function do_and(t1 as expr_result ,t2 as expr_result) as expr_result
 
-if t1.result_type=result_int then t1.uresult=cast(ulong,t1.iresult) : t1.result_type=result_uint
-if t2.result_type=result_int then t2.uresult=cast(ulong,t2.iresult) : t2.result_type=result_uint
-if t1.result_type=result_string orelse t2.result_type=result_string orelse t1.result_type=result_float orelse t2.result_type=result_float then t1.uresult=6: t1.result_type=result_error: return t1
-t1.uresult=t1.uresult and t2.uresult :return t1
-t1.uresult=7 : t1.result_type=result_error:return t1
+if t1.result_type=result_int then t1.result.uresult=cast(ulong,t1.result.iresult) : t1.result_type=result_uint
+if t2.result_type=result_int then t2.result.uresult=cast(ulong,t2.result.iresult) : t2.result_type=result_uint
+if t1.result_type=result_string orelse t2.result_type=result_string orelse t1.result_type=result_float orelse t2.result_type=result_float then t1.result.uresult=6: t1.result_type=result_error: return t1
+t1.result.uresult=t1.result.uresult and t2.result.uresult :return t1
+t1.result.uresult=7 : t1.result_type=result_error:return t1
 end function
 
 function do_or(t1 as expr_result ,t2 as expr_result) as expr_result
-if t1.result_type=result_int then t1.uresult=cast(ulong,t1.iresult) : t1.result_type=result_uint
-if t2.result_type=result_int then t2.uresult=cast(ulong,t2.iresult) : t2.result_type=result_uint
-if t1.result_type=result_string orelse t2.result_type=result_string orelse t1.result_type=result_float orelse t2.result_type=result_float then t1.uresult=6: t1.result_type=result_error: return t1
-t1.uresult=t1.uresult or t2.uresult :return t1
-t1.uresult=7 : t1.result_type=result_error:return t1
+if t1.result_type=result_int then t1.result.uresult=cast(ulong,t1.result.iresult) : t1.result_type=result_uint
+if t2.result_type=result_int then t2.result.uresult=cast(ulong,t2.result.iresult) : t2.result_type=result_uint
+if t1.result_type=result_string orelse t2.result_type=result_string orelse t1.result_type=result_float orelse t2.result_type=result_float then t1.result.uresult=6: t1.result_type=result_error: return t1
+t1.result.uresult=t1.result.uresult or t2.result.uresult :return t1
+t1.result.uresult=7 : t1.result_type=result_error:return t1
 end function
 
 function do_mul(t1 as expr_result ,t2 as expr_result) as expr_result
 
-if t1.result_type=result_uint andalso t2.result_type=result_uint then t1.uresult*=t2.uresult :return t1
-if t1.result_type=result_uint andalso t2.result_type=result_int then t1.iresult=t1.uresult*t2.iresult: t1.result_type=result_int :return t1
-if t1.result_type=result_uint andalso t2.result_type=result_float then t1.fresult=cast(single,t1.uresult)*t2.fresult: t1.result_type=result_float :return t1
-if t1.result_type=result_int andalso t2.result_type=result_uint then t1.iresult*=t2.uresult:return t1
-if t1.result_type=result_int andalso t2.result_type=result_int then t1.iresult*=t2.iresult:return t1
-if t1.result_type=result_int andalso t2.result_type=result_float then t1.fresult=cast(single,t1.iresult)*t2.fresult: t1.result_type=result_float :return t1
-if t1.result_type=result_float andalso t2.result_type=result_uint then t1.fresult=t1.fresult*cast(single,t2.uresult) :return t1
-if t1.result_type=result_float andalso t2.result_type=result_int then t1.fresult=t1.fresult*cast(single,t2.iresult) :return t1
-if t1.result_type=result_float andalso t2.result_type=result_float then t1.fresult*=t2.fresult:return t1
-if t1.result_type=result_string orelse t2.result_type=result_string then t1.uresult=8: t1.result_type=result_error: return t1
-t1.uresult=9 : t1.result_type=result_error:return t1
+if t1.result_type=result_uint andalso t2.result_type=result_uint then t1.result.uresult*=t2.result.uresult :return t1
+if t1.result_type=result_uint andalso t2.result_type=result_int then t1.result.iresult=t1.result.uresult*t2.result.iresult: t1.result_type=result_int :return t1
+if t1.result_type=result_uint andalso t2.result_type=result_float then t1.result.fresult=cast(single,t1.result.uresult)*t2.result.fresult: t1.result_type=result_float :return t1
+if t1.result_type=result_int andalso t2.result_type=result_uint then t1.result.iresult*=t2.result.uresult:return t1
+if t1.result_type=result_int andalso t2.result_type=result_int then t1.result.iresult*=t2.result.iresult:return t1
+if t1.result_type=result_int andalso t2.result_type=result_float then t1.result.fresult=cast(single,t1.result.iresult)*t2.result.fresult: t1.result_type=result_float :return t1
+if t1.result_type=result_float andalso t2.result_type=result_uint then t1.result.fresult=t1.result.fresult*cast(single,t2.result.uresult) :return t1
+if t1.result_type=result_float andalso t2.result_type=result_int then t1.result.fresult=t1.result.fresult*cast(single,t2.result.iresult) :return t1
+if t1.result_type=result_float andalso t2.result_type=result_float then t1.result.fresult*=t2.result.fresult:return t1
+if t1.result_type=result_string orelse t2.result_type=result_string then t1.result.uresult=8: t1.result_type=result_error: return t1
+t1.result.uresult=9 : t1.result_type=result_error:return t1
 end function
 
 function do_div(t1 as expr_result ,t2 as expr_result) as expr_result
-if t1.result_type=result_string orelse t2.result_type=result_string then t1.uresult=10: t1.result_type=result_error: return t1
-if t1.result_type=result_float then t1.result_type=result_int : t1.iresult=cast(integer,t1.fresult)
-if t2.result_type=result_float then t2.result_type=result_int : t2.iresult=cast(integer,t2.fresult)
-if t1.result_type=result_uint andalso t2.result_type=result_uint then t1.uresult/=t2.uresult :return t1
-if t1.result_type=result_uint andalso t2.result_type=result_int then t1.iresult=t1.uresult/t2.iresult: t1.result_type=result_int :return t1
-if t1.result_type=result_int andalso t2.result_type=result_uint then t1.iresult/=t2.uresult :return t1
-if t1.result_type=result_int andalso t2.result_type=result_int then t1.iresult=t1.iresult/t2.iresult: return t1
-t1.uresult=11 : t1.result_type=result_error:return t1
+if t1.result_type=result_string orelse t2.result_type=result_string then t1.result.uresult=10: t1.result_type=result_error: return t1
+if t1.result_type=result_float then t1.result_type=result_int : t1.result.iresult=cast(integer,t1.result.fresult)
+if t2.result_type=result_float then t2.result_type=result_int : t2.result.iresult=cast(integer,t2.result.fresult)
+if t1.result_type=result_uint andalso t2.result_type=result_uint then t1.result.uresult/=t2.result.uresult :return t1
+if t1.result_type=result_uint andalso t2.result_type=result_int then t1.result.iresult=t1.result.uresult/t2.result.iresult: t1.result_type=result_int :return t1
+if t1.result_type=result_int andalso t2.result_type=result_uint then t1.result.iresult/=t2.result.uresult :return t1
+if t1.result_type=result_int andalso t2.result_type=result_int then t1.result.iresult=t1.result.iresult/t2.result.iresult: return t1
+t1.result.uresult=11 : t1.result_type=result_error:return t1
 end function
 
 function do_fdiv(t1 as expr_result ,t2 as expr_result) as expr_result
 
-if t1.result_type=result_string orelse t2.result_type=result_string then t1.uresult=10: t1.result_type=result_error: return t1
-if t1.result_type=result_int then t1.result_type=result_float : t1.fresult=cast(single,t1.iresult) 
-if t1.result_type=result_uint then t1.result_type=result_float : t1.fresult=cast(single,t1.uresult) 
-if t2.result_type=result_int then t2.result_type=result_float : t2.fresult=cast(single,t2.iresult) 
-if t2.result_type=result_uint then t2.result_type=result_float : t2.fresult=cast(single,t2.uresult) 
-if t1.result_type=result_float andalso t2.result_type=result_float then t1.fresult/=t2.fresult:return t1
-t1.uresult=11 : t1.result_type=result_error:return t1
+if t1.result_type=result_string orelse t2.result_type=result_string then t1.result.uresult=10: t1.result_type=result_error: return t1
+if t1.result_type=result_int then t1.result_type=result_float : t1.result.fresult=cast(single,t1.result.iresult) 
+if t1.result_type=result_uint then t1.result_type=result_float : t1.result.fresult=cast(single,t1.result.uresult) 
+if t2.result_type=result_int then t2.result_type=result_float : t2.result.fresult=cast(single,t2.result.iresult) 
+if t2.result_type=result_uint then t2.result_type=result_float : t2.result.fresult=cast(single,t2.result.uresult) 
+if t1.result_type=result_float andalso t2.result_type=result_float then t1.result.fresult/=t2.result.fresult:return t1
+t1.result.uresult=11 : t1.result_type=result_error:return t1
 return t1
 end function
 
 function do_mod(t1 as expr_result ,t2 as expr_result) as expr_result
 
-if t1.result_type=result_string orelse t2.result_type=result_string then t1.uresult=10: t1.result_type=result_error: return t1
-if t1.result_type=result_float then t1.result_type=result_int : t1.iresult=cast(integer,t1.fresult)
-if t2.result_type=result_float then t2.result_type=result_int : t2.iresult=cast(integer,t2.fresult)
-if t1.result_type=result_uint andalso t2.result_type=result_uint then t1.uresult=t1.uresult mod t2.uresult :return t1
-if t1.result_type=result_uint andalso t2.result_type=result_int then t1.iresult=t1.uresult mod t2.iresult: t1.result_type=result_int :return t1
-if t1.result_type=result_int andalso t2.result_type=result_uint then t1.iresult=t1.iresult mod t2.uresult :return t1
-if t1.result_type=result_int andalso t2.result_type=result_int then t1.iresult=t1.iresult mod t2.iresult: return t1
-t1.uresult=11 : t1.result_type=result_error:return t1
+if t1.result_type=result_string orelse t2.result_type=result_string then t1.result.uresult=10: t1.result_type=result_error: return t1
+if t1.result_type=result_float then t1.result_type=result_int : t1.result.iresult=cast(integer,t1.result.fresult)
+if t2.result_type=result_float then t2.result_type=result_int : t2.result.iresult=cast(integer,t2.result.fresult)
+if t1.result_type=result_uint andalso t2.result_type=result_uint then t1.result.uresult=t1.result.uresult mod t2.result.uresult :return t1
+if t1.result_type=result_uint andalso t2.result_type=result_int then t1.result.iresult=t1.result.uresult mod t2.result.iresult: t1.result_type=result_int :return t1
+if t1.result_type=result_int andalso t2.result_type=result_uint then t1.result.iresult=t1.result.iresult mod t2.result.uresult :return t1
+if t1.result_type=result_int andalso t2.result_type=result_int then t1.result.iresult=t1.result.iresult mod t2.result.iresult: return t1
+t1.result.uresult=11 : t1.result_type=result_error:return t1
 end function
 
 function do_shl(t1 as expr_result ,t2 as expr_result) as expr_result
 
-if t1.result_type=result_int then t1.uresult=cast(ulong,t1.iresult) : t1.result_type=result_uint
-if t2.result_type=result_int then t2.uresult=cast(ulong,t2.iresult) : t2.result_type=result_uint
-if t1.result_type=result_string orelse t2.result_type=result_string orelse t1.result_type=result_float orelse t2.result_type=result_float then t1.uresult=6: t1.result_type=result_error: return t1
-t1.uresult=t1.uresult shl t2.uresult :return t1
-t1.uresult=7 : t1.result_type=result_error:return t1
+if t1.result_type=result_int then t1.result.uresult=cast(ulong,t1.result.iresult) : t1.result_type=result_uint
+if t2.result_type=result_int then t2.result.uresult=cast(ulong,t2.result.iresult) : t2.result_type=result_uint
+if t1.result_type=result_string orelse t2.result_type=result_string orelse t1.result_type=result_float orelse t2.result_type=result_float then t1.result.uresult=6: t1.result_type=result_error: return t1
+t1.result.uresult=t1.result.uresult shl t2.result.uresult :return t1
+t1.result.uresult=7 : t1.result_type=result_error:return t1
 end function
 
 function do_shr(t1 as expr_result ,t2 as expr_result) as expr_result
 
-if t1.result_type=result_int then t1.uresult=cast(ulong,t1.iresult) : t1.result_type=result_uint
-if t2.result_type=result_int then t2.uresult=cast(ulong,t2.iresult) : t2.result_type=result_uint
-if t1.result_type=result_string orelse t2.result_type=result_string orelse t1.result_type=result_float orelse t2.result_type=result_float then t1.uresult=6: t1.result_type=result_error: return t1
-t1.uresult=t1.uresult shr t2.uresult :return t1
-t1.uresult=7 : t1.result_type=result_error:return t1
+if t1.result_type=result_int then t1.result.uresult=cast(ulong,t1.result.iresult) : t1.result_type=result_uint
+if t2.result_type=result_int then t2.result.uresult=cast(ulong,t2.result.iresult) : t2.result_type=result_uint
+if t1.result_type=result_string orelse t2.result_type=result_string orelse t1.result_type=result_float orelse t2.result_type=result_float then t1.result.uresult=6: t1.result_type=result_error: return t1
+t1.result.uresult=t1.result.uresult shr t2.result.uresult :return t1
+t1.result.uresult=7 : t1.result_type=result_error:return t1
 end function
 
 function do_power(t1 as expr_result ,t2 as expr_result) as expr_result
-if t1.result_type=result_string orelse t2.result_type=result_string then t1.uresult=12: t1.result_type=result_error: return t1
-if t1.result_type=result_int then t1.result_type=result_float : t1.fresult=cast(single,t1.iresult) 
-if t1.result_type=result_uint then t1.result_type=result_float : t1.fresult=cast(single,t1.uresult) 
-if t2.result_type=result_int then t2.result_type=result_float : t2.fresult=cast(single,t2.iresult) 
-if t2.result_type=result_uint then t2.result_type=result_float : t2.fresult=cast(single,t2.uresult) 
-if t1.result_type=result_float andalso t2.result_type=result_float then t1.fresult=t1.fresult^t2.fresult:return t1
-t1.uresult=13 : t1.result_type=result_error:return t1
+if t1.result_type=result_string orelse t2.result_type=result_string then t1.result.uresult=12: t1.result_type=result_error: return t1
+if t1.result_type=result_int then t1.result_type=result_float : t1.result.fresult=cast(single,t1.result.iresult) 
+if t1.result_type=result_uint then t1.result_type=result_float : t1.result.fresult=cast(single,t1.result.uresult) 
+if t2.result_type=result_int then t2.result_type=result_float : t2.result.fresult=cast(single,t2.result.iresult) 
+if t2.result_type=result_uint then t2.result_type=result_float : t2.result.fresult=cast(single,t2.result.uresult) 
+if t1.result_type=result_float andalso t2.result_type=result_float then t1.result.fresult=t1.result.fresult^t2.result.fresult:return t1
+t1.result.uresult=13 : t1.result_type=result_error:return t1
 return t1
 end function
 
@@ -933,7 +937,7 @@ sub do_plot
 dim t1,t2 as expr_result
 dim a1,a2 as integer
 ct=1 ' ct should be a parameter
-t1=expr() ': print "ct= "; ct, "result=";t1.uresult,"result type= ",t1.result_type
+t1=expr() ': print "ct= "; ct, "result=";t1.result.uresult,"result type= ",t1.result_type
 if lparts(ct).token<> token_comma then 
    print"  Error" ' todo: error codes etc
 else
@@ -941,16 +945,16 @@ else
   t2=expr()
 endif
 select case t1.result_type
-  case 0: a1=t1.iresult
-  case 1: a1=t1.uresult
-  case 4: a1=round(t1.fresult)
-  case 5: a1=val(t1.sresult)
+  case 0: a1=t1.result.iresult
+  case 1: a1=t1.result.uresult
+  case 4: a1=round(t1.result.fresult)
+  case 5: a1=val(t1.result.sresult)
 end select
 select case t2.result_type
-  case 0: a2=t2.iresult
-  case 1: a2=t2.uresult
-  case 4: a2=round(t2.fresult)
-  case 5: a2=val(t2.sresult)
+  case 0: a2=t2.result.iresult
+  case 1: a2=t2.result.uresult
+  case 4: a2=round(t2.result.fresult)
+  case 5: a2=val(t2.result.sresult)
 end select 
 plot_x=a1
 plot_y=a2
@@ -972,24 +976,24 @@ ct=1
 if lparts(ct).token=token_end then print: print space$(editor_spaces) : goto 811
 do
 t1=expr()
-  if t1.result_type=result_error then printerror(t1.uresult): goto 811
+  if t1.result_type=result_error then printerror(t1.result.uresult): goto 811
 if lparts(ct).token=token_comma then
-  if t1.result_type=result_int then print t1.iresult,
-  if t1.result_type=result_uint then print t1.uresult,
-  if t1.result_type=result_float then print t1.fresult,
-  if t1.result_type=result_string then print t1.sresult,
+  if t1.result_type=result_int then print t1.result.iresult,
+  if t1.result_type=result_uint then print t1.result.uresult,
+  if t1.result_type=result_float then print t1.result.fresult,
+  if t1.result_type=result_string then print t1.result.sresult,
 endif  
 if lparts(ct).token=token_semicolon then 
-  if t1.result_type=result_int then print t1.iresult;
-  if t1.result_type=result_uint then print t1.uresult;
-  if t1.result_type=result_float then print t1.fresult;
-  if t1.result_type=result_string then print t1.sresult;
+  if t1.result_type=result_int then print t1.result.iresult;
+  if t1.result_type=result_uint then print t1.result.uresult;
+  if t1.result_type=result_float then print t1.result.fresult;
+  if t1.result_type=result_string then print t1.result.sresult;
 endif
 if lparts(ct).token=token_end then 
-  if t1.result_type=result_int then print t1.iresult
-  if t1.result_type=result_uint then print t1.uresult
-  if t1.result_type=result_float then print t1.fresult
-  if t1.result_type=result_string then print t1.sresult
+  if t1.result_type=result_int then print t1.result.iresult
+  if t1.result_type=result_uint then print t1.result.uresult
+  if t1.result_type=result_float then print t1.result.fresult
+  if t1.result_type=result_string then print t1.result.sresult
 endif 
 if lparts(ct).token=token_end then goto 811
 if lparts(ct).token <>token_comma andalso lparts(ct).token <>token_semicolon andalso lparts(ct).token <>token_end then print "Error: ";lparts(ct).part$ :goto 811 
@@ -1006,24 +1010,24 @@ sub do_draw
 dim t1,t2 as expr_result
 dim a1,a2 as integer
 ct=1 ' ct should be a parameter
-t1=expr()' : print "ct= "; ct, "result=";t1.uresult,"result type= ",t1.result_type
+t1=expr()' : print "ct= "; ct, "result=";t1.result.uresult,"result type= ",t1.result_type
 if lparts(ct).token<> token_comma then 
    print"  Error" ' todo: error codes etc
 else
   ct+=1
-  t2=expr() ': print "ct= "; ct, "result=";t1.uresult,"result type= ",t1.result_type
+  t2=expr() ': print "ct= "; ct, "result=";t1.result.uresult,"result type= ",t1.result_type
 endif
 select case t1.result_type
-  case 0: a1=t1.iresult
-  case 1: a1=t1.uresult
-  case 4: a1=round(t1.fresult)
-  case 5: a1=val(t1.sresult)
+  case 0: a1=t1.result.iresult
+  case 1: a1=t1.result.uresult
+  case 4: a1=round(t1.result.fresult)
+  case 5: a1=val(t1.result.sresult)
 end select
 select case t2.result_type
-  case 0: a2=t2.iresult
-  case 1: a2=t2.uresult
-  case 4: a2=round(t2.fresult)
-  case 5: a2=val(t2.sresult)
+  case 0: a2=t2.result.iresult
+  case 1: a2=t2.result.uresult
+  case 4: a2=round(t2.result.fresult)
+  case 5: a2=val(t2.result.sresult)
 end select 
 
 v.draw(plot_x,plot_y,a1,a2,plot_color) 
@@ -1037,10 +1041,10 @@ sub do_fcircle
 dim t1,t2,t3 as expr_result
 dim a1,a2,a3 as integer
 ct=1 ' ct should be a parameter
-t1=expr()' : print "ct= "; ct, "result=";t1.uresult,"result type= ",t1.result_type
+t1=expr()' : print "ct= "; ct, "result=";t1.result.uresult,"result type= ",t1.result_type
 if lparts(ct).token<> token_comma then goto 800
 ct+=1
-t2=expr() ': print "ct= "; ct, "result=";t1.uresult,"result type= ",t1.result_type
+t2=expr() ': print "ct= "; ct, "result=";t1.result.uresult,"result type= ",t1.result_type
 if lparts(ct).token<> token_comma then goto 800
 ct+=1
 t3=expr()
@@ -1048,22 +1052,22 @@ t3=expr()
 
 
 select case t1.result_type
-  case 0: a1=t1.iresult
-  case 1: a1=t1.uresult
-  case 4: a1=round(t1.fresult)
-  case 5: a1=val(t1.sresult)
+  case 0: a1=t1.result.iresult
+  case 1: a1=t1.result.uresult
+  case 4: a1=round(t1.result.fresult)
+  case 5: a1=val(t1.result.sresult)
 end select
 select case t2.result_type
-  case 0: a2=t2.iresult
-  case 1: a2=t2.uresult
-  case 4: a2=round(t2.fresult)
-  case 5: a2=val(t2.sresult)
+  case 0: a2=t2.result.iresult
+  case 1: a2=t2.result.uresult
+  case 4: a2=round(t2.result.fresult)
+  case 5: a2=val(t2.result.sresult)
 end select 
 select case t3.result_type
-  case 0: a3=t3.iresult
-  case 1: a3=t3.uresult
-  case 4: a3=round(t3.fresult)
-  case 5: a3=val(t3.sresult)
+  case 0: a3=t3.result.iresult
+  case 1: a3=t3.result.uresult
+  case 4: a3=round(t3.result.fresult)
+  case 5: a3=val(t3.result.sresult)
 end select 
 v.fcircle(a1,a2,a3,plot_color) 
  

@@ -500,7 +500,7 @@ end function
 function execute(pos as integer) as integer
 
 'dim testptr as any pointer
-var testptr=@do_fcircle  : print testptr
+var testptr=varptr(do_fcircle)  : print testptr : print lpeek(testptr)
 
 let cmd=lparts(pos).token
 ct=pos+1
@@ -510,7 +510,10 @@ case token_new      : cls : position 4,1 : print ver$ : print :test_log(test_log
 case token_plot     : do_plot  : test_log(test_log_idx)="Called plot" : test_log_idx+=1 :print: for i=0 to test_log_idx-1: print test_log(i): next i : test_log_idx=0: return -1
 case token_draw	    : do_draw  : test_log(test_log_idx)="Called draw" : test_log_idx+=1 :print: for i=0 to test_log_idx-1: print test_log(i): next i : test_log_idx=0: return -1
 case token_fcircle 
-     testptr
+  '   testptr(0)()
+  asm
+  call testptr
+  end asm
      test_log(test_log_idx)="Called fcircle" : test_log_idx+=1 :print: for i=0 to test_log_idx-1: print test_log(i): next i : test_log_idx=0: return -1  
 case token_color    : do_color :test_log(test_log_idx)="Called color" : test_log_idx+=1 :print: for i=0 to test_log_idx-1: print test_log(i): next i : test_log_idx=0: return -1  
 case token_print    : do_print :test_log(test_log_idx)="Called print" : test_log_idx+=1 :print: for i=0 to test_log_idx-1: print test_log(i): next i : test_log_idx=0: return -1  
