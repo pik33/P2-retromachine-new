@@ -145,6 +145,10 @@ dim editor_spaces as integer
 dim paper,ink as integer
 dim ct as integer
 
+
+dim test_log(125) as string
+dim test_log_idx as integer
+
 '----------------------------------------------------------------------------
 '-----------------------------Program start ---------------------------------
 '----------------------------------------------------------------------------
@@ -171,7 +175,7 @@ dim key , key2 as ulong
  
 dim errors$(255)
 init_error_strings
- 
+test_log_idx=0 
  
  
 '-------------------------------------------------------------------------------------------------------- 
@@ -495,17 +499,25 @@ end function
 
 function execute(pos as integer) as integer
 
+dim testptr as any pointer
+testptr=@do_fcircle : print testptr
+
 let cmd=lparts(pos).token
 ct=pos+1
 select case cmd
-case token_cls      : cls : print "" : return -1
-case token_new      : cls : position 4,1 : print ver$ : print :return -1
-case token_plot     : do_plot  : return -1
-case token_draw	    : do_draw  : return -1
-case token_fcircle  : do_fcircle : return -1  
-case token_color    : do_color :return -1  
-case token_print    : do_print :return -1  
+case token_cls      : cls : print "" : test_log(test_log_idx)="Called cls" : test_log_idx+=1 : print: for i=0 to test_log_idx-1: print test_log(i): next i : test_log_idx=0: return -1
+case token_new      : cls : position 4,1 : print ver$ : print :test_log(test_log_idx)="Called new" : test_log_idx+=1 :print: for i=0 to test_log_idx-1: print test_log(i): next i : test_log_idx=0: return -1
+case token_plot     : do_plot  : test_log(test_log_idx)="Called plot" : test_log_idx+=1 :print: for i=0 to test_log_idx-1: print test_log(i): next i : test_log_idx=0: return -1
+case token_draw	    : do_draw  : test_log(test_log_idx)="Called draw" : test_log_idx+=1 :print: for i=0 to test_log_idx-1: print test_log(i): next i : test_log_idx=0: return -1
+case token_fcircle 
+     asm
+     call testptr
+     end asm  
+     test_log(test_log_idx)="Called fcircle" : test_log_idx+=1 :print: for i=0 to test_log_idx-1: print test_log(i): next i : test_log_idx=0: return -1  
+case token_color    : do_color :test_log(test_log_idx)="Called color" : test_log_idx+=1 :print: for i=0 to test_log_idx-1: print test_log(i): next i : test_log_idx=0: return -1  
+case token_print    : do_print :test_log(test_log_idx)="Called print" : test_log_idx+=1 :print: for i=0 to test_log_idx-1: print test_log(i): next i : test_log_idx=0: return -1  
 end select
+print: for i=0 to test_log_idx-1: print test_log(i): next i : test_log_idx=0
 end function
 
 '-------------------------------------------------------------------------------------
@@ -536,10 +548,12 @@ if suffix$<>"$" andalso suffix$<>"!" andalso suffix$<>"%" andalso t1.result_type
 if suffix$="$"  then
   if svarnum>0 then
     for i=0 to svarnum-1
-      if svariables(i).name=varname$ then j=i : exit
+      if svariables(i).name=varname$ then j=i :       test_log(test_log_idx)="Assigned to a string variable # "+ j : test_log_idx+=1 : exit
     next i
   endif
 if  j=-1 andalso svarnum<maxvars then   
+      test_log(test_log_idx)="Created and assigned a string variable # "+svarnum : test_log_idx+=1 
+
   svariables(svarnum).name=varname$
   svariables(svarnum).value=t1.sresult
   svarnum+=1
@@ -552,12 +566,14 @@ endif
 if suffix$<>"$" andalso suffix$<>"!" andalso suffix$<>"%"  then
   if ivarnum>0 then
     for i=0 to ivarnum-1
-      if ivariables(i).name=varname$ then j=i : exit
+      if ivariables(i).name=varname$ then j=i : test_log(test_log_idx)="Assigned to an integer variable # "+j : test_log_idx+=1 :exit
     next i
   endif
 if  j=-1 andalso ivarnum<maxvars then   
   ivariables(ivarnum).name=varname$
   ivariables(ivarnum).value=t1.iresult
+  test_log(test_log_idx)="Created and assigned an integer variable # "+ivarnum : test_log_idx+=1 
+
   ivarnum+=1
 else if j>-1 then   
   ivariables(j).value=t1.iresult
@@ -568,12 +584,14 @@ endif
 if suffix$="%" then
   if uvarnum>0 then
     for i=0 to uvarnum-1
-      if uvariables(i).name=varname$ then j=i : exit
+      if uvariables(i).name=varname$ then j=i : test_log(test_log_idx)="Assigned to an integer variable # "+j : test_log_idx+=1 :exit
     next i
   endif
 if  j=-1 andalso uvarnum<maxvars then   
   uvariables(uvarnum).name=varname$
   uvariables(uvarnum).value=t1.uresult
+          test_log(test_log_idx)="Created and assigned an uint variable # "+uvarnum : test_log_idx+=1 
+
   uvarnum+=1
 else if j>-1 then
   uvariables(j).value=t1.uresult
@@ -583,19 +601,23 @@ endif
 if suffix$="!" then
   if fvarnum>0 then
     for i=0 to fvarnum-1
-      if fvariables(i).name=varname$ then j=i : exit
+      if fvariables(i).name=varname$ then j=i : test_log(test_log_idx)="Assigned to a float variable # "+j : test_log_idx+=1 : exit
     next i
   endif
 if  j=-1 andalso fvarnum<maxvars then   
   fvariables(fvarnum).name=varname$
   fvariables(fvarnum).value=t1.fresult
+           test_log(test_log_idx)="Created and assigned a float variable # "+fvarnum : test_log_idx+=1 
+
   fvarnum+=1
 else if j>-1 then
   fvariables(j).value=t1.fresult
 else printerror(19) : goto 501
 endif   
 
-501 end sub
+501 
+print:for i=0 to test_log_idx-1: print test_log(i): next i :test_log_idx=0
+end sub
 
 
 
@@ -621,10 +643,10 @@ do while (op = token_plus orelse op = token_minus orelse op = token_and orelse o
   t2 = muldiv() 
   if t2.result_type=result_error then return t2
   select case op
-    case token_plus    : t1=do_plus(t1,t2)
-    case token_minus   : t1=do_minus(t1,t2)
-    case token_and     : t1=do_and(t1,t2)
-    case token_or      : t1=do_or(t1,t2)
+    case token_plus    : t1=do_plus(t1,t2)  :test_log(test_log_idx)="Called do_plus" : test_log_idx+=1 
+    case token_minus   : t1=do_minus(t1,t2) :test_log(test_log_idx)="Called do_plus" : test_log_idx+=1 
+    case token_and     : t1=do_and(t1,t2)   :test_log(test_log_idx)="Called do_plus" : test_log_idx+=1 
+    case token_or      : t1=do_or(t1,t2)    :test_log(test_log_idx)="Called do_plus" : test_log_idx+=1 
   end select  
   op = lparts(ct).token
   loop
@@ -647,19 +669,19 @@ do while (op = token_mul orelse op = token_div orelse op = token_fdiv orelse op=
   if t2.result_type=result_error then return t2
   select case op
     case token_mul
-      t1=do_mul(t1,t2)
+      t1=do_mul(t1,t2)  :test_log(test_log_idx)="Called do_mul" : test_log_idx+=1 
     case token_div
-      t1=do_div(t1,t2)
+      t1=do_div(t1,t2)  :test_log(test_log_idx)="Called do_div" : test_log_idx+=1 
     case token_fdiv
-      t1=do_fdiv(t1,t2)
+      t1=do_fdiv(t1,t2) :test_log(test_log_idx)="Called do_fdiv" : test_log_idx+=1 
     case token_mod
-      t1=do_mod(t1,t2)
+      t1=do_mod(t1,t2)  :test_log(test_log_idx)="Called do_mod" : test_log_idx+=1 
     case token_shl
-      t1=do_shl(t1,t2)
+      t1=do_shl(t1,t2)  :test_log(test_log_idx)="Called do_shl" : test_log_idx+=1 
     case token_shr
-      t1=do_shr(t1,t2)
+      t1=do_shr(t1,t2)  :test_log(test_log_idx)="Called do_shr" : test_log_idx+=1 
     case token_power
-      t1=do_power(t1,t2)
+      t1=do_power(t1,t2) :test_log(test_log_idx)="Called do_power" : test_log_idx+=1 
   end select  
   op = lparts(ct).token
   loop
@@ -679,16 +701,25 @@ select case op
   case token_decimal
     if m=1 then t1.uresult=m*val%(lparts(ct).part$): t1.result_type=result_uint ' todo token_int64
     if m=-1 then t1.iresult=m*val%(lparts(ct).part$): t1.result_type=result_int ' todo token_int64
+    test_log(test_log_idx)="Got an uint constant" : test_log_idx+=1 
   case token_integer
     t1.iresult=m*val%(lparts(ct).part$)
     t1.result_type=0  
+        test_log(test_log_idx)="Got an int constant" : test_log_idx+=1 
+
   case token_float
     if m=1 then t1.fresult=1.0*val(lparts(ct).part$): t1.result_type=4  
     if m=-1 then t1.fresult=-1.0*val(lparts(ct).part$): t1.result_type=4  
+        test_log(test_log_idx)="Got a float constant" : test_log_idx+=1 
+
   case token_string
     t1.sresult=lparts(ct).part$: t1.result_type=5  
+        test_log(test_log_idx)="Got a string constant" : test_log_idx+=1 
+
   case token_name  '' we may got token with var or fun # after evaluation (?) 
     t1=getvar(m)
+ '       test_log(test_log_idx)="Called getvar" : test_log_idx+=1 
+
   case token_lpar
     ct+=1
     t1=expr()
@@ -724,6 +755,9 @@ if suffix$="$" then
   if  j=-1 then t1.result_type=result_error:  t1.uresult=20 : goto 701  ' not found   
   t1.result_type=result_string
   t1.sresult=svariables(j).value
+      test_log(test_log_idx)="Retrieved a string variable # "+j : test_log_idx+=1 
+
+
   goto 701
 endif  
   
@@ -735,9 +769,13 @@ if suffix$="%" then
   if m=1 then
     t1.result_type=result_uint
     t1.uresult=uvariables(j).value
+          test_log(test_log_idx)="Retrieved an uint variable # "+j : test_log_idx+=1 
+
   else
     t1.result_type=result_int
-    t1.uresult=m*uvariables(j).value   
+    t1.uresult=m*uvariables(j).value  
+          test_log(test_log_idx)="Retrieved and negated an uint variable # "+j : test_log_idx+=1 
+ 
   endif  
   goto 701
 endif 
@@ -749,6 +787,8 @@ if suffix$="!" then
   if  j=-1 then t1.result_type=result_error:  t1.uresult=20 : goto 701  ' not found   
   t1.result_type=result_float
   t1.fresult=m*fvariables(j).value
+        test_log(test_log_idx)="Retrieved a float variable # "+j : test_log_idx+=1 
+
   goto 701
 endif 
 
@@ -758,6 +798,7 @@ next i
 if  j=-1 then t1.result_type=result_error:  t1.uresult=20 : goto 701  ' not found   
 t1.result_type=result_int
 t1.iresult=m*ivariables(j).value
+      test_log(test_log_idx)="Retrieved an int variable # "+j : test_log_idx+=1 
 
 
 
