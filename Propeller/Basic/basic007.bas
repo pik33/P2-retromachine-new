@@ -89,12 +89,12 @@ class part
   dim token as integer
 end class
 
-  union aresult
+union aresult
   dim iresult as integer
   dim uresult as ulong
   dim sresult as string
   dim fresult as double
-  end union
+end union
   
 class expr_result
   dim result as aresult
@@ -152,6 +152,8 @@ dim paper,ink as integer
 dim ct as integer
 dim progend as integer
 dim stack(128) as part
+dim stackpointer as integer
+
 '----------------------------------------------------------------------------
 '-----------------------------Program start ---------------------------------
 '----------------------------------------------------------------------------
@@ -178,7 +180,8 @@ dim key , key2 as ulong
  
 dim errors$(255)
 init_error_strings
- 
+stackpointer=0
+dim functionpointers(255) as ulong
  
  
 '-------------------------------------------------------------------------------------------------------- 
