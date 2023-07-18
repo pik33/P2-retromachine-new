@@ -18,7 +18,7 @@ dim paula as class using "audio093b-8-sc.spin2"
 
 #include "dir.bi"
 
-const ver$="P2 Retromachine BASIC version 0.07"
+const ver$="P2 Retromachine BASIC version 0.08"
 
 ' ----------------------- Tokens -----------------------------------------
 
@@ -51,6 +51,7 @@ const fun_getivar=17
 const fun_getuvar=18
 const fun_getfvar=19
 const fun_getsvar=20
+const fun_pushconst=21
 
 const token_assign_eq=23
 const token_assign_sub=24
@@ -90,7 +91,7 @@ const result_string=5
 const result_error=6
 
 const maxvars=1023
-
+const maxstack=128
 class part
   dim part$ as string
   dim token as integer
@@ -158,11 +159,12 @@ dim editor_spaces as integer
 dim paper,ink as integer
 dim ct as integer
 dim progend as integer
-dim stack(128) as expr_result
+dim stack(maxstack) as expr_result
 dim stackpointer as integer
 
 type asub as sub()
 dim commands(255) as asub
+dim valuetopush as expr_result 
 
 commands(token_plus)=@do_plus
 commands(token_minus)=@do_minus
@@ -182,6 +184,7 @@ commands(token_power)=@do_power
 'commands(fun_getuvar)=@do_getuvar
 'commands(fun_getfvar)=@do_getfvar
 'commands(fun_getsvar)=@do_getsvar
+'commands(fun_pushconst)=@do_pushconst
 
 'commands(token_assign_eq)=@do_assign
 
@@ -552,10 +555,10 @@ end function
 
 
 function push(t1 as expr_result) as integer
-if stackptr>=max_stack then return -1
-stack(stackptr)=t1
-stackptr+=1
-return stackptr
+if stackpointer>=maxstack then return -1
+stack(stackpointer)=t1
+stackpointer+=1
+return stackpointer
 end function
 
 function pop() as expr_result
@@ -567,7 +570,7 @@ if stackptr=0 then
   t1.result.uresult=21
 else
   stackptr -=1
-  t1=stack(stackptr)
+  t1=stack(stackpointer)
 endif
 return t1
 end function 
@@ -763,14 +766,18 @@ select case op
   case token_decimal
     if m=1 then t1.result.uresult=m*val%(lparts(ct).part$): t1.result_type=result_uint ' todo token_int64
     if m=-1 then t1.result.iresult=m*val%(lparts(ct).part$): t1.result_type=result_int ' todo token_int64
+    push t1
   case token_integer
     t1.result.iresult=m*val%(lparts(ct).part$)
-    t1.result_type=0  
+    t1.result_type=result_int  
+    push t1
   case token_float
-    if m=1 then t1.result.fresult=1.0*val(lparts(ct).part$): t1.result_type=4  
-    if m=-1 then t1.result.fresult=-1.0*val(lparts(ct).part$): t1.result_type=4  
+    if m=1 then t1.result.fresult=1.0*val(lparts(ct).part$): t1.result_type=result_float  
+    if m=-1 then t1.result.fresult=-1.0*val(lparts(ct).part$): t1.result_type=result_float
+    push t1
   case token_string
-    t1.result.sresult=lparts(ct).part$: t1.result_type=5  
+    t1.result.sresult=lparts(ct).part$: t1.result_type=result_string  
+    push t1
   case token_name  '' we may got token with var or fun # after evaluation (?) 
     t1=getvar(m)
   case token_lpar

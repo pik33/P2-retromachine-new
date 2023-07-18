@@ -1,7 +1,7 @@
 const _clkfreq = 336956522
 const HEAPSIZE=16384
-'#define PSRAM4
-#define PSRAM16
+#define PSRAM4
+'#define PSRAM16
 
 #ifdef PSRAM16
 dim v as class using "hg009.spin2"
@@ -1002,6 +1002,8 @@ dim a1,r as integer
 a1,r=getintres(ct)
 if r<>0 then printerror(r) else plot_color=a1 
 end sub
+    
+
 
 sub do_print ' todo reconfigurable editor start position
 
