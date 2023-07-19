@@ -51,7 +51,7 @@ const fun_getivar=17
 const fun_getuvar=18
 const fun_getfvar=19
 const fun_getsvar=20
-const fun_pushconst=21
+const fun_push=21
 
 const token_assign_eq=23
 const token_assign_sub=24
@@ -162,45 +162,49 @@ dim progend as integer
 dim stack(maxstack) as expr_result
 dim stackpointer as integer
 
-type asub as sub()
-dim commands(255) as asub
-dim valuetopush as expr_result 
+union asub
+  dim cmd as sub()
+'  dim param as expr_result
+end union 
 
-commands(token_plus)=@do_plus
-commands(token_minus)=@do_minus
-commands(token_or)=@do_or
-'commands(token_xor)=@do_xor
-commands(token_mul)=@do_mul
-commands(token_fdiv)=@do_fdiv
-commands(token_and)=@do_and
-commands(token_div)=@do_div
-commands(token_mod)=@do_mod
-commands(token_shl)=@do_shl
-commands(token_shr)=@do_shr
-commands(token_power)=@do_power
-'commands(token_at)=@do_at
-'commands(token_inc)=@do_inc
-'commands(fun_getivar)=@do_getivar
-'commands(fun_getuvar)=@do_getuvar
-'commands(fun_getfvar)=@do_getfvar
-'commands(fun_getsvar)=@do_getsvar
-'commands(fun_pushconst)=@do_pushconst
-
-'commands(token_assign_eq)=@do_assign
+dim commands(125) as asub
 
 
-'commands(token_cls)=@do_cls
-'commands(token_new)=@do_new
-commands(token_plot)=@do_plot
-commands(token_draw)=@do_draw
-commands(token_print)=@do_print
-'commands(token_circle)=@do_circle
-commands(token_fcircle)=@do_fcircle
-'commands(token_box)=@do_box
-'commands(token_frame)=@do_frame
-commands(token_color)=@do_color
-'commands(token_for)=@do_for
-'commands(token_next)=@do_next
+commands(token_plus).cmd=@do_plus
+commands(token_minus).cmd=@do_minus
+commands(token_or).cmd=@do_or
+'commands(token_xor).cmd=@do_xor
+commands(token_mul).cmd=@do_mul
+commands(token_fdiv).cmd=@do_fdiv
+commands(token_and).cmd=@do_and
+commands(token_div).cmd=@do_div
+commands(token_mod).cmd=@do_mod
+commands(token_shl).cmd=@do_shl
+commands(token_shr).cmd=@do_shr
+commands(token_power).cmd=@do_power
+'commands(token_at).cmd=@do_at
+'commands(token_inc).cmd=@do_inc
+'commands(fun_getivar).cmd=@do_getivar
+'commands(fun_getuvar).cmd=@do_getuvar
+'commands(fun_getfvar).cmd=@do_getfvar
+'commands(fun_getsvar).cmd=@do_getsvar
+commands(fun_push ).cmd=@do_push 
+
+'commands(token_assign_eq).cmd=@do_assign
+
+
+'commands(token_cls).cmd=@do_cls
+'commands(token_new).cmd=@do_new
+commands(token_plot).cmd=@do_plot
+commands(token_draw).cmd=@do_draw
+commands(token_print).cmd=@do_print
+'commands(token_circle).cmd=@do_circle
+commands(token_fcircle).cmd=@do_fcircle
+'commands(token_box).cmd=@do_box
+'commands(token_frame).cmd=@do_frame
+commands(token_color).cmd=@do_color
+'commands(token_for).cmd=@do_for
+'commands(token_next).cmd=@do_next
 
 
 
@@ -231,9 +235,10 @@ dim key , key2 as ulong
 dim errors$(255)
 init_error_strings
 stackpointer=0
-dim functionpointers(255) as ulong
- 
- 
+dim compiledline(125) as expr_result
+dim lineptr as integer
+lineptr=0 
+print sizeof(compiledline)
 '-------------------------------------------------------------------------------------------------------- 
 '-------------------------------------- MAIN LOOP -------------------------------------------------------
 '--------------------------------------------------------------------------------------------------------
@@ -282,7 +287,7 @@ if key3<>0 then
  
   if key4=141 then 
     v.crlf() : print space$(editor_spaces);
-    interpret(line$): line$=""
+      interpret(line$): line$="" :let t1=getct()-t1 
     endif 
 
   key3=0
@@ -554,12 +559,13 @@ end function
 '---------------------------------------------------------------------------------------
 
 
-function push(t1 as expr_result) as integer
-if stackpointer>=maxstack then return -1
-stack(stackpointer)=t1
-stackpointer+=1
-return stackpointer
-end function
+sub do_push
+if stackpointer<maxstack then 
+  lineptr+=1
+  stack(stackpointer)=compiledline(lineptr)
+  stackpointer+=1
+endif
+end sub
 
 function pop() as expr_result
 
@@ -766,18 +772,18 @@ select case op
   case token_decimal
     if m=1 then t1.result.uresult=m*val%(lparts(ct).part$): t1.result_type=result_uint ' todo token_int64
     if m=-1 then t1.result.iresult=m*val%(lparts(ct).part$): t1.result_type=result_int ' todo token_int64
-    push t1
+ '   do_push t1
   case token_integer
     t1.result.iresult=m*val%(lparts(ct).part$)
     t1.result_type=result_int  
-    push t1
+  '  push t1
   case token_float
     if m=1 then t1.result.fresult=1.0*val(lparts(ct).part$): t1.result_type=result_float  
     if m=-1 then t1.result.fresult=-1.0*val(lparts(ct).part$): t1.result_type=result_float
-    push t1
+   ' push t1
   case token_string
     t1.result.sresult=lparts(ct).part$: t1.result_type=result_string  
-    push t1
+    'push t1
   case token_name  '' we may got token with var or fun # after evaluation (?) 
     t1=getvar(m)
   case token_lpar
@@ -796,7 +802,67 @@ end function
 'if the next token is not ( then find variable by name, reutrn its value and change token to 1024+var index ?
 'if the next token is  ( then find function by name, call do_function,change the token to 2048+fn index ?
 
+
 function getvar(m as integer) as expr_result
+
+dim i,j as integer
+dim t1 as expr_result
+dim varname$,suffix$  as string
+
+let varname$=lparts(ct).part$
+let suffix$=right$(varname$,1)
+let j=-1
+
+if suffix$="$" then
+  for i=0 to svarnum-1
+      if svariables(i).name=varname$ then j=i : exit
+    next i
+  if  j=-1 then t1.result_type=result_error:  t1.result.uresult=20 : goto 701  ' not found   
+  t1.result_type=result_string
+  t1.result.sresult=svariables(j).value
+  goto 701
+endif  
+  
+if suffix$="%" then
+  for i=0 to uvarnum-1
+      if uvariables(i).name=varname$ then j=i : exit
+    next i
+  if  j=-1 then t1.result_type=result_error:  t1.result.uresult=20 : goto 701  ' not found   
+  if m=1 then
+    t1.result_type=result_uint
+    t1.result.uresult=uvariables(j).value
+  else
+    t1.result_type=result_int
+    t1.result.uresult=m*uvariables(j).value   
+  endif  
+  goto 701
+endif 
+
+if suffix$="!" then
+  for i=0 to fvarnum-1
+      if fvariables(i).name=varname$ then j=i : exit
+    next i
+  if  j=-1 then t1.result_type=result_error:  t1.result.uresult=20 : goto 701  ' not found   
+  t1.result_type=result_float
+  t1.result.fresult=m*fvariables(j).value
+  goto 701
+endif 
+
+for i=0 to ivarnum-1
+  if ivariables(i).name=varname$ then j=i : exit
+next i
+if  j=-1 then t1.result_type=result_error:  t1.result.uresult=20 : goto 701  ' not found   
+t1.result_type=result_int
+t1.result.iresult=m*ivariables(j).value
+
+
+
+701 return t1
+end function
+
+
+
+function old_getvar(m as integer) as expr_result
 
 
 dim i,j as integer
