@@ -51,13 +51,18 @@ const fun_getivar=17
 const fun_getuvar=18
 const fun_getfvar=19
 const fun_getsvar=20
-const fun_push=21
+const fun_negative=21
 
 const token_assign_eq=23
 const token_assign_sub=24
 const token_assign_add=25
 const token_assign_mul=26
 const token_assign_div=27
+
+const fun_pushi=28
+const fun_pushu=29
+const fun_pushf=30
+const fun_pushs=31
 
 const token_cls=32
 const token_new=33
@@ -72,6 +77,7 @@ const token_color=41
 const token_for=42
 const token_next=43
 
+const token_error=253
 const token_end=254
 const token_space=255
  
@@ -84,11 +90,11 @@ const token_name=516
 
 ' ----------------------------- End of token list -------------------------
 
-const result_int=0
-const result_uint=1
-const result_float=4
-const result_string=5
-const result_error=6
+const result_int=fun_pushi
+const result_uint=fun_pushu
+const result_float=fun_pushf
+const result_string=fun_pushs
+const result_error=token_error
 
 const maxvars=1023
 const maxstack=128
@@ -162,51 +168,49 @@ dim progend as integer
 dim stack(maxstack) as expr_result
 dim stackpointer as integer
 
-union asub
-  dim cmd as sub()
-'  dim param as expr_result
-end union 
+type asub as sub()
 
-dim commands(125) as asub
+dim commands(255) as asub 'this is a function table
 
 
-commands(token_plus).cmd=@do_plus
-commands(token_minus).cmd=@do_minus
-commands(token_or).cmd=@do_or
-'commands(token_xor).cmd=@do_xor
-commands(token_mul).cmd=@do_mul
-commands(token_fdiv).cmd=@do_fdiv
-commands(token_and).cmd=@do_and
-commands(token_div).cmd=@do_div
-commands(token_mod).cmd=@do_mod
-commands(token_shl).cmd=@do_shl
-commands(token_shr).cmd=@do_shr
-commands(token_power).cmd=@do_power
-'commands(token_at).cmd=@do_at
-'commands(token_inc).cmd=@do_inc
-'commands(fun_getivar).cmd=@do_getivar
-'commands(fun_getuvar).cmd=@do_getuvar
-'commands(fun_getfvar).cmd=@do_getfvar
-'commands(fun_getsvar).cmd=@do_getsvar
-commands(fun_push ).cmd=@do_push 
+commands(token_plus)=@do_plus
+commands(token_minus)=@do_minus
+commands(token_or)=@do_or
+'commands(token_xor)=@do_xor
+commands(token_mul)=@do_mul
+commands(token_fdiv)=@do_fdiv
+commands(token_and)=@do_and
+commands(token_div)=@do_div
+commands(token_mod)=@do_mod
+commands(token_shl)=@do_shl
+commands(token_shr)=@do_shr
+commands(token_power)=@do_power
+'commands(token_at)=@do_at
+'commands(token_inc)=@do_inc
+'commands(fun_getivar)=@do_getivar
+'commands(fun_getuvar)=@do_getuvar
+'commands(fun_getfvar)=@do_getfvar
+'commands(fun_getsvar)=@do_getsvar
+commands(fun_pushu)=@do_pushu 
+commands(fun_pushi)=@do_pushi 
+commands(fun_pushf)=@do_pushf 
+commands(fun_pushs)=@do_pushs 
 
-'commands(token_assign_eq).cmd=@do_assign
-
-
-'commands(token_cls).cmd=@do_cls
-'commands(token_new).cmd=@do_new
-commands(token_plot).cmd=@do_plot
-commands(token_draw).cmd=@do_draw
-commands(token_print).cmd=@do_print
-'commands(token_circle).cmd=@do_circle
-commands(token_fcircle).cmd=@do_fcircle
-'commands(token_box).cmd=@do_box
-'commands(token_frame).cmd=@do_frame
-commands(token_color).cmd=@do_color
-'commands(token_for).cmd=@do_for
-'commands(token_next).cmd=@do_next
+'commands(token_assign_eq)=@do_assign
 
 
+'commands(token_cls)=@do_cls
+'commands(token_new)=@do_new
+commands(token_plot)=@do_plot
+commands(token_draw)=@do_draw
+commands(token_print)=@do_print
+'commands(token_circle)=@do_circle
+commands(token_fcircle)=@do_fcircle
+'commands(token_box)=@do_box
+'commands(token_frame)=@do_frame
+commands(token_color)=@do_color
+'commands(token_for)=@do_for
+'commands(token_next)=@do_next
 
 '----------------------------------------------------------------------------
 '-----------------------------Program start ---------------------------------
@@ -238,7 +242,10 @@ stackpointer=0
 dim compiledline(125) as expr_result
 dim lineptr as integer
 lineptr=0 
-print sizeof(compiledline)
+
+
+
+
 '-------------------------------------------------------------------------------------------------------- 
 '-------------------------------------- MAIN LOOP -------------------------------------------------------
 '--------------------------------------------------------------------------------------------------------
@@ -309,16 +316,13 @@ dim result as expr_result
 dim etype as integer
 dim separators(125)
 
-' a workaround to prevent the gc from disabling prints
-'108 close #0
-'_gc_collect()
-'open SendRecvDevice(@v.putchar, nil, nil) as #0
 
 ' ---------------------------------------------------  Pass 1: Split the line to parts, detect and concatenate strings
 
 
 108 for i=0 to 125: separators(i)=0 :next i
 for i=0 to 125: lparts(i).part$="": next i
+lineptr=0 
 
 ' 1a : extract the first command, split the line to first command and the rest
 
@@ -559,13 +563,17 @@ end function
 '---------------------------------------------------------------------------------------
 
 
-sub do_push
+sub do_pushu
 if stackpointer<maxstack then 
   lineptr+=1
   stack(stackpointer)=compiledline(lineptr)
   stackpointer+=1
 endif
 end sub
+
+dim do_pushi as sub() : do_pushi=do_pushu
+dim do_pushf as sub() : do_pushf=do_pushu
+dim do_pushs as sub() : do_pushs=do_pushu
 
 function pop() as expr_result
 
@@ -584,17 +592,22 @@ end function
 
 function execute(pos as integer) as integer
 
+dim t3 as expr_result
+t3.result.uresult=0
 let cmd=lparts(pos).token
 ct=pos+1
 select case cmd
-case token_cls      : cls : print "" : return -1
-case token_new      : cls : position 4,1 : print ver$ : print :return -1
-case token_plot     : do_plot  : return -1
-case token_draw	    : do_draw  : return -1
-case token_fcircle  : do_fcircle : return -1  
-case token_color    : do_color :return -1  
-case token_print    : do_print :return -1  
+case token_cls      : cls : print ""  
+case token_new      : cls : position 4,1 : print ver$ : print  
+case token_plot     : do_plot   
+case token_draw	    : do_draw   
+case token_fcircle  : do_fcircle  
+case token_color    : do_color  
+case token_print    : do_print  
 end select
+    t3.result_type=cmd : compiledline(lineptr)=t3:  lineptr+=1
+for i=0 to lineptr-1 :print compiledline(i).result_type, : next i
+return -1
 end function
 
 
@@ -702,9 +715,9 @@ function expr( ) as expr_result
 ' On input: ct = current token position
 ' On output: expression result value and a new ct
 
-dim t1, t2 as expr_result
+dim t1, t2,t3 as expr_result
 dim op as integer
-
+t3.result.uresult=0
 t1 = muldiv()             			' call higher priority operator check. It will itself call getval/getvar if no multiplies or divides
 if t1.result_type=result_error then return t1
 op = lparts(ct).token				' that idea is from github adamdunkels/ubasic
@@ -713,6 +726,7 @@ do while (op = token_plus orelse op = token_minus orelse op = token_and orelse o
   ct+=1
   t2 = muldiv() 
   if t2.result_type=result_error then return t2
+    t3.result_type=op: compiledline(lineptr)=t3: lineptr+=1
   select case op
     case token_plus    : t1=do_plus(t1,t2)
     case token_minus   : t1=do_minus(t1,t2)
@@ -727,8 +741,9 @@ end function
 
 function muldiv() as expr_result
 
-dim t1, t2 as expr_result
+dim t1, t2, t3  as expr_result   ' only t3 will be left here
 dim op as integer
+t3.result.uresult=0
 
 t1 = getvalue()    
 if t1.result_type=result_error then return t1
@@ -738,9 +753,10 @@ do while (op = token_mul orelse op = token_div orelse op = token_fdiv orelse op=
   ct+=1
   t2 = getvalue() 
   if t2.result_type=result_error then return t2
+  t3.result_type=op: compiledline(lineptr)=t3: lineptr+=1
   select case op
     case token_mul
-      t1=do_mul(t1,t2)
+      t1=do_mul(t1,t2)   
     case token_div
       t1=do_div(t1,t2)
     case token_fdiv
@@ -772,18 +788,23 @@ select case op
   case token_decimal
     if m=1 then t1.result.uresult=m*val%(lparts(ct).part$): t1.result_type=result_uint ' todo token_int64
     if m=-1 then t1.result.iresult=m*val%(lparts(ct).part$): t1.result_type=result_int ' todo token_int64
- '   do_push t1
+    compiledline(lineptr)=t1: lineptr+=1
   case token_integer
     t1.result.iresult=m*val%(lparts(ct).part$)
     t1.result_type=result_int  
+    compiledline(lineptr)=t1: lineptr+=1
+
   '  push t1
   case token_float
     if m=1 then t1.result.fresult=1.0*val(lparts(ct).part$): t1.result_type=result_float  
     if m=-1 then t1.result.fresult=-1.0*val(lparts(ct).part$): t1.result_type=result_float
+     compiledline(lineptr)=t1: lineptr+=1
+  
    ' push t1
   case token_string
     t1.result.sresult=lparts(ct).part$: t1.result_type=result_string  
-    'push t1
+    compiledline(lineptr)=t1: lineptr+=1
+
   case token_name  '' we may got token with var or fun # after evaluation (?) 
     t1=getvar(m)
   case token_lpar
@@ -806,7 +827,7 @@ end function
 function getvar(m as integer) as expr_result
 
 dim i,j as integer
-dim t1 as expr_result
+dim t1,t2 as expr_result
 dim varname$,suffix$  as string
 
 let varname$=lparts(ct).part$
@@ -817,9 +838,10 @@ if suffix$="$" then
   for i=0 to svarnum-1
       if svariables(i).name=varname$ then j=i : exit
     next i
-  if  j=-1 then t1.result_type=result_error:  t1.result.uresult=20 : goto 701  ' not found   
+  if  j=-1 then t1.result_type=result_error:  t1.result.uresult=20 : t2=t1:  goto 701  ' not found   
   t1.result_type=result_string
   t1.result.sresult=svariables(j).value
+  t2.result_type=fun_getsvar:t2.result.uresult=j
   goto 701
 endif  
   
@@ -827,13 +849,15 @@ if suffix$="%" then
   for i=0 to uvarnum-1
       if uvariables(i).name=varname$ then j=i : exit
     next i
-  if  j=-1 then t1.result_type=result_error:  t1.result.uresult=20 : goto 701  ' not found   
+  if  j=-1 then t1.result_type=result_error:  t1.result.uresult=20 : t2=t1: goto 701  ' not found   
   if m=1 then
     t1.result_type=result_uint
     t1.result.uresult=uvariables(j).value
+      t2.result_type=fun_getuvar:t2.result.uresult=j
   else
     t1.result_type=result_int
     t1.result.uresult=m*uvariables(j).value   
+      t2.result_type=fun_getivar:t2.result.uresult=j
   endif  
   goto 701
 endif 
@@ -842,22 +866,26 @@ if suffix$="!" then
   for i=0 to fvarnum-1
       if fvariables(i).name=varname$ then j=i : exit
     next i
-  if  j=-1 then t1.result_type=result_error:  t1.result.uresult=20 : goto 701  ' not found   
+  if  j=-1 then t1.result_type=result_error:  t1.result.uresult=20 : t2=t1: goto 701  ' not found   
   t1.result_type=result_float
   t1.result.fresult=m*fvariables(j).value
+  t2.result_type=fun_getfvar:t2.result.uresult=j
   goto 701
 endif 
 
 for i=0 to ivarnum-1
   if ivariables(i).name=varname$ then j=i : exit
 next i
-if  j=-1 then t1.result_type=result_error:  t1.result.uresult=20 : goto 701  ' not found   
+if  j=-1 then t1.result_type=result_error:  t1.result.uresult=20 : t2=t1: goto 701  ' not found   
 t1.result_type=result_int
 t1.result.iresult=m*ivariables(j).value
+      t2.result_type=fun_getivar:t2.result.uresult=j
 
 
-
-701 return t1
+701 
+compiledline(lineptr)=t2: lineptr+=1
+if m=-1 then t2.result_type=fun_negative: compiledline(lineptr)=t2: lineptr+=1
+return t1
 end function
 
 
@@ -931,10 +959,10 @@ dim r as integer
 
 t1=expr()
 select case t1.result_type
-  case 0: a1=t1.result.iresult : r=0
-  case 1: a1=t1.result.uresult : r=0
-  case 4: a1=round(t1.result.fresult) : r=0
-  case 5: a1=val(t1.result.sresult) :r=0
+  case result_int: a1=t1.result.iresult : r=0 
+  case result_uint: a1=t1.result.uresult : r=0
+  case result_float: a1=round(t1.result.fresult) : r=0
+  case result_string: a1=val(t1.result.sresult) :r=0
   case result_error: a1=0: r=t1.result.uresult
   case else : a1=0 : r=1
 
@@ -1083,33 +1111,18 @@ end function
 
 
 sub do_plot
-
-dim t1,t2 as expr_result
-dim a1,a2 as integer
+ 
+dim a1,a2,r as integer
 ct=1 ' ct should be a parameter
-t1=expr() ': print "ct= "; ct, "result=";t1.result.uresult,"result type= ",t1.result_type
-if lparts(ct).token<> token_comma then 
-   print"  Error" ' todo: error codes etc
-else
-  ct+=1
-  t2=expr()
-endif
-select case t1.result_type
-  case 0: a1=t1.result.iresult
-  case 1: a1=t1.result.uresult
-  case 4: a1=round(t1.result.fresult)
-  case 5: a1=val(t1.result.sresult)
-end select
-select case t2.result_type
-  case 0: a2=t2.result.iresult
-  case 1: a2=t2.result.uresult
-  case 4: a2=round(t2.result.fresult)
-  case 5: a2=val(t2.result.sresult)
-end select 
+a1,r=getintres(ct)  
+if r<>0 then printerror(r) : goto 802
+if lparts(ct).token<> token_comma then print "Error: comma expected" :goto 802 else ct+=1 ' todo error
+a2,r=getintres(ct) 
+if r<>0 then printerror(r) : goto 802
 plot_x=a1
 plot_y=a2
 v.putpixel(a1,a2,plot_color) 
-end sub
+802 end sub
 
 sub do_color
 
@@ -1157,70 +1170,31 @@ loop until lparts(ct).token=token_end
 
 sub do_draw
 
-dim t1,t2 as expr_result
-dim a1,a2 as integer
+dim a1,a2,r as integer
 ct=1 ' ct should be a parameter
-t1=expr()' : print "ct= "; ct, "result=";t1.result.uresult,"result type= ",t1.result_type
-if lparts(ct).token<> token_comma then 
-   print"  Error" ' todo: error codes etc
-else
-  ct+=1
-  t2=expr() ': print "ct= "; ct, "result=";t1.result.uresult,"result type= ",t1.result_type
-endif
-select case t1.result_type
-  case 0: a1=t1.result.iresult
-  case 1: a1=t1.result.uresult
-  case 4: a1=round(t1.result.fresult)
-  case 5: a1=val(t1.result.sresult)
-end select
-select case t2.result_type
-  case 0: a2=t2.result.iresult
-  case 1: a2=t2.result.uresult
-  case 4: a2=round(t2.result.fresult)
-  case 5: a2=val(t2.result.sresult)
-end select 
-
+a1,r=getintres(ct)  
+if r<>0 then printerror(r) : goto 801
+if lparts(ct).token<> token_comma then print "Error: comma expected" :goto 801 else ct+=1 ' todo error
+a2,r=getintres(ct) 
+if r<>0 then printerror(r) : goto 801
 v.draw(plot_x,plot_y,a1,a2,plot_color) 
 plot_x=a1
 plot_y=a2
-end sub
-
+801 end sub
 
 sub do_fcircle
 
-dim t1,t2,t3 as expr_result
-dim a1,a2,a3 as integer
+dim a1,a2,a3,r  as integer
 ct=1 ' ct should be a parameter
-t1=expr()' : print "ct= "; ct, "result=";t1.result.uresult,"result type= ",t1.result_type
-if lparts(ct).token<> token_comma then goto 800
-ct+=1
-t2=expr() ': print "ct= "; ct, "result=";t1.result.uresult,"result type= ",t1.result_type
-if lparts(ct).token<> token_comma then goto 800
-ct+=1
-t3=expr()
-
-
-
-select case t1.result_type
-  case 0: a1=t1.result.iresult
-  case 1: a1=t1.result.uresult
-  case 4: a1=round(t1.result.fresult)
-  case 5: a1=val(t1.result.sresult)
-end select
-select case t2.result_type
-  case 0: a2=t2.result.iresult
-  case 1: a2=t2.result.uresult
-  case 4: a2=round(t2.result.fresult)
-  case 5: a2=val(t2.result.sresult)
-end select 
-select case t3.result_type
-  case 0: a3=t3.result.iresult
-  case 1: a3=t3.result.uresult
-  case 4: a3=round(t3.result.fresult)
-  case 5: a3=val(t3.result.sresult)
-end select 
+a1,r=getintres(ct)  
+if r<>0 then printerror(r) : goto 800
+if lparts(ct).token<> token_comma then print "Error: comma expected" :goto 800 else ct+=1 ' todo error
+a2,r=getintres(ct) 
+if r<>0 then printerror(r) : goto 800
+if lparts(ct).token<> token_comma then print "Error: comma expected" :goto 800 else ct+=1
+a3,r=getintres(ct) 
+if r<>0 then printerror(r) : goto 800
 v.fcircle(a1,a2,a3,plot_color) 
- 
 800 end sub
 
 
