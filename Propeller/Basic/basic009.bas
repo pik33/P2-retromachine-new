@@ -1,7 +1,7 @@
 const _clkfreq = 336956522
 const HEAPSIZE=16384
-#define PSRAM4
-'#define PSRAM16
+'#define PSRAM4
+#define PSRAM16
 
 #ifdef PSRAM16
 dim v as class using "hg009.spin2"
@@ -177,10 +177,10 @@ type asub as sub()
 dim commands(255) as asub 'this is a function table
 
 
-'commands(token_plus)=@do_plus
-'commands(token_minus)=@do_minus
-'commands(token_or)=@do_or
-'commands(token_xor)=@do_xor
+commands(token_plus)=@do_plus 
+commands(token_minus)=@do_minus 
+commands(token_or)=@do_or 
+'commands(token_xor)=@do_xor 
 'commands(token_mul)=@do_mul
 'commands(token_fdiv)=@do_fdiv
 'commands(token_and)=@do_and
@@ -195,10 +195,10 @@ dim commands(255) as asub 'this is a function table
 'commands(fun_getuvar)=@do_getuvar
 'commands(fun_getfvar)=@do_getfvar
 'commands(fun_getsvar)=@do_getsvar
-'commands(fun_pushu)=@do_pushu 
-'commands(fun_pushi)=@do_pushi 
-'commands(fun_pushf)=@do_pushf 
-'commands(fun_pushs)=@do_pushs 
+commands(fun_pushu)=@do_push 
+commands(fun_pushi)=@do_push  
+commands(fun_pushf)=@do_push  
+commands(fun_pushs)=@do_push  
 
 'commands(token_assign_eq)=@do_assign
 
@@ -457,6 +457,7 @@ end sub
 sub compile_converttoint() 
 
 dim t1 as expr_result 
+t1.result.uresult=0
 expr()
 t1.result_type=fun_converttoint
 compiledline(lineptr)=t1: lineptr+=1 
@@ -478,7 +479,7 @@ end function
 
 function compile_int_fun_3p() as ulong
  
-compile_converttoint() : print ct,lparts(ct).token 
+compile_converttoint() 
 if lparts(ct).token<> token_comma then return 21 else ct+=1 ' todo error
 compile_converttoint() 
 if lparts(ct).token<> token_comma then return 21 else ct+=1 ' todo error
@@ -518,8 +519,8 @@ dim i,j as integer
 dim t1 as expr_result
 dim varname$,suffix$ as string
 
-let varname$=lparts(0).part$  
-
+varname$=lparts(0).part$  
+t1.result_type=result_error : t1.result.uresult=0
 i=-1: j=-1
 let suffix$=right$(varname$,1)
 ct=2: expr()
@@ -752,33 +753,38 @@ end function
 '--------------------- A main immediate execute function -------------------------------
 '---------------------------------------------------------------------------------------
 
+'' we need 4 different procedures as the variable itself is a push command
 
-sub do_pushu
+sub do_push
 if stackpointer<maxstack then 
-  lineptr+=1
   stack(stackpointer)=compiledline(lineptr)
   stackpointer+=1
 endif
 end sub
 
-dim do_pushi as sub() : do_pushi=do_pushu
-dim do_pushf as sub() : do_pushf=do_pushu
-dim do_pushs as sub() : do_pushs=do_pushu
 
 function pop() as expr_result
 
 dim t1 as expr_result
 
-if stackptr=0 then
+if stackpointer=0 then
   t1.result_type=result_error
-  t1.result.uresult=21
+  t1.result.uresult=24
 else
-  stackptr -=1
+  stackpointer -=1
   t1=stack(stackpointer)
 endif
 return t1
 end function 
 
+sub push(t1 as expr_result)
+
+if stackpointer<maxstack then 
+  stack(stackpointer)=t1
+  stackpointer+=1
+' error reporting here  
+endif
+end sub
 
 
 
@@ -1019,23 +1025,29 @@ end sub
 '-------------------------------------- Functions that do operators and commands --------------------------------------------
 '----------------------------------------------------------------------------------------------------------------------------
 
-function do_plus(t1 as expr_result ,t2 as expr_result) as expr_result
+sub do_plus()
+
+dim t1,t2 as expr_result
+
+t2=pop()
+t1=pop()
 
 
-if t1.result_type=result_uint andalso t2.result_type=result_uint then t1.result.uresult+=t2.result.uresult :return t1
-if t1.result_type=result_uint andalso t2.result_type=result_int then t1.result.iresult=t1.result.uresult+t2.result.iresult: t1.result_type=result_int :return t1
-if t1.result_type=result_uint andalso t2.result_type=result_float then t1.result.fresult=cast(single,t1.result.uresult)+t2.result.fresult: t1.result_type=result_float :return t1
-if t1.result_type=result_int andalso t2.result_type=result_uint then t1.result.iresult+=t2.result.uresult: return t1
-if t1.result_type=result_int andalso t2.result_type=result_int then t1.result.iresult+=t2.result.iresult:return t1
-if t1.result_type=result_int andalso t2.result_type=result_float then t1.result.fresult=cast(single,t1.result.iresult)+t2.result.fresult: t1.result_type=result_float :return t1
-if t1.result_type=result_float andalso t2.result_type=result_uint then t1.result.fresult=t1.result.fresult+cast(single,t2.result.uresult) :return t1
-if t1.result_type=result_float andalso t2.result_type=result_int then t1.result.fresult=t1.result.fresult+cast(single,t2.result.iresult) :return t1
-if t1.result_type=result_float andalso t2.result_type=result_float then t1.result.fresult+=t2.result.fresult:return t1
-if t1.result_type=result_string andalso t2.result_type<>result_string then t1.result.uresult=2 :t1.result_type=result_error:return t1
-if t2.result_type=result_string andalso t1.result_type<>result_string then t1.result.uresult=2 :t1.result_type=result_error:return t1
-if t1.result_type=result_string andalso t2.result_type=result_string then t1.result.sresult=t1.result.sresult+t2.result.sresult :return t1
-t1.result.uresult=4 : t1.result_type=result_error: return t1
-end function
+if t1.result_type=result_uint andalso t2.result_type=result_uint then t1.result.uresult+=t2.result.uresult :goto 1040
+if t1.result_type=result_uint andalso t2.result_type=result_int then t1.result.iresult=t1.result.uresult+t2.result.iresult: t1.result_type=result_int :goto 1040
+if t1.result_type=result_uint andalso t2.result_type=result_float then t1.result.fresult=cast(single,t1.result.uresult)+t2.result.fresult: t1.result_type=result_float :goto 1040
+if t1.result_type=result_int andalso t2.result_type=result_uint then t1.result.iresult+=t2.result.uresult: goto 1040
+if t1.result_type=result_int andalso t2.result_type=result_int then t1.result.iresult+=t2.result.iresult:goto 1040
+if t1.result_type=result_int andalso t2.result_type=result_float then t1.result.fresult=cast(single,t1.result.iresult)+t2.result.fresult: t1.result_type=result_float :goto 1040
+if t1.result_type=result_float andalso t2.result_type=result_uint then t1.result.fresult=t1.result.fresult+cast(single,t2.result.uresult) :goto 1040
+if t1.result_type=result_float andalso t2.result_type=result_int then t1.result.fresult=t1.result.fresult+cast(single,t2.result.iresult) :goto 1040
+if t1.result_type=result_float andalso t2.result_type=result_float then t1.result.fresult+=t2.result.fresult:goto 1040
+if t1.result_type=result_string andalso t2.result_type<>result_string then t1.result.uresult=2 :t1.result_type=result_error:goto 1040
+if t2.result_type=result_string andalso t1.result_type<>result_string then t1.result.uresult=2 :t1.result_type=result_error:goto 1040
+if t1.result_type=result_string andalso t2.result_type=result_string then t1.result.sresult=t1.result.sresult+t2.result.sresult :goto 1040
+t1.result.uresult=4 : t1.result_type=result_error
+1040 push t1
+end sub
 
 function do_minus(t1 as expr_result ,t2 as expr_result) as expr_result
 
@@ -1307,13 +1319,13 @@ end sub
 
 function pspeek(adr as ulong) as ubyte
 dim res as ubyte
-psram.read1(addr(res),adr,1)
+psram.read1(varptr(res),adr,1)
 return res
 end function
 
 function pslpeek(adr as ulong) as ulong
 dim res as ulong
-psram.read1(addr(res),adr,4)
+psram.read1(varptr(res),adr,4)
 return res
 end function
 
@@ -1643,6 +1655,7 @@ errors$(20)="Variable not found."
 errors$(21)="Comma expected."
 errors$(22)="Comma or semicolon expected."
 errors$(23)="Unknown command."
+errors$(24)="Stack underflow."
 end sub
         
 sub printerror(err as integer)
