@@ -78,9 +78,11 @@ const token_color=41
 const token_for=42
 const token_next=43
 
-const token_error=253
-const token_end=254
-const token_space=255
+const print_mod_comma=507
+const print_mod_semicolon=508
+const token_error=509
+const token_end=510
+const token_space=511
  
 const token_decimal=512
 const token_integer=513
@@ -174,42 +176,42 @@ type asub as sub()
 dim commands(255) as asub 'this is a function table
 
 
-commands(token_plus)=@do_plus
-commands(token_minus)=@do_minus
-commands(token_or)=@do_or
+'commands(token_plus)=@do_plus
+'commands(token_minus)=@do_minus
+'commands(token_or)=@do_or
 'commands(token_xor)=@do_xor
-commands(token_mul)=@do_mul
-commands(token_fdiv)=@do_fdiv
-commands(token_and)=@do_and
-commands(token_div)=@do_div
-commands(token_mod)=@do_mod
-commands(token_shl)=@do_shl
-commands(token_shr)=@do_shr
-commands(token_power)=@do_power
+'commands(token_mul)=@do_mul
+'commands(token_fdiv)=@do_fdiv
+'commands(token_and)=@do_and
+'commands(token_div)=@do_div
+'commands(token_mod)=@do_mod
+'commands(token_shl)=@do_shl
+'commands(token_shr)=@do_shr
+'commands(token_power)=@do_power
 'commands(token_at)=@do_at
 'commands(token_inc)=@do_inc
 'commands(fun_getivar)=@do_getivar
 'commands(fun_getuvar)=@do_getuvar
 'commands(fun_getfvar)=@do_getfvar
 'commands(fun_getsvar)=@do_getsvar
-commands(fun_pushu)=@do_pushu 
-commands(fun_pushi)=@do_pushi 
-commands(fun_pushf)=@do_pushf 
-commands(fun_pushs)=@do_pushs 
+'commands(fun_pushu)=@do_pushu 
+'commands(fun_pushi)=@do_pushi 
+'commands(fun_pushf)=@do_pushf 
+'commands(fun_pushs)=@do_pushs 
 
 'commands(token_assign_eq)=@do_assign
 
 
 'commands(token_cls)=@do_cls
 'commands(token_new)=@do_new
-commands(token_plot)=@do_plot
-commands(token_draw)=@do_draw
-commands(token_print)=@do_print
+'commands(token_plot)=@do_plot
+'commands(token_draw)=@do_draw
+'commands(token_print)=@do_print
 'commands(token_circle)=@do_circle
-commands(token_fcircle)=@do_fcircle
+'commands(token_fcircle)=@do_fcircle
 'commands(token_box)=@do_box
 'commands(token_frame)=@do_frame
-commands(token_color)=@do_color
+'commands(token_color)=@do_color
 'commands(token_for)=@do_for
 'commands(token_next)=@do_next
 
@@ -409,11 +411,83 @@ if lparts(0).token=516 andalso lparts(1).token=515 then print "  this is calling
 
 ' if we are here, this is not a program line to add, so try to execute this
 
-let pos=execute(0) ' print "  this is a command to execute"
+compile(0) : '' execute(0) ' print "  this is a command to execute"  ''' param=line to compile
 103 if rest$<>"" then line$=rest$: goto 108
 
 101 v.writeln("") : v.writeln("  Ready") : v.write("  ")  
 end sub
+
+''--------------------- Compile the line ------------------------------------
+
+sub compile (aline as ulong)
+
+dim t3 as expr_result
+dim pos,err as ulong
+t3.result.uresult=0
+let cmd=lparts(0).token
+ct=1
+select case cmd
+'  case token_cls     no params, do nothing, only add a command to the line 
+'  case token_new     no params, do nothing, only add a command to the line 
+  case token_plot     : err=compile_int_fun_2p()   
+  case token_draw     : err=compile_int_fun_2p()   
+  case token_fcircle  : err=compile_int_fun_3p()   : print err
+  case token_color    : err=compile_int_fun_1p()  
+  case token_print    : err=compile_print()  
+end select
+t3.result_type=cmd : compiledline(lineptr)=t3:  lineptr+=1
+for i=0 to lineptr-1 :print compiledline(i).result_type, : next i '' debug
+end sub
+
+' --------------- Compile commands with parameters
+
+sub compile_converttoint() 
+
+dim t1 as expr_result 
+expr()
+t1.result_type=fun_converttoint
+compiledline(lineptr)=t1: lineptr+=1 
+end sub
+
+function compile_int_fun_1p() as ulong
+ 
+compile_converttoint()  
+return 0
+end function
+
+function compile_int_fun_2p() as ulong
+ 
+compile_converttoint()  
+if lparts(ct).token<> token_comma then return 21 else ct+=1 ' todo error
+compile_converttoint() 
+return 0
+end function
+
+function compile_int_fun_3p() as ulong
+ 
+compile_converttoint() : print ct,lparts(ct).token 
+if lparts(ct).token<> token_comma then return 21 else ct+=1 ' todo error
+compile_converttoint() 
+if lparts(ct).token<> token_comma then return 21 else ct+=1 ' todo error
+compile_converttoint() 
+return 0
+end function
+
+function compile_print() as ulong ' todo reconfigurable editor start position
+
+dim t1 as expr_result
+t1.result.uresult=0 : t1.result_type=result_uint
+if lparts(ct).token=token_end then return 0 			'print without parameters
+do
+  expr()
+  if lparts(ct).token=token_comma then t1.result_type=print_mod_comma : compiledline(lineptr)=t1:  lineptr+=1 : t1.result_type=token_print : compiledline(lineptr)=t1:  lineptr+=1
+  if lparts(ct).token=token_semicolon then  t1.result_type=print_mod_semicolon : compiledline(lineptr)=t1:  lineptr+=1 : t1.result_type=token_print : compiledline(lineptr)=t1:  lineptr+=1
+  if lparts(ct).token <>token_comma andalso lparts(ct).token <>token_semicolon andalso lparts(ct).token <>token_end then return 22
+  ct+=1   
+loop until lparts(ct).token=token_end
+return 0
+end function
+
 
 '------------------------------ Helper functions for the tokenizer -------------------------------------------
 
@@ -591,25 +665,7 @@ return t1
 end function 
 
 
-function execute(pos as integer) as integer
 
-dim t3 as expr_result
-t3.result.uresult=0
-let cmd=lparts(pos).token
-ct=pos+1
-select case cmd
-case token_cls      : cls : print ""  
-case token_new      : cls : position 4,1 : print ver$ : print  
-case token_plot     : do_plot   
-case token_draw	    : do_draw   
-case token_fcircle  : do_fcircle  
-case token_color    : do_color  
-case token_print    : do_print  
-end select
-    t3.result_type=cmd : compiledline(lineptr)=t3:  lineptr+=1
-for i=0 to lineptr-1 :print compiledline(i).result_type, : next i
-return -1
-end function
 
 
 
@@ -755,6 +811,7 @@ sub getvalue()
 dim t1 as expr_result
 dim op,m as integer
 m=1
+t1.result.uresult=0: t1.result_type=result_uint
 op=lparts(ct).token
 if op=token_minus then m=-1: ct+=1 : op=lparts(ct).token
 select case op
@@ -841,30 +898,7 @@ end sub
 
 '--------------------------------------------- End of expression evaluator -----------------------------------------------
 
-sub getintres() 
 
-dim t1 as expr_result 
-dim a1 as integer
-dim r as integer
-' that was a helper to do the runtime job 
-' At compile time: expr. then converttoint
-' After expr() it has to get a value from the stack, convert and push
-expr()
-t1.result_type=fun_converttoint
-compiledline(lineptr)=t1: lineptr+=1
-'select case t1.result_type
-'  case result_int: a1=t1.result.iresult : r=0 
-'  case result_uint: a1=t1.result.uresult : r=0
-'  case result_float: a1=round(t1.result.fresult) : r=0
-'  case result_string: a1=val(t1.result.sresult) :r=0
-'  case result_error: a1=0: r=t1.result.uresult
-'  case else : a1=0 : r=1
-
-'end select
-'/
- 
-
-end sub
 
 '----------------------------------------------------------------------------------------------------------------------------
 '-------------------------------------- Functions that do operators and commands --------------------------------------------
@@ -1005,57 +1039,11 @@ end function
 '----------------------------------
 
 
-sub do_plot
- 
-dim a1,a2,r as integer
-getintres()  
-if lparts(ct).token<> token_comma then print "Error: comma expected" :goto 802 else ct+=1 ' todo error
-getintres() 
-802 end sub
-
-sub do_color
-
-dim a1,r as integer
-getintres()
-end sub
-
-sub do_print ' todo reconfigurable editor start position
-
-dim t1 as expr_result
-dim r as integer
-ct=1
-if lparts(ct).token=token_end then print: print space$(editor_spaces) : goto 811
-do
- expr()
-
-' the same here, this is runtime. Do_print op is called from the line so it simply has to pull them  
-  if t1.result_type=result_error then printerror(t1.result.uresult): goto 811
-if lparts(ct).token=token_comma then
-  if t1.result_type=result_int then print t1.result.iresult,
-  if t1.result_type=result_uint then print t1.result.uresult,
-  if t1.result_type=result_float then print t1.result.fresult,
-  if t1.result_type=result_string then print t1.result.sresult,
-endif  
-if lparts(ct).token=token_semicolon then 
-  if t1.result_type=result_int then print t1.result.iresult;
-  if t1.result_type=result_uint then print t1.result.uresult;
-  if t1.result_type=result_float then print t1.result.fresult;
-  if t1.result_type=result_string then print t1.result.sresult;
-endif
-if lparts(ct).token=token_end then 
-  if t1.result_type=result_int then print t1.result.iresult
-  if t1.result_type=result_uint then print t1.result.uresult
-  if t1.result_type=result_float then print t1.result.fresult
-  if t1.result_type=result_string then print t1.result.sresult
-endif 
-if lparts(ct).token=token_end then goto 811
-if lparts(ct).token <>token_comma andalso lparts(ct).token <>token_semicolon andalso lparts(ct).token <>token_end then print "Error: ";lparts(ct).part$ :goto 811 
-ct+=1
-
-loop until lparts(ct).token=token_end
 
 
-811 end sub
+
+
+
 
 
 
@@ -1225,26 +1213,16 @@ end sub
 function scantochar(key)
 
 select case (key shr 8) and 255
-case 0
-return keys(4*(key and 255))
-case 2,32
-return keys(4*(key and 255)+1)
-case 64
-return keys(4*(key and 255)+2)
-case 66,96
-return keys(4*(key and 255)+3)
+case 0     : return keys(4*(key and 127))
+case 2,32  : return keys(4*(key and 127)+1) ' shift
+case 64	   : return keys(4*(key and 127)+2) ' RAlt
+case 66,96 : return keys(4*(key and 127)+3) ' RAlt+shift
 
 end select
-
 end function
 
-'dim shared as integer cargs(maxcommand)={
- '0,0,2,2,-1,3,3,4,4} ' these are argument number for commands. If -1, it is not defined, if from..to , low byte is to, high byte is from
-
-
-
-dim shared as ubyte keys(1023)={
- 0,0,0,0, 			'0
+dim shared as ubyte keys(511)={
+ 0,0,0,0, 			 
  0,0,0,0,_
  0,0,0,0,_
  0,0,0,0,_
@@ -1259,211 +1237,214 @@ dim shared as ubyte keys(1023)={
  105,73,0,0,_
  106,74,0,0,_
  107,75,0,0,_
-108,76,31,22,_
-109,77,0,0,_
-110,78,26,17,_
-111,79,30,21,_
-112,80,0,0,_
-113,81,0,0,_
-114,82,0,0,_
-115,83,27,18,_
-116,84,0,0,_
-117,85,0,0,_
-118,86,0,0,_
-119,87,0,0,_
-120,88,28,19,_
-121,89,0,0,_
-122,90,29,20,_
-49,33,4,0,_
-50,64,5,0,_
-51,35,6,0,_
-52,36,7,0,_
-53,37,8,0,_
-54,94,9,0,_
-55,38,10,0,_
-56,42,11,0,_
-57,40,12,0,_
-48,41,13,0,_
-141,141,0,0,_
-155,155,0,0,_
-136,136,0,0,_
-137,137,0,0,_
-32,32,0,0,_
-45,95,0,0,_
-61,43,0,0,_
-91,123,0,0,_
-93,125,0,0,_
-92,124,0,0,_
-35,126,0,0,_
-59,58,0,0,_
-39,34,0,0,_
-96,126,3,0,_
-44,60,0,0,_
-46,62,0,0,_
-47,63,0,0,_
-185,185,0,0,_
-186,0,0,0,_
-187,0,0,0,_
-188,0,0,0,_
-189,0,0,0,_
-190,0,0,0,_
-191,0,0,0,_
-192,0,0,0,_
-193,0,0,0,_
-194,0,0,0,_
-195,0,0,0,_
-196,0,0,0,_
-197,0,0,0,_
-198,0,0,0,_
-199,0,0,0,_
-200,0,0,0,_
-201,0,0,0,_
-202,0,0,0,_
-203,0,0,0,_
-127,127,0,0,_
-204,0,0,0,_
-205,0,0,0,_
-206,0,0,0,_
-207,0,0,0,_
-208,0,0,0,_
-209,0,0,0,_
-210,0,0,0,_
-47,47,0,0,_
-42,42,0,0,_
-45,45,0,0,_
-43,43,0,0,_
-141,141,0,0,_
-49,49,0,0,_
-50,50,0,0,_
-51,51,0,0,_
-52,52,0,0,_
-53,53,0,0,_
-54,54,0,0,_
-55,55,0,0,_
-56,56,0,0,_
-57,57,0,0,_
-48,48,0,0,_
-46,127,0,0,_
-92,124,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-61,61,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-44,44,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
+ 108,76,31,22,_
+ 109,77,0,0,_
+ 110,78,26,17,_
+ 111,79,30,21,_
+ 112,80,0,0,_
+ 113,81,0,0,_
+ 114,82,0,0,_
+ 115,83,27,18,_
+ 116,84,0,0,_
+ 117,85,0,0,_
+ 118,86,0,0,_
+ 119,87,0,0,_
+ 120,88,28,19,_
+ 121,89,0,0,_
+ 122,90,29,20,_
+ 49,33,4,0,_
+ 50,64,5,0,_
+ 51,35,6,0,_
+ 52,36,7,0,_
+ 53,37,8,0,_
+ 54,94,9,0,_
+ 55,38,10,0,_
+ 56,42,11,0,_
+ 57,40,12,0,_
+ 48,41,13,0,_
+ 141,141,0,0,_
+ 155,155,0,0,_
+ 136,136,0,0,_
+ 137,137,0,0,_
+ 32,32,0,0,_
+ 45,95,0,0,_
+ 61,43,0,0,_
+ 91,123,0,0,_
+ 93,125,0,0,_
+ 92,124,0,0,_
+ 35,126,0,0,_
+ 59,58,0,0,_
+ 39,34,0,0,_
+ 96,126,3,0,_
+ 44,60,0,0,_
+ 46,62,0,0,_
+ 47,63,0,0,_
+ 185,185,0,0,_
+ 186,0,0,0,_
+ 187,0,0,0,_
+ 188,0,0,0,_
+ 189,0,0,0,_
+ 190,0,0,0,_
+ 191,0,0,0,_
+ 192,0,0,0,_
+ 193,0,0,0,_
+ 194,0,0,0,_
+ 195,0,0,0,_
+ 196,0,0,0,_
+ 197,0,0,0,_
+ 198,0,0,0,_
+ 199,0,0,0,_
+ 200,0,0,0,_
+ 201,0,0,0,_
+ 202,0,0,0,_
+ 203,0,0,0,_
+ 127,127,0,0,_
+ 204,0,0,0,_
+ 205,0,0,0,_
+ 206,0,0,0,_
+ 207,0,0,0,_
+ 208,0,0,0,_
+ 209,0,0,0,_
+ 210,0,0,0,_
+ 47,47,0,0,_
+ 42,42,0,0,_
+ 45,45,0,0,_
+ 43,43,0,0,_
+ 141,141,0,0,_
+ 49,49,0,0,_
+ 50,50,0,0,_
+ 51,51,0,0,_
+ 52,52,0,0,_
+ 53,53,0,0,_
+ 54,54,0,0,_
+ 55,55,0,0,_
+ 56,56,0,0,_
+ 57,57,0,0,_
+ 48,48,0,0,_
+ 46,127,0,0,_
+ 92,124,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 61,61,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0}
+ 
+ 
+ /'
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 44,44,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
+ 0,0,0,0,_
 0,0,0,0,_
 0,0,0,0,_
 0,0,0,0,_
@@ -1500,27 +1481,27 @@ dim shared as ubyte keys(1023)={
 0,0,0,0,_
 0,0,0,0,_
 0,0,0,0}
-
-const key_enter=141    ' //USB_HID_BOOT_USAGE_ID[40,0];    //141;
-const   key_escape=155    '//USB_HID_BOOT_USAGE_ID[41,0];    //155;
-const   key_backspace=136 '//USB_HID_BOOT_USAGE_ID[42,0];    //136;
-const   key_tab=137       '/'/USB_HID_BOOT_USAGE_ID[43,0];    //137;
-const   key_f1=186        '//USB_HID_BOOT_USAGE_ID[58,0];    //186;
-const   key_f2=187        '//USB_HID_BOOT_USAGE_ID[59,0];    //187;
-const   key_f3=188        ''//USB_HID_BOOT_USAGE_ID[60,0];    //188;
-const   key_f4=189        '//USB_HID_BOOT_USAGE_ID[61,0];    //189;
-const   key_f5=190        '//USB_HID_BOOT_USAGE_ID[62,0];    //190;
-const   key_f6=191        '//USB_HID_BOOT_USAGE_ID[63,0];    //191;
-const   key_f7=192        '//USB_HID_BOOT_USAGE_ID[64,0];    //192;
-const   key_f8=193        '//USB_HID_BOOT_USAGE_ID[65,0];    //193;
-const   key_f9=194        '//USB_HID_BOOT_USAGE_ID[66,0];    //194;
-const   key_f10=195      ' //USB_HID_BOOT_USAGE_ID[67,0];    //195;
-const   key_f11=196       '//USB_HID_BOOT_USAGE_ID[68,0];    //196;
-const   key_f12=197       '//USB_HID_BOOT_USAGE_ID[69,0];    //197;
-const   key_rightarrow=206'//USB_HID_BOOT_USAGE_ID[79,0];    //206;
-const   key_leftarrow=207 '//USB_HID_BOOT_USAGE_ID[80,0];    //207;
-const   key_downarrow=208 '//USB_HID_BOOT_USAGE_ID[81,0];    //208;
-const   key_uparrow=209   '//USB_HID_BOOT_USAGE_ID[82,0];    //209;
+'/
+const   key_enter=141    
+const   key_escape=155    
+const   key_backspace=136 
+const   key_tab=137       
+const   key_f1=186        
+const   key_f2=187        
+const   key_f3=188        
+const   key_f4=189        
+const   key_f5=190        
+const   key_f6=191       
+const   key_f7=192       
+const   key_f8=193     
+const   key_f9=194      
+const   key_f10=195     
+const   key_f11=196       
+const   key_f12=197        
+const   key_rightarrow=206 
+const   key_leftarrow=207  
+const   key_downarrow=208  
+const   key_uparrow=209    
 
 sub init_error_strings
 errors$(0)=""
@@ -1544,6 +1525,8 @@ errors$(17)="Expected unsigned integer."
 errors$(18)="Expected integer."
 errors$(19)="No more variable slots."
 errors$(20)="Variable not found."
+errors$(21)="Comma expected."
+errors$(22)="Comma or semicolon expected."
 end sub
         
 sub printerror(err as integer)
