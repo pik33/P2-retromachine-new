@@ -79,6 +79,7 @@ const token_color=41
 const token_for=42
 const token_next=43
 
+const print_mod_empty=506
 const print_mod_comma=507
 const print_mod_semicolon=508
 const token_error=509
@@ -175,26 +176,27 @@ dim stackpointer as integer
 type asub as sub()
 
 dim commands(255) as asub 'this is a function table
-
+dim commands2(255) as integer 'this is a function table
+dim tokennum as integer
 
 commands(token_plus)=@do_plus 
 commands(token_minus)=@do_minus 
 commands(token_or)=@do_or 
 'commands(token_xor)=@do_xor 
-'commands(token_mul)=@do_mul
-'commands(token_fdiv)=@do_fdiv
-'commands(token_and)=@do_and
-'commands(token_div)=@do_div
-'commands(token_mod)=@do_mod
-'commands(token_shl)=@do_shl
-'commands(token_shr)=@do_shr
-'commands(token_power)=@do_power
+commands(token_mul)=@do_mul
+commands(token_fdiv)=@do_fdiv
+commands(token_and)=@do_and
+commands(token_div)=@do_div
+commands(token_mod)=@do_mod
+commands(token_shl)=@do_shl
+commands(token_shr)=@do_shr
+commands(token_power)=@do_power
 'commands(token_at)=@do_at
 'commands(token_inc)=@do_inc
-'commands(fun_getivar)=@do_getivar
-'commands(fun_getuvar)=@do_getuvar
-'commands(fun_getfvar)=@do_getfvar
-'commands(fun_getsvar)=@do_getsvar
+commands(fun_getivar)=@do_getivar
+commands(fun_getuvar)=@do_getuvar
+commands(fun_getfvar)=@do_getfvar
+commands(fun_getsvar)=@do_getsvar
 commands(fun_pushu)=@do_push 
 commands(fun_pushi)=@do_push  
 commands(fun_pushf)=@do_push  
@@ -205,16 +207,57 @@ commands(fun_pushs)=@do_push
 
 'commands(token_cls)=@do_cls
 'commands(token_new)=@do_new
-'commands(token_plot)=@do_plot
-'commands(token_draw)=@do_draw
-'commands(token_print)=@do_print
+commands(token_plot)=@do_plot
+commands(token_draw)=@do_draw
+commands(token_print)=@do_print
 'commands(token_circle)=@do_circle
-'commands(token_fcircle)=@do_fcircle
+commands(token_fcircle)=@do_fcircle
 'commands(token_box)=@do_box
 'commands(token_frame)=@do_frame
-'commands(token_color)=@do_color
+commands(token_color)=@do_color
 'commands(token_for)=@do_for
 'commands(token_next)=@do_next
+commands(fun_converttoint)=@do_converttoint 
+
+commands2(token_plus)=varptr(do_plus) 
+commands2(token_minus)=varptr(do_minus) 
+commands2(token_or)=varptr(do_or) 
+'commands2(token_xor)=varptr(do_xor) 
+commands2(token_mul)=varptr(do_mul)
+commands2(token_fdiv)=varptr(do_fdiv)
+commands2(token_and)=varptr(do_and)
+commands2(token_div)=varptr(do_div)
+commands2(token_mod)=varptr(do_mod)
+commands2(token_shl)=varptr(do_shl)
+commands2(token_shr)=varptr(do_shr)
+commands2(token_power)=varptr(do_power)
+'commands2(token_at)=varptr(do_at)
+'commands2(token_inc)=varptr(do_inc)
+commands2(fun_getivar)=varptr(do_getivar)
+commands2(fun_getuvar)=varptr(do_getuvar)
+commands2(fun_getfvar)=varptr(do_getfvar)
+commands2(fun_getsvar)=varptr(do_getsvar)
+commands2(fun_pushu)=varptr(do_push)
+commands2(fun_pushi)=varptr(do_push)
+commands2(fun_pushf)=varptr(do_push)  
+commands2(fun_pushs)=varptr(do_push) 
+commands2(fun_converttoint)=varptr(do_converttoint) 
+
+'commands2(token_assign_eq)=varptr(do_assign)
+
+
+'commands2(token_cls)=varptr(do_cls)
+'commands2(token_new)=varptr(do_new)
+commands2(token_plot)=varptr(do_plot)
+commands2(token_draw)=varptr(do_draw)
+commands2(token_print)=varptr(do_print)
+'commands2(token_circle)=varptr(do_circle)
+commands2(token_fcircle)=varptr(do_fcircle)
+'commands2(token_box)=varptr(do_box)
+'commands2(token_frame)=varptr(do_frame)
+commands2(token_color)=varptr(do_color)
+'commands2(token_for)=varptr(do_for)
+'commands2(token_next)=varptr(do_next)
 
 '----------------------------------------------------------------------------
 '-----------------------------Program start ---------------------------------
@@ -245,6 +288,7 @@ init_error_strings
 stackpointer=0
 dim compiledline(125) as expr_result
 dim lineptr as integer
+dim lineptr_e as integer
 lineptr=0 
 
 
@@ -400,7 +444,7 @@ if isstring(lparts(i).part$) then lparts(i).token=token_string : lparts(i).part$
 if isname(lparts(i).part$) then lparts(i).token=token_name : goto 102						' name
 lparts(i).token=-1
 102 next i 
-lparts(k).token=token_end
+lparts(k).token=token_end : tokennum=k
 
 ''for i=0 to k:print lparts(i).part$,lparts(i).token:next i
 
@@ -415,7 +459,7 @@ if lparts(0).token=token_name andalso lparts(1).token=token_rpar then print " Us
 compile(0) : '' execute(0) ' print "  this is a command to execute"  ''' param=line to compile
 103 
 for i=0 to lineptr-1 :print compiledline(i).result_type;" ";compiledline(i).result.uresult, : next i '' debug 
-
+execute_immediate_line
 
 if rest$<>"" then line$=rest$: goto 108
 
@@ -491,14 +535,14 @@ function compile_print() as ulong ' todo reconfigurable editor start position
 
 dim t1 as expr_result
 t1.result.uresult=0 : t1.result_type=result_uint
-if lparts(ct).token=token_end then return 0 			'print without parameters
+if lparts(ct).token=token_end then t1.result_type=print_mod_empty: compiledline(lineptr)=t1:  lineptr+=1 : return 0 			'print without parameters
 do
   expr()
   if lparts(ct).token=token_comma then t1.result_type=print_mod_comma : compiledline(lineptr)=t1:  lineptr+=1 : t1.result_type=token_print : compiledline(lineptr)=t1:  lineptr+=1
   if lparts(ct).token=token_semicolon then  t1.result_type=print_mod_semicolon : compiledline(lineptr)=t1:  lineptr+=1 : t1.result_type=token_print : compiledline(lineptr)=t1:  lineptr+=1
   if lparts(ct).token <>token_comma andalso lparts(ct).token <>token_semicolon andalso lparts(ct).token <>token_end then return 22
-  ct+=1   
-loop until lparts(ct).token=token_end
+  ct+=1  
+loop until lparts(ct).token=token_end orelse ct>=tokennum
 return 0
 end function
 
@@ -587,7 +631,7 @@ end function
 
 '------------------------------ Execute a compiled line -----------------------------------------------------
 
-sub execute_immediate_line
+sub execute_immediate_line 
 
 '' program line has to have a linenum, then line length and then the pointer to the next line 
 '' there will be a line index for goto
@@ -595,15 +639,39 @@ sub execute_immediate_line
 '' so the pointer on the previous line will be changed and copied to the new line
 '' when compiling goto , the index position will be found and index# compiled
 
+dim cmd as asub
 
-
-for i=0 to lineptr-1
-
-next i
+for lineptr_e=0 to lineptr-1
+print (compiledline(lineptr_e).result_type),compiledline(lineptr_e).result.iresult
+cmd=commands(compiledline(lineptr_e).result_type)
+cmd
+next lineptr_e
 
 end sub
 
+sub execute_immediate_line_a
 
+'' program line has to have a linenum, then line length and then the pointer to the next line 
+'' there will be a line index for goto
+'' when compile the index will be searched to find 2 lines that a new line goes between
+'' so the pointer on the previous line will be changed and copied to the new line
+'' when compiling goto , the index position will be found and index# compiled
+
+ 
+
+var calladdr =0
+for i=0 to lineptr-1
+
+'commands(compiledline(i).result_type)
+
+calladdr=commands2(compiledline(i).result_type)
+print (compiledline(i).result_type),calladdr
+asm
+call calladdr
+end asm
+next i
+
+end sub
 
 '------------------------------ Helper functions for the tokenizer -------------------------------------------
 
@@ -757,8 +825,11 @@ end function
 
 sub do_push
 if stackpointer<maxstack then 
-  stack(stackpointer)=compiledline(lineptr)
+  stack(stackpointer)=compiledline(lineptr_e)
+  print "Got value",stack(stackpointer).result.iresult,"at position",stackpointer
+  print "Pushed value",stack(stackpointer).result.iresult,"at position",stackpointer
   stackpointer+=1
+  
 endif
 end sub
 
@@ -1026,7 +1097,50 @@ end sub
 '-------------------------------------- Functions that do operators and commands --------------------------------------------
 '----------------------------------------------------------------------------------------------------------------------------
 
-sub do_plus()
+sub do_getivar
+dim t1 as expr_result
+dim r as integer
+t1=pop()
+r=ivariables(t1.result.uresult).value
+t1.result.iresult=r
+t1.result_type=result_int
+push t1
+end sub
+
+sub do_getuvar
+dim t1 as expr_result
+dim r as ulong
+t1=pop()
+r=uvariables(t1.result.uresult).value
+t1.result.uresult=r
+t1.result_type=result_uint
+push t1
+end sub
+
+sub do_getfvar
+dim t1 as expr_result
+dim r as single
+t1=pop()
+r=fvariables(t1.result.uresult).value
+t1.result.fresult=r
+t1.result_type=result_float
+push t1
+end sub
+
+sub do_getsvar
+dim t1 as expr_result
+dim r as string
+t1=pop()
+r=svariables(t1.result.uresult).value
+t1.result.sresult=r
+t1.result_type=result_string
+push t1
+end sub
+
+
+
+
+sub do_plus 
 
 dim t1,t2 as expr_result
 
@@ -1050,234 +1164,266 @@ t1.result.uresult=4 : t1.result_type=result_error
 1040 push t1
 end sub
 
-function do_minus(t1 as expr_result ,t2 as expr_result) as expr_result
+sub do_minus
+
+dim t1,t2 as expr_result
+
+t2=pop()
+t1=pop()
 
 if t1.result_type=result_uint andalso t2.result_type=result_uint then 
-    if t2.result.uresult<t1.result.uresult then  t1.result.uresult-=t2.result.uresult : return t1 else t1.result.iresult=t1.result.uresult-t2.result.uresult : t1.result_type=result_int : return t1
+    if t2.result.uresult<t1.result.uresult then  t1.result.uresult-=t2.result.uresult : goto 1050 else t1.result.iresult=t1.result.uresult-t2.result.uresult : t1.result_type=result_int : goto 1050
     endif
-if t1.result_type=result_uint andalso t2.result_type=result_int then t1.result.iresult=t1.result.uresult-t2.result.iresult: t1.result_type=result_int :return t1
-if t1.result_type=result_uint andalso t2.result_type=result_float then t1.result.fresult=cast(single,t1.result.uresult)-t2.result.fresult: t1.result_type=result_float :return t1
-if t1.result_type=result_int andalso t2.result_type=result_uint then t1.result.iresult-=t2.result.uresult:return t1
-if t1.result_type=result_int andalso t2.result_type=result_int then t1.result.iresult-=t2.result.iresult:return t1
-if t1.result_type=result_int andalso t2.result_type=result_float then t1.result.fresult=cast(single,t1.result.iresult)-t2.result.fresult: t1.result_type=result_float :return t1
-if t1.result_type=result_float andalso t2.result_type=result_uint then t1.result.fresult=t1.result.fresult-cast(single,t2.result.uresult) :return t1
-if t1.result_type=result_float andalso t2.result_type=result_int then t1.result.fresult=t1.result.fresult-cast(single,t2.result.iresult) :return t1
-if t1.result_type=result_float andalso t2.result_type=result_float then t1.result.fresult-=t2.result.fresult:return t1
-if t1.result_type=result_string orelse t2.result_type=result_string then t1.result.uresult=3: t1.result_type=result_error: return t1
-t1.result.uresult=5 : t1.result_type=result_error:return t1
-end function
+if t1.result_type=result_uint andalso t2.result_type=result_int then t1.result.iresult=t1.result.uresult-t2.result.iresult: t1.result_type=result_int :goto 1050
+if t1.result_type=result_uint andalso t2.result_type=result_float then t1.result.fresult=cast(single,t1.result.uresult)-t2.result.fresult: t1.result_type=result_float :goto 1050
+if t1.result_type=result_int andalso t2.result_type=result_uint then t1.result.iresult-=t2.result.uresult:goto 1050
+if t1.result_type=result_int andalso t2.result_type=result_int then t1.result.iresult-=t2.result.iresult:goto 1050
+if t1.result_type=result_int andalso t2.result_type=result_float then t1.result.fresult=cast(single,t1.result.iresult)-t2.result.fresult: t1.result_type=result_float :goto 1050
+if t1.result_type=result_float andalso t2.result_type=result_uint then t1.result.fresult=t1.result.fresult-cast(single,t2.result.uresult) :goto 1050
+if t1.result_type=result_float andalso t2.result_type=result_int then t1.result.fresult=t1.result.fresult-cast(single,t2.result.iresult) :goto 1050
+if t1.result_type=result_float andalso t2.result_type=result_float then t1.result.fresult-=t2.result.fresult:goto 1050
+if t1.result_type=result_string orelse t2.result_type=result_string then t1.result.uresult=3: t1.result_type=result_error: goto 1050
+t1.result.uresult=5 : t1.result_type=result_error 
+1050 push t1
+end sub
 
-function do_and(t1 as expr_result ,t2 as expr_result) as expr_result
+sub do_and 
 
+dim t1,t2 as expr_result
+
+t2=pop()
+t1=pop()
 if t1.result_type=result_int then t1.result.uresult=cast(ulong,t1.result.iresult) : t1.result_type=result_uint
 if t2.result_type=result_int then t2.result.uresult=cast(ulong,t2.result.iresult) : t2.result_type=result_uint
-if t1.result_type=result_string orelse t2.result_type=result_string orelse t1.result_type=result_float orelse t2.result_type=result_float then t1.result.uresult=6: t1.result_type=result_error: return t1
-t1.result.uresult=t1.result.uresult and t2.result.uresult :return t1
-t1.result.uresult=7 : t1.result_type=result_error:return t1
-end function
+if t1.result_type=result_string orelse t2.result_type=result_string orelse t1.result_type=result_float orelse t2.result_type=result_float then t1.result.uresult=6: t1.result_type=result_error: goto 1060
+t1.result.uresult=t1.result.uresult and t2.result.uresult : goto 1060
+t1.result.uresult=7 : t1.result_type=result_error
+1060 push t1
+end sub
 
-function do_or(t1 as expr_result ,t2 as expr_result) as expr_result
+sub do_or 
+dim t1,t2 as expr_result
+
+t2=pop()
+t1=pop()
 if t1.result_type=result_int then t1.result.uresult=cast(ulong,t1.result.iresult) : t1.result_type=result_uint
 if t2.result_type=result_int then t2.result.uresult=cast(ulong,t2.result.iresult) : t2.result_type=result_uint
-if t1.result_type=result_string orelse t2.result_type=result_string orelse t1.result_type=result_float orelse t2.result_type=result_float then t1.result.uresult=6: t1.result_type=result_error: return t1
-t1.result.uresult=t1.result.uresult or t2.result.uresult :return t1
-t1.result.uresult=7 : t1.result_type=result_error:return t1
-end function
+if t1.result_type=result_string orelse t2.result_type=result_string orelse t1.result_type=result_float orelse t2.result_type=result_float then t1.result.uresult=6: t1.result_type=result_error: goto 1070
+t1.result.uresult=t1.result.uresult or t2.result.uresult : goto 1070
+t1.result.uresult=7 : t1.result_type=result_error 
+1070 push t1
+end sub
 
-function do_mul(t1 as expr_result ,t2 as expr_result) as expr_result
+sub do_mul
 
-if t1.result_type=result_uint andalso t2.result_type=result_uint then t1.result.uresult*=t2.result.uresult :return t1
-if t1.result_type=result_uint andalso t2.result_type=result_int then t1.result.iresult=t1.result.uresult*t2.result.iresult: t1.result_type=result_int :return t1
-if t1.result_type=result_uint andalso t2.result_type=result_float then t1.result.fresult=cast(single,t1.result.uresult)*t2.result.fresult: t1.result_type=result_float :return t1
-if t1.result_type=result_int andalso t2.result_type=result_uint then t1.result.iresult*=t2.result.uresult:return t1
-if t1.result_type=result_int andalso t2.result_type=result_int then t1.result.iresult*=t2.result.iresult:return t1
-if t1.result_type=result_int andalso t2.result_type=result_float then t1.result.fresult=cast(single,t1.result.iresult)*t2.result.fresult: t1.result_type=result_float :return t1
-if t1.result_type=result_float andalso t2.result_type=result_uint then t1.result.fresult=t1.result.fresult*cast(single,t2.result.uresult) :return t1
-if t1.result_type=result_float andalso t2.result_type=result_int then t1.result.fresult=t1.result.fresult*cast(single,t2.result.iresult) :return t1
-if t1.result_type=result_float andalso t2.result_type=result_float then t1.result.fresult*=t2.result.fresult:return t1
-if t1.result_type=result_string orelse t2.result_type=result_string then t1.result.uresult=8: t1.result_type=result_error: return t1
-t1.result.uresult=9 : t1.result_type=result_error:return t1
-end function
+dim t1,t2 as expr_result
 
-function do_div(t1 as expr_result ,t2 as expr_result) as expr_result
-if t1.result_type=result_string orelse t2.result_type=result_string then t1.result.uresult=10: t1.result_type=result_error: return t1
+t2=pop()
+t1=pop()
+
+if t1.result_type=result_uint andalso t2.result_type=result_uint then t1.result.uresult*=t2.result.uresult :goto 1080
+if t1.result_type=result_uint andalso t2.result_type=result_int then t1.result.iresult=t1.result.uresult*t2.result.iresult: t1.result_type=result_int :goto 1080
+if t1.result_type=result_uint andalso t2.result_type=result_float then t1.result.fresult=cast(single,t1.result.uresult)*t2.result.fresult: t1.result_type=result_float :goto 1080
+if t1.result_type=result_int andalso t2.result_type=result_uint then t1.result.iresult*=t2.result.uresult:goto 1080
+if t1.result_type=result_int andalso t2.result_type=result_int then t1.result.iresult*=t2.result.iresult:goto 1080
+if t1.result_type=result_int andalso t2.result_type=result_float then t1.result.fresult=cast(single,t1.result.iresult)*t2.result.fresult: t1.result_type=result_float :goto 1080
+if t1.result_type=result_float andalso t2.result_type=result_uint then t1.result.fresult=t1.result.fresult*cast(single,t2.result.uresult) :goto 1080
+if t1.result_type=result_float andalso t2.result_type=result_int then t1.result.fresult=t1.result.fresult*cast(single,t2.result.iresult) :goto 1080
+if t1.result_type=result_float andalso t2.result_type=result_float then t1.result.fresult*=t2.result.fresult:goto 1080
+if t1.result_type=result_string orelse t2.result_type=result_string then t1.result.uresult=8: t1.result_type=result_error: goto 1080
+t1.result.uresult=9 : t1.result_type=result_error 
+1080 push t1
+end sub
+
+sub do_div 
+
+dim t1,t2 as expr_result  ' todo: return error at attempting divide by zero
+
+t2=pop()
+t1=pop()
+
+if t1.result_type=result_string orelse t2.result_type=result_string then t1.result.uresult=10: t1.result_type=result_error: goto 1090
 if t1.result_type=result_float then t1.result_type=result_int : t1.result.iresult=cast(integer,t1.result.fresult)
 if t2.result_type=result_float then t2.result_type=result_int : t2.result.iresult=cast(integer,t2.result.fresult)
-if t1.result_type=result_uint andalso t2.result_type=result_uint then t1.result.uresult/=t2.result.uresult :return t1
-if t1.result_type=result_uint andalso t2.result_type=result_int then t1.result.iresult=t1.result.uresult/t2.result.iresult: t1.result_type=result_int :return t1
-if t1.result_type=result_int andalso t2.result_type=result_uint then t1.result.iresult/=t2.result.uresult :return t1
-if t1.result_type=result_int andalso t2.result_type=result_int then t1.result.iresult=t1.result.iresult/t2.result.iresult: return t1
-t1.result.uresult=11 : t1.result_type=result_error:return t1
-end function
+if t1.result_type=result_uint andalso t2.result_type=result_uint then t1.result.uresult/=t2.result.uresult :goto 1090
+if t1.result_type=result_uint andalso t2.result_type=result_int then t1.result.iresult=t1.result.uresult/t2.result.iresult: t1.result_type=result_int :goto 1090
+if t1.result_type=result_int andalso t2.result_type=result_uint then t1.result.iresult/=t2.result.uresult :goto 1090
+if t1.result_type=result_int andalso t2.result_type=result_int then t1.result.iresult=t1.result.iresult/t2.result.iresult: goto 1090
+t1.result.uresult=11 : t1.result_type=result_error 
+1090 push t1
+end sub
 
-function do_fdiv(t1 as expr_result ,t2 as expr_result) as expr_result
+sub do_fdiv 
+dim t1,t2 as expr_result  ' todo: return error at attempting divide by zero
 
-if t1.result_type=result_string orelse t2.result_type=result_string then t1.result.uresult=10: t1.result_type=result_error: return t1
+t2=pop()
+t1=pop()
+if t1.result_type=result_string orelse t2.result_type=result_string then t1.result.uresult=10: t1.result_type=result_error: goto 1100
+if t1.result_type=result_int then t1.result_type=result_float : t1.result.fresult=cast(single,t1.result.iresult) 
+if t1.result_type=result_uint then t1.result_type=result_float : t1.result.fresult=cast(single,t1.result.uresult)
+if t2.result_type=result_int then t2.result_type=result_float : t2.result.fresult=cast(single,t2.result.iresult) 
+if t2.result_type=result_uint then t2.result_type=result_float : t2.result.fresult=cast(single,t2.result.uresult) 
+if t1.result_type=result_float andalso t2.result_type=result_float then t1.result.fresult/=t2.result.fresult: goto 1100
+t1.result.uresult=11 : t1.result_type=result_error
+1100 push t1
+end sub
+
+sub do_mod 
+
+dim t1,t2 as expr_result  
+
+t2=pop()
+t1=pop()
+if t1.result_type=result_string orelse t2.result_type=result_string then t1.result.uresult=10: t1.result_type=result_error: goto 1110
+if t1.result_type=result_float then t1.result_type=result_int : t1.result.iresult=cast(integer,t1.result.fresult)
+if t2.result_type=result_float then t2.result_type=result_int : t2.result.iresult=cast(integer,t2.result.fresult)
+if t1.result_type=result_uint andalso t2.result_type=result_uint then t1.result.uresult=t1.result.uresult mod t2.result.uresult :goto 1110
+if t1.result_type=result_uint andalso t2.result_type=result_int then t1.result.iresult=t1.result.uresult mod t2.result.iresult: t1.result_type=result_int :goto 1110
+if t1.result_type=result_int andalso t2.result_type=result_uint then t1.result.iresult=t1.result.iresult mod t2.result.uresult :goto 1110
+if t1.result_type=result_int andalso t2.result_type=result_int then t1.result.iresult=t1.result.iresult mod t2.result.iresult: goto 1110
+t1.result.uresult=11 : t1.result_type=result_error
+1110 push t1
+end sub
+
+sub do_shl 
+dim t1,t2 as expr_result  
+
+t2=pop()
+t1=pop()
+
+if t1.result_type=result_int then t1.result.uresult=cast(ulong,t1.result.iresult) : t1.result_type=result_uint
+if t2.result_type=result_int then t2.result.uresult=cast(ulong,t2.result.iresult) : t2.result_type=result_uint
+if t1.result_type=result_string orelse t2.result_type=result_string orelse t1.result_type=result_float orelse t2.result_type=result_float then t1.result.uresult=6: t1.result_type=result_error: goto 1120
+t1.result.uresult=t1.result.uresult shl t2.result.uresult : goto 1120
+t1.result.uresult=7 : t1.result_type=result_error 
+1120 push t1
+end sub
+
+sub do_shr 
+
+dim t1,t2 as expr_result 
+t2=pop()
+t1=pop()
+if t1.result_type=result_int then t1.result.uresult=cast(ulong,t1.result.iresult) : t1.result_type=result_uint
+if t2.result_type=result_int then t2.result.uresult=cast(ulong,t2.result.iresult) : t2.result_type=result_uint
+if t1.result_type=result_string orelse t2.result_type=result_string orelse t1.result_type=result_float orelse t2.result_type=result_float then t1.result.uresult=6: t1.result_type=result_error: goto 1130
+t1.result.uresult=t1.result.uresult shr t2.result.uresult : goto 1130
+t1.result.uresult=7 : t1.result_type=result_error
+1130 push t1
+end sub
+
+sub do_power 
+
+dim t1,t2 as expr_result 
+t2=pop()
+t1=pop()
+
+
+if t1.result_type=result_string orelse t2.result_type=result_string then t1.result.uresult=12: t1.result_type=result_error: goto 1140
 if t1.result_type=result_int then t1.result_type=result_float : t1.result.fresult=cast(single,t1.result.iresult) 
 if t1.result_type=result_uint then t1.result_type=result_float : t1.result.fresult=cast(single,t1.result.uresult) 
 if t2.result_type=result_int then t2.result_type=result_float : t2.result.fresult=cast(single,t2.result.iresult) 
 if t2.result_type=result_uint then t2.result_type=result_float : t2.result.fresult=cast(single,t2.result.uresult) 
-if t1.result_type=result_float andalso t2.result_type=result_float then t1.result.fresult/=t2.result.fresult:return t1
-t1.result.uresult=11 : t1.result_type=result_error:return t1
-return t1
-end function
+if t1.result_type=result_float andalso t2.result_type=result_float then t1.result.fresult=t1.result.fresult^t2.result.fresult: goto 1140
+t1.result.uresult=13 : t1.result_type=result_error 
+1140 push t1
+end sub
 
-function do_mod(t1 as expr_result ,t2 as expr_result) as expr_result
+sub do_converttoint
 
-if t1.result_type=result_string orelse t2.result_type=result_string then t1.result.uresult=10: t1.result_type=result_error: return t1
-if t1.result_type=result_float then t1.result_type=result_int : t1.result.iresult=cast(integer,t1.result.fresult)
-if t2.result_type=result_float then t2.result_type=result_int : t2.result.iresult=cast(integer,t2.result.fresult)
-if t1.result_type=result_uint andalso t2.result_type=result_uint then t1.result.uresult=t1.result.uresult mod t2.result.uresult :return t1
-if t1.result_type=result_uint andalso t2.result_type=result_int then t1.result.iresult=t1.result.uresult mod t2.result.iresult: t1.result_type=result_int :return t1
-if t1.result_type=result_int andalso t2.result_type=result_uint then t1.result.iresult=t1.result.iresult mod t2.result.uresult :return t1
-if t1.result_type=result_int andalso t2.result_type=result_int then t1.result.iresult=t1.result.iresult mod t2.result.iresult: return t1
-t1.result.uresult=11 : t1.result_type=result_error:return t1
-end function
+dim t1 as expr_result 
+dim a1,r as integer
+print "Called converttoint"
+t1=pop() : print "Popped value", t1.result.iresult
+select case t1.result_type
+  case 0: a1=t1.result.iresult : r=result_int
+  case 1: a1=t1.result.uresult : r=result_int
+  case 4: a1=round(t1.result.fresult) : r=result_int
+  case 5: a1=val(t1.result.sresult) :r=result_int
+  case result_error: a1=0: r=t1.result.uresult
+  case else : a1=0 : r=1
 
-function do_shl(t1 as expr_result ,t2 as expr_result) as expr_result
+end select
+t1.result.iresult=a1 : t1.result_type=r : push t1
 
-if t1.result_type=result_int then t1.result.uresult=cast(ulong,t1.result.iresult) : t1.result_type=result_uint
-if t2.result_type=result_int then t2.result.uresult=cast(ulong,t2.result.iresult) : t2.result_type=result_uint
-if t1.result_type=result_string orelse t2.result_type=result_string orelse t1.result_type=result_float orelse t2.result_type=result_float then t1.result.uresult=6: t1.result_type=result_error: return t1
-t1.result.uresult=t1.result.uresult shl t2.result.uresult :return t1
-t1.result.uresult=7 : t1.result_type=result_error:return t1
-end function
-
-function do_shr(t1 as expr_result ,t2 as expr_result) as expr_result
-
-if t1.result_type=result_int then t1.result.uresult=cast(ulong,t1.result.iresult) : t1.result_type=result_uint
-if t2.result_type=result_int then t2.result.uresult=cast(ulong,t2.result.iresult) : t2.result_type=result_uint
-if t1.result_type=result_string orelse t2.result_type=result_string orelse t1.result_type=result_float orelse t2.result_type=result_float then t1.result.uresult=6: t1.result_type=result_error: return t1
-t1.result.uresult=t1.result.uresult shr t2.result.uresult :return t1
-t1.result.uresult=7 : t1.result_type=result_error:return t1
-end function
-
-function do_power(t1 as expr_result ,t2 as expr_result) as expr_result
-if t1.result_type=result_string orelse t2.result_type=result_string then t1.result.uresult=12: t1.result_type=result_error: return t1
-if t1.result_type=result_int then t1.result_type=result_float : t1.result.fresult=cast(single,t1.result.iresult) 
-if t1.result_type=result_uint then t1.result_type=result_float : t1.result.fresult=cast(single,t1.result.uresult) 
-if t2.result_type=result_int then t2.result_type=result_float : t2.result.fresult=cast(single,t2.result.iresult) 
-if t2.result_type=result_uint then t2.result_type=result_float : t2.result.fresult=cast(single,t2.result.uresult) 
-if t1.result_type=result_float andalso t2.result_type=result_float then t1.result.fresult=t1.result.fresult^t2.result.fresult:return t1
-t1.result.uresult=13 : t1.result_type=result_error:return t1
-return t1
-end function
-
+end sub
 
 '----------------------------------
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-/' old for runtime
-
-sub old_do_plot
+sub do_plot
  
-dim a1,a2,r as integer
-ct=1 ' ct should be a parameter
-a1,r=getintres(ct)  
-if r<>0 then printerror(r) : goto 802
-if lparts(ct).token<> token_comma then print "Error: comma expected" :goto 802 else ct+=1 ' todo error
-a2,r=getintres(ct) 
-if r<>0 then printerror(r) : goto 802
-plot_x=a1
-plot_y=a2
-v.putpixel(a1,a2,plot_color) 
-802 end sub
+dim t1,t2 as expr_result 
+t2=pop()
+t1=pop()
 
-
-
+plot_x=t1.result.iresult
+plot_y=t2.result.iresult
+v.putpixel(plot_x,plot_y,plot_color) 
+end sub
 
 sub do_color
 
-dim a1,r as integer
-a1,r=getintres(ct)
-if r<>0 then printerror(r) else plot_color=a1 
+dim t1 as expr_result
+t1=pop()
+plot_color=t1.result.iresult
 end sub
+
+
+sub do_draw
+dim t1,t2 as expr_result 
+t2=pop()
+t1=pop()
+v.draw(plot_x,plot_y,t1.result.iresult,t2.result.iresult,plot_color) 
+plot_x=t1.result.iresult
+plot_y=t2.result.iresult
+end sub
+
+sub do_fcircle
+dim t1,t2,t3 as expr_result 
+print "Called fcircle"
+t3=pop() : print "In fcircle - Popped value", t3.result.iresult
+t2=pop(): print "In fcircle - Popped value", t3.result.iresult
+t1=pop(): print "In fcircle - Popped value", t3.result.iresult
+v.fcircle(t1.result.iresult,t2.result.iresult,t3.result.iresult,plot_color) 
+end sub
+
 
 sub do_print ' todo reconfigurable editor start position
 
-dim t1 as expr_result
+dim t1,t2 as expr_result
 dim r as integer
 ct=1
 if lparts(ct).token=token_end then print: print space$(editor_spaces) : goto 811
-do
- expr()
 
-' the same here, this is runtime. Do_print op is called from the line so it simply has to pull them  
-  if t1.result_type=result_error then printerror(t1.result.uresult): goto 811
-if lparts(ct).token=token_comma then
+r=0
+t1=pop()
+if t1.result_type=print_mod_comma orelse t1.result_type=print_mod_semicolon then r=t1.result_type : t1=pop()
+if t1.result_type=print_mod_empty then r=t1.result_type 
+if t1.result_type=result_error then printerror(t1.result.uresult): goto 811
+
+if r=print_mod_comma  then
   if t1.result_type=result_int then print t1.result.iresult,
   if t1.result_type=result_uint then print t1.result.uresult,
   if t1.result_type=result_float then print t1.result.fresult,
   if t1.result_type=result_string then print t1.result.sresult,
 endif  
-if lparts(ct).token=token_semicolon then 
+if r=print_mod_semicolon then 
   if t1.result_type=result_int then print t1.result.iresult;
   if t1.result_type=result_uint then print t1.result.uresult;
   if t1.result_type=result_float then print t1.result.fresult;
   if t1.result_type=result_string then print t1.result.sresult;
 endif
-if lparts(ct).token=token_end then 
+if r=0 then 
   if t1.result_type=result_int then print t1.result.iresult
   if t1.result_type=result_uint then print t1.result.uresult
   if t1.result_type=result_float then print t1.result.fresult
   if t1.result_type=result_string then print t1.result.sresult
 endif 
-if lparts(ct).token=token_end then goto 811
-if lparts(ct).token <>token_comma andalso lparts(ct).token <>token_semicolon andalso lparts(ct).token <>token_end then print "Error: ";lparts(ct).part$ :goto 811 
-ct+=1
-
-loop until lparts(ct).token=token_end
-
+if r=print_mod_empty then print
 
 811 end sub
 
 
-sub do_draw
-
-dim a1,a2,r as integer
-ct=1 ' ct should be a parameter
-a1,r=getintres(ct)  
-if r<>0 then printerror(r) : goto 801
-if lparts(ct).token<> token_comma then print "Error: comma expected" :goto 801 else ct+=1 ' todo error
-a2,r=getintres(ct) 
-if r<>0 then printerror(r) : goto 801
-v.draw(plot_x,plot_y,a1,a2,plot_color) 
-plot_x=a1
-plot_y=a2
-801 end sub
-
-sub do_fcircle
-
-dim a1,a2,a3,r  as integer
-ct=1 ' ct should be a parameter
-a1,r=getintres(ct)  
-if r<>0 then printerror(r) : goto 800
-if lparts(ct).token<> token_comma then print "Error: comma expected" :goto 800 else ct+=1 ' todo error
-a2,r=getintres(ct) 
-if r<>0 then printerror(r) : goto 800
-if lparts(ct).token<> token_comma then print "Error: comma expected" :goto 800 else ct+=1
-a3,r=getintres(ct) 
-if r<>0 then printerror(r) : goto 800
-v.fcircle(a1,a2,a3,plot_color) 
-800 end sub
-
-'/
-
-'---------------- Hepler functions
 
 sub startpsram
 psram.startx(0, 0, 11, -1)
