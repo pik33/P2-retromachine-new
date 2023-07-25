@@ -54,11 +54,12 @@ const fun_getsvar=20
 const fun_negative=21
 const fun_converttoint=22
 
-const token_assign_eq=23
-const token_assign_sub=24
-const token_assign_add=25
-const token_assign_mul=26
-const token_assign_div=27
+const fun_assign_i=23
+const fun_assign_u=24
+const fun_assign_f=25
+const fun_assign_s=26
+
+const token_eq=27
 
 const fun_pushi=28
 const fun_pushu=29
@@ -406,13 +407,17 @@ lparts(k).token=token_end
 '2b determine a type of the line
   
 if isdec(lparts(0).part$) then print "  This is a program line": goto 101  								'<-- TODO: add a line to a program
-if lparts(0).token=516 andalso lparts(1).token>=token_assign_eq  andalso lparts(1).token<token_assign_div then do_assign : goto 103    '<-- TODO: assign a variable
-if lparts(0).token=516 andalso lparts(1).token=515 then print "  this is calling a function or assigning to an array" : goto 101
+if lparts(0).token=token_name andalso lparts(1).token=token_eq then compile_assign : goto 103    					' assign a variable
+if lparts(0).token=token_name andalso lparts(1).token=token_rpar then print " User functions and arrays not yet implemented" : goto 101
 
 ' if we are here, this is not a program line to add, so try to execute this
 
 compile(0) : '' execute(0) ' print "  this is a command to execute"  ''' param=line to compile
-103 if rest$<>"" then line$=rest$: goto 108
+103 
+for i=0 to lineptr-1 :print compiledline(i).result_type;" ";compiledline(i).result.uresult, : next i '' debug 
+
+
+if rest$<>"" then line$=rest$: goto 108
 
 101 v.writeln("") : v.writeln("  Ready") : v.write("  ")  
 end sub
@@ -431,15 +436,23 @@ select case cmd
 '  case token_new     no params, do nothing, only add a command to the line 
   case token_plot     : err=compile_int_fun_2p()   
   case token_draw     : err=compile_int_fun_2p()   
-  case token_fcircle  : err=compile_int_fun_3p()   : print err
+  case token_fcircle  : err=compile_int_fun_3p()  
   case token_color    : err=compile_int_fun_1p()  
   case token_print    : err=compile_print()  
+  case else	      : compile_unknown()
 end select
 t3.result_type=cmd : compiledline(lineptr)=t3:  lineptr+=1
-for i=0 to lineptr-1 :print compiledline(i).result_type, : next i '' debug
+
 end sub
 
 ' --------------- Compile commands with parameters
+
+sub compile_unknown() 
+
+dim t1 as expr_result 
+t1.result_type=token_error : t1.result.uresult=23
+compiledline(lineptr)=t1: lineptr+=1 
+end sub
 
 sub compile_converttoint() 
 
@@ -489,6 +502,108 @@ return 0
 end function
 
 
+function compile_assign() as ulong
+
+' at compile time: 
+' compile the expression
+' check if a name is in the list
+' compile assign(vartype) with var# as uvalue
+
+' at runtime
+' get a var# from the stack
+' get a value from the stack
+' write the value to the table position #
+
+dim i,j as integer
+dim t1 as expr_result
+dim varname$,suffix$ as string
+
+let varname$=lparts(0).part$  
+
+i=-1: j=-1
+let suffix$=right$(varname$,1)
+ct=2: expr()
+
+if suffix$="$"  then
+  if svarnum>0 then
+    for i=0 to svarnum-1
+      if svariables(i).name=varname$ then j=i : exit
+    next i
+  endif
+  if  j=-1 andalso svarnum<maxvars then   
+    svariables(svarnum).name=varname$
+    j=svarnum
+    svarnum+=1
+  endif
+  t1.result.uresult=j: t1.result_type=fun_assign_s  
+endif  
+ 
+if suffix$<>"$" andalso suffix$<>"!" andalso suffix$<>"%"  then
+  if ivarnum>0 then
+    for i=0 to ivarnum-1
+      if ivariables(i).name=varname$ then j=i : exit
+    next i
+  endif
+  if  j=-1 andalso ivarnum<maxvars then   
+    ivariables(ivarnum).name=varname$
+    j=ivarnum
+    ivarnum+=1
+  endif
+  t1.result.uresult=j: t1.result_type=fun_assign_i  
+endif  
+  
+if suffix$="%" then
+  if uvarnum>0 then
+    for i=0 to uvarnum-1
+      if uvariables(i).name=varname$ then j=i : exit
+    next i
+  endif
+  if  j=-1 andalso uvarnum<maxvars then   
+    uvariables(uvarnum).name=varname$
+    j=uvarnum
+    uvarnum+=1
+  endif
+  t1.result.uresult=j: t1.result_type=fun_assign_u  
+endif   
+  
+if suffix$="!" then
+  if fvarnum>0 then
+    for i=0 to fvarnum-1
+      if fvariables(i).name=varname$ then j=i : exit
+    next i
+  endif
+  if  j=-1 andalso fvarnum<maxvars then   
+    fvariables(fvarnum).name=varname$
+    j=fvarnum
+    fvarnum+=1
+  endif
+  t1.result.uresult=j: t1.result_type=fun_assign_f  
+endif
+compiledline(lineptr)=t1:  lineptr+=1 
+
+end function
+
+
+'------------------------------ Execute a compiled line -----------------------------------------------------
+
+sub execute_immediate_line
+
+'' program line has to have a linenum, then line length and then the pointer to the next line 
+'' there will be a line index for goto
+'' when compile the index will be searched to find 2 lines that a new line goes between
+'' so the pointer on the previous line will be changed and copied to the new line
+'' when compiling goto , the index position will be found and index# compiled
+
+
+
+for i=0 to lineptr-1
+
+next i
+
+end sub
+
+
+
 '------------------------------ Helper functions for the tokenizer -------------------------------------------
 
 function isoperator(s as string) as ubyte
@@ -519,7 +634,7 @@ function isseparator(s as string) as ubyte
 select case s
   case "+"   : return token_plus
   case "-"   : return token_minus
-  case "="   : return token_assign_eq
+  case "="   : return token_eq ' the compiler then will determine what type is to assign
   case ","   : return token_comma
   case "*"   : return token_mul
   case "/"   : return token_fdiv
@@ -537,11 +652,11 @@ end function
 function isassign(s as string) as ubyte
 
 select case s
-  case "="   : return token_assign_eq
-  case "-="  : return token_assign_sub
-  case "+="  : return token_assign_add
-  case "*="  : return token_assign_mul
-  case "/="  : return token_assign_div
+  case "="   : return token_eq
+'  case "-="  : return token_assign_sub
+'  case "+="  : return token_assign_add
+'  case "*="  : return token_assign_mul
+'  case "/="  : return token_assign_div
   case else  : return 0  
 end select
 end function
@@ -1527,6 +1642,7 @@ errors$(19)="No more variable slots."
 errors$(20)="Variable not found."
 errors$(21)="Comma expected."
 errors$(22)="Comma or semicolon expected."
+errors$(23)="Unknown command."
 end sub
         
 sub printerror(err as integer)
