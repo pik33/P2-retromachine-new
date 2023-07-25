@@ -940,26 +940,27 @@ select case op
   case token_decimal
     if m=1 then t1.result.uresult=m*val%(lparts(ct).part$): t1.result_type=result_uint ' todo token_int64
     if m=-1 then t1.result.iresult=m*val%(lparts(ct).part$): t1.result_type=result_int ' todo token_int64
-    compiledline(lineptr)=t1: lineptr+=1
+    compiledline(lineptr)=t1: lineptr+=1 :ct+=1
   case token_integer
     t1.result.iresult=m*val%(lparts(ct).part$)
     t1.result_type=result_int  
-    compiledline(lineptr)=t1: lineptr+=1
+    compiledline(lineptr)=t1: lineptr+=1 :ct+=1
   case token_float
     if m=1 then t1.result.fresult=1.0*val(lparts(ct).part$): t1.result_type=result_float  
     if m=-1 then t1.result.fresult=-1.0*val(lparts(ct).part$): t1.result_type=result_float
-    compiledline(lineptr)=t1: lineptr+=1
+    compiledline(lineptr)=t1: lineptr+=1 :ct+=1
  case token_string
     t1.result.sresult=lparts(ct).part$: t1.result_type=result_string  
-    compiledline(lineptr)=t1: lineptr+=1
+    compiledline(lineptr)=t1: lineptr+=1 :ct+=1
   case token_name  '' we may got token with var or fun # after evaluation (?) 
-    getvar(m)
+    getvar(m) : ct+=1
   case token_lpar
     ct+=1
-    expr()
-  ''  if lparts(ct).token<>token_rpar then t1.result_type=result_error: t1.result.uresult=14 : return t1
+    expr() 
+    if lparts(ct).token=token_rpar then ct+=1
+    
 end select    
-ct+=1
+
   '  print "Debug from getvalue: "; t1.result.uresult, t1.result.iresult, t1.result.fresult, t1.result.sresult, "result type: ", t1.result_type
 end sub
 
