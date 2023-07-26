@@ -66,22 +66,28 @@ const fun_pushu=29
 const fun_pushf=30
 const fun_pushs=31
 
-const token_cls=32
-const token_new=33
-const token_plot=34
-const token_draw=35
-const token_print=36
-const token_circle=37
-const token_fcircle=38
-const token_box=39
-const token_frame=40
-const token_color=41
-const token_for=42
-const token_next=43
+const print_mod_empty=32
+const print_mod_comma=33
+const print_mod_semicolon=34
 
-const print_mod_empty=506
-const print_mod_comma=507
-const print_mod_semicolon=508
+const token_linenum_major=35
+const token_linenum_minor=36
+const token_nextline_ptr=37
+
+const token_cls=64
+const token_new=65
+const token_plot=66
+const token_draw=67
+const token_print=68
+const token_circle=69
+const token_fcircle=70
+const token_box=71
+const token_frame=72
+const token_color=73
+const token_for=74
+const token_next=75
+const token_list=76
+
 const token_error=509
 const token_end=510
 const token_space=511
@@ -172,12 +178,16 @@ dim ct as integer
 dim progend as integer
 dim stack(maxstack) as expr_result
 dim stackpointer as integer
+dim programptr as integer
 
 type asub as sub()
 
 dim commands(255) as asub 'this is a function table
-dim commands2(255) as integer 'this is a function table
 dim tokennum as integer
+dim compiledslot as integer
+dim test as expr_result 
+compiledslot=sizeof(test)
+
 
 commands(token_plus)=@do_plus 
 commands(token_minus)=@do_minus 
@@ -201,7 +211,13 @@ commands(fun_pushu)=@do_push
 commands(fun_pushi)=@do_push  
 commands(fun_pushf)=@do_push  
 commands(fun_pushs)=@do_push  
-
+commands(fun_assign_u)=@do_assign_u
+commands(fun_assign_i)=@do_assign_i
+commands(fun_assign_f)=@do_assign_f
+commands(fun_assign_s)=@do_assign_s  
+commands(print_mod_empty)=@do_push
+commands(print_mod_comma)=@do_push
+commands(print_mod_semicolon)=@do_push
 'commands(token_assign_eq)=@do_assign
 
 
@@ -217,47 +233,12 @@ commands(token_fcircle)=@do_fcircle
 commands(token_color)=@do_color
 'commands(token_for)=@do_for
 'commands(token_next)=@do_next
+commands(token_list)=@do_list
+
+
+
 commands(fun_converttoint)=@do_converttoint 
 
-commands2(token_plus)=varptr(do_plus) 
-commands2(token_minus)=varptr(do_minus) 
-commands2(token_or)=varptr(do_or) 
-'commands2(token_xor)=varptr(do_xor) 
-commands2(token_mul)=varptr(do_mul)
-commands2(token_fdiv)=varptr(do_fdiv)
-commands2(token_and)=varptr(do_and)
-commands2(token_div)=varptr(do_div)
-commands2(token_mod)=varptr(do_mod)
-commands2(token_shl)=varptr(do_shl)
-commands2(token_shr)=varptr(do_shr)
-commands2(token_power)=varptr(do_power)
-'commands2(token_at)=varptr(do_at)
-'commands2(token_inc)=varptr(do_inc)
-commands2(fun_getivar)=varptr(do_getivar)
-commands2(fun_getuvar)=varptr(do_getuvar)
-commands2(fun_getfvar)=varptr(do_getfvar)
-commands2(fun_getsvar)=varptr(do_getsvar)
-commands2(fun_pushu)=varptr(do_push)
-commands2(fun_pushi)=varptr(do_push)
-commands2(fun_pushf)=varptr(do_push)  
-commands2(fun_pushs)=varptr(do_push) 
-commands2(fun_converttoint)=varptr(do_converttoint) 
-
-'commands2(token_assign_eq)=varptr(do_assign)
-
-
-'commands2(token_cls)=varptr(do_cls)
-'commands2(token_new)=varptr(do_new)
-commands2(token_plot)=varptr(do_plot)
-commands2(token_draw)=varptr(do_draw)
-commands2(token_print)=varptr(do_print)
-'commands2(token_circle)=varptr(do_circle)
-commands2(token_fcircle)=varptr(do_fcircle)
-'commands2(token_box)=varptr(do_box)
-'commands2(token_frame)=varptr(do_frame)
-commands2(token_color)=varptr(do_color)
-'commands2(token_for)=varptr(do_for)
-'commands2(token_next)=varptr(do_next)
 
 '----------------------------------------------------------------------------
 '-----------------------------Program start ---------------------------------
@@ -290,7 +271,7 @@ dim compiledline(125) as expr_result
 dim lineptr as integer
 dim lineptr_e as integer
 lineptr=0 
-
+programptr=0
 
 
 
@@ -450,42 +431,79 @@ lparts(k).token=token_end : tokennum=k
 
 '2b determine a type of the line
   
-if isdec(lparts(0).part$) then print "  This is a program line": goto 101  								'<-- TODO: add a line to a program
-if lparts(0).token=token_name andalso lparts(1).token=token_eq then compile_assign : goto 103    					' assign a variable
+if isdec(lparts(0).part$) andalso lparts(2).token<>token_eq then compile(val%(lparts(0).part$)) : goto 104  								'<-- TODO: add a line to a program
+if isdec(lparts(0).part$) andalso lparts(2).token=token_eq then compile_assign(val%(lparts(0).part$)) : goto 104  								'<-- TODO: add a line to a program
+if lparts(0).token=token_name andalso lparts(1).token=token_eq then compile_assign(0) : goto 103    					' assign a variable
 if lparts(0).token=token_name andalso lparts(1).token=token_rpar then print " User functions and arrays not yet implemented" : goto 101
 
 ' if we are here, this is not a program line to add, so try to execute this
 
 compile(0) : '' execute(0) ' print "  this is a command to execute"  ''' param=line to compile
-103 
+103 ' for i=0 to lineptr: print compiledline(i).result_type;" ";compiledline(i).result.uresult, : next i
 execute_immediate_line()
 
 if rest$<>"" then line$=rest$: goto 108
 
 101 v.writeln("") : v.writeln("  Ready") : v.write("  ")  
-end sub
+104 end sub
 
 ''--------------------- Compile the line ------------------------------------
 
-sub compile (aline as ulong)
+sub compile (alinemajor as ulong, alineminor=0 as ulong)
 
 dim t3 as expr_result
 dim pos,err as ulong
+dim listline(125) as ubyte
+
 t3.result.uresult=0
-let cmd=lparts(0).token
-ct=1
+if alinemajor=0 then let cmd=lparts(0).token : ct=1  else let cmd=lparts(1).token : ct=2
+
+if alinemajor>0 then
+  compiledline(lineptr).result_type=token_linenum_major
+  compiledline(lineptr).result.uresult=alinemajor
+  lineptr+=1
+  compiledline(lineptr).result_type=token_linenum_minor
+  compiledline(lineptr).result.uresult=alineminor
+  lineptr+=1
+  compiledline(lineptr).result_type=token_nextline_ptr
+  let nextline_ptr_pos=lineptr ' we don't know where the pointer is
+  lineptr+=1
+endif
 select case cmd
   case token_cls      : compile_nothing()   'no params, do nothing, only add a command to the line, but case needs something to do after 
   case token_new      : compile_nothing()   
+  case token_list     : compile_nothing()   
   case token_plot     : err=compile_int_fun_2p()   
   case token_draw     : err=compile_int_fun_2p()   
   case token_fcircle  : err=compile_int_fun_3p()  
   case token_color    : err=compile_int_fun_1p()  
-  case token_print    : err=compile_print()  
+  case token_print    : err=compile_print()  : goto 450
   case else	      : compile_unknown()
 end select
 t3.result_type=cmd : compiledline(lineptr)=t3:  lineptr+=1
+450 compiledline(lineptr).result_type=token_end 
+if alinemajor>0 orelse alineminor>0 then
+  let llength=compiledslot*(lineptr+1)
+  let llength2=len (line$): if llength2 mod 4 <>0 then llength2=4*((llength2/4)+1)
+  let llength3=llength+llength2
+  compiledline(nextline_ptr_pos).result.uresult=llength3+programptr 
+  psram.write(varptr(compiledline),programptr,llength)
+  psram.write(lpeek(varptr(line$)),programptr+llength,llength2)
+  programptr+=llength3
+  let af=-1
+  psram.write(varptr(af),programptr,4) ' write end flag
 
+ endif 
+''for i=0 to lineptr: print compiledline(i).result_type;" ";compiledline(i).result.uresult, : next i  'debug
+'if alinemajor>0 then 
+'  for i=0 to tokennum
+'    for j=
+'  print lparts(i).part$;" ";: next i
+
+
+'if aline>0 then
+' line structure: linenum major, linenum minor, pointer to next line,compiled line ended with token_end
+'if aline=0 then psram.write(hub,ps,amount)
 end sub
 
 ' --------------- Compile commands with parameters
@@ -537,11 +555,12 @@ function compile_print() as ulong ' todo reconfigurable editor start position
 
 dim t1 as expr_result
 t1.result.uresult=0 : t1.result_type=result_uint
-if lparts(ct).token=token_end then t1.result_type=print_mod_empty: compiledline(lineptr)=t1:  lineptr+=1 : return 0 			'print without parameters
+if lparts(ct).token=token_end then t1.result_type=print_mod_empty: compiledline(lineptr)=t1:  lineptr+=1 : t1.result_type=token_print : compiledline(lineptr)=t1:  lineptr+=1 :return 0 			'print without parameters
 do
   expr()
   if lparts(ct).token=token_comma then t1.result_type=print_mod_comma : compiledline(lineptr)=t1:  lineptr+=1 : t1.result_type=token_print : compiledline(lineptr)=t1:  lineptr+=1
   if lparts(ct).token=token_semicolon then  t1.result_type=print_mod_semicolon : compiledline(lineptr)=t1:  lineptr+=1 : t1.result_type=token_print : compiledline(lineptr)=t1:  lineptr+=1
+  if lparts(ct).token=token_end then t1.result_type=token_print : compiledline(lineptr)=t1:  lineptr+=1
   if lparts(ct).token <>token_comma andalso lparts(ct).token <>token_semicolon andalso lparts(ct).token <>token_end then return 22
   ct+=1  
 loop until lparts(ct).token=token_end orelse ct>=tokennum
@@ -549,8 +568,7 @@ return 0
 end function
 
 
-function compile_assign() as ulong
-
+sub compile_assign (alinemajor as ulong, alineminor=0 as ulong)  
 ' at compile time: 
 ' compile the expression
 ' check if a name is in the list
@@ -564,12 +582,31 @@ function compile_assign() as ulong
 dim i,j as integer
 dim t1 as expr_result
 dim varname$,suffix$ as string
-
-varname$=lparts(0).part$  
 t1.result_type=result_error : t1.result.uresult=0
-i=-1: j=-1
+  i=-1: j=-1
+if alinemajor=0 then 
+  varname$=lparts(0).part$  
+  ct=2
+else
+  varname$=lparts(1).part$  
+  ct=3
+endif
+ 
+
+if alinemajor>0 then
+  compiledline(lineptr).result_type=token_linenum_major
+  compiledline(lineptr).result.uresult=alinemajor
+  lineptr+=1
+  compiledline(lineptr).result_type=token_linenum_minor
+  compiledline(lineptr).result.uresult=alineminor
+  lineptr+=1
+  compiledline(lineptr).result_type=token_nextline_ptr
+  let nextline_ptr_pos=lineptr ' we don't know where the pointer is
+  lineptr+=1
+endif 
+  
 let suffix$=right$(varname$,1)
-ct=2: expr()
+ expr()
 
 if suffix$="$"  then
   if svarnum>0 then
@@ -627,8 +664,24 @@ if suffix$="!" then
   t1.result.uresult=j: t1.result_type=fun_assign_f  
 endif
 compiledline(lineptr)=t1:  lineptr+=1 
+compiledline(lineptr).result_type=token_end 
 
-end function
+'if alinemajor>0 orelse alineminor>0 then compiledline(nextline_ptr_pos).result.uresult=compiledslot*(lineptr+1)+programptr: programptr+=compiledslot*(lineptr+1)
+'for i=0 to lineptr: print compiledline(i).result_type;" ";compiledline(i).result.uresult, : next i  'debug
+
+if alinemajor>0 orelse alineminor>0 then
+  let llength=compiledslot*(lineptr+1)
+  let llength2=len (line$): if llength2 mod 4 <>0 then llength2=4*((llength2/4)+1)
+  let llength3=llength+llength2
+  compiledline(nextline_ptr_pos).result.uresult=llength3+programptr 
+  psram.write(varptr(compiledline),programptr,llength)
+  psram.write(lpeek(varptr(line$)),programptr+llength,llength2)
+  programptr+=llength3
+  let af=-1
+  psram.write(varptr(af),programptr,4) ' write end flag
+endif
+
+end sub
 
 
 '------------------------------ Execute a compiled line -----------------------------------------------------
@@ -644,36 +697,14 @@ sub execute_immediate_line
 dim cmd as asub
 
 for lineptr_e=0 to lineptr-1
-print (compiledline(lineptr_e).result_type),compiledline(lineptr_e).result.iresult
+'print (compiledline(lineptr_e).result_type),compiledline(lineptr_e).result.iresult
 cmd=commands(compiledline(lineptr_e).result_type)
 cmd
 next lineptr_e
 
 end sub
 
-sub execute_immediate_line_a
 
-'' program line has to have a linenum, then line length and then the pointer to the next line 
-'' there will be a line index for goto
-'' when compile the index will be searched to find 2 lines that a new line goes between
-'' so the pointer on the previous line will be changed and copied to the new line
-'' when compiling goto , the index position will be found and index# compiled
-
- 
-
-var calladdr =0
-for i=0 to lineptr-1
-
-'commands(compiledline(i).result_type)
-
-calladdr=commands2(compiledline(i).result_type)
-print (compiledline(i).result_type),calladdr
-asm
-call calladdr
-end asm
-next i
-
-end sub
 
 '------------------------------ Helper functions for the tokenizer -------------------------------------------
 
@@ -747,6 +778,7 @@ select case s
   case "frame"       : return token_frame
   case "color"       : return token_color
   case "print"	     : return token_print
+  case "list"	     : return token_list
   case else          : return 0  
 end select
 end function
@@ -867,97 +899,51 @@ end sub
 '------------------ Assigning to a variable ------------------------------------------
 '-------------------------------------------------------------------------------------
 
-sub do_assign
+sub do_assign_i
 
-dim i,j as integer
 dim t1 as expr_result
-dim varname$,suffix$ as string
-let varname$=lparts(0).part$  
-/' todo
 
-That thing at compile time has to allocate a var and assign a name
-Then call expr to do its job
-Then fun_assign var# at the end
+dim varnum as ulong
+
+varnum=compiledline(lineptr_e).result.uresult
+t1=pop()
+if varnum >=0 then ivariables(varnum).value=t1.result.iresult
+end sub
 
 
-i=-1: j=-1
-let suffix$=right$(varname$,1)
-ct=2: t1=expr()
-if t1.result_type=result_error then printerror(t1.result.uresult): goto 501
-if suffix$="$" andalso t1.result_type<>result_string then printerror(15):goto 501
-if suffix$="!" andalso t1.result_type<>result_float andalso t1.result_type<>result_uint andalso t1.result_type<>result_int then printerror(16):goto 501
-if suffix$="%" andalso t1.result_type<>result_uint then printerror(17):goto 501
-if suffix$<>"$" andalso suffix$<>"!" andalso suffix$<>"%" andalso t1.result_type<>result_uint andalso t1.result_type<>result_int then printerror(18): goto 501
+sub do_assign_u
 
-if suffix$="!" andalso t1.result_type=result_int then t1.result_type=result_float: t1.result.fresult=t1.result.iresult
-if suffix$="!" andalso t1.result_type=result_uint then t1.result_type=result_float: t1.result.fresult=t1.result.uresult
+dim t1 as expr_result
 
-if suffix$<>"$" andalso suffix$<>"!" andalso suffix$<>"%" andalso t1.result_type=result_uint  then t1.result_type=result_int: t1.result.iresult=t1.result.uresult
+dim varnum as ulong
 
-if suffix$="$"  then
-  if svarnum>0 then
-    for i=0 to svarnum-1
-      if svariables(i).name=varname$ then j=i : exit
-    next i
-  endif
-if  j=-1 andalso svarnum<maxvars then   
-  svariables(svarnum).name=varname$
-  svariables(svarnum).value=t1.result.sresult
-  svarnum+=1
-else if j>-1 then
-  svariables(j).value=t1.result.sresult
-else printerror(19) : goto 501
-endif  
-  
- 
-if suffix$<>"$" andalso suffix$<>"!" andalso suffix$<>"%"  then
-  if ivarnum>0 then
-    for i=0 to ivarnum-1
-      if ivariables(i).name=varname$ then j=i : exit
-    next i
-  endif
-if  j=-1 andalso ivarnum<maxvars then   
-  ivariables(ivarnum).name=varname$
-  ivariables(ivarnum).value=t1.result.iresult
-  ivarnum+=1
-else if j>-1 then   
-  ivariables(j).value=t1.result.iresult
-else printerror(19) : goto 501
-endif  
-  
- 
-if suffix$="%" then
-  if uvarnum>0 then
-    for i=0 to uvarnum-1
-      if uvariables(i).name=varname$ then j=i : exit
-    next i
-  endif
-if  j=-1 andalso uvarnum<maxvars then   
-  uvariables(uvarnum).name=varname$
-  uvariables(uvarnum).value=t1.result.uresult
-  uvarnum+=1
-else if j>-1 then
-  uvariables(j).value=t1.result.uresult
-else printerror(19) : goto 501
-endif    
-  
-if suffix$="!" then
-  if fvarnum>0 then
-    for i=0 to fvarnum-1
-      if fvariables(i).name=varname$ then j=i : exit
-    next i
-  endif
-if  j=-1 andalso fvarnum<maxvars then   
-  fvariables(fvarnum).name=varname$
-  fvariables(fvarnum).value=t1.result.fresult
-  fvarnum+=1
-else if j>-1 then
-  fvariables(j).value=t1.result.fresult
-else printerror(19) : goto 501
-endif   
-'/
-501 end sub
+varnum=compiledline(lineptr_e).result.uresult
+t1=pop()
+if varnum >=0 then uvariables(varnum).value=t1.result.uresult
+end sub
 
+
+sub do_assign_f
+
+dim t1 as expr_result
+
+dim varnum as ulong
+
+varnum=compiledline(lineptr_e).result.uresult
+t1=pop()
+if varnum >=0 then fvariables(varnum).value=t1.result.fresult
+end sub
+
+sub do_assign_s
+
+dim t1 as expr_result
+
+dim varnum as ulong
+
+varnum=compiledline(lineptr_e).result.uresult
+t1=pop()
+if varnum >=0 then svariables(varnum).value=t1.result.sresult
+end sub
 
 
 
@@ -1100,8 +1086,8 @@ end sub
 sub do_getivar
 dim t1 as expr_result
 dim r as integer
-t1=pop()
-r=ivariables(t1.result.uresult).value
+ 
+r=ivariables(compiledline(lineptr_e).result.uresult).value
 t1.result.iresult=r
 t1.result_type=result_int
 push t1
@@ -1110,8 +1096,8 @@ end sub
 sub do_getuvar
 dim t1 as expr_result
 dim r as ulong
-t1=pop()
-r=uvariables(t1.result.uresult).value
+ 
+r=uvariables(compiledline(lineptr_e).result.uresult).value
 t1.result.uresult=r
 t1.result_type=result_uint
 push t1
@@ -1120,20 +1106,22 @@ end sub
 sub do_getfvar
 dim t1 as expr_result
 dim r as single
-t1=pop()
-r=fvariables(t1.result.uresult).value
+ 
+r=fvariables(compiledline(lineptr_e).result.uresult).value
 t1.result.fresult=r
 t1.result_type=result_float
 push t1
 end sub
 
 sub do_getsvar
+
 dim t1 as expr_result
 dim r as string
-t1=pop()
-r=svariables(t1.result.uresult).value
+  
+r=svariables(compiledline(lineptr_e).result.uresult).value
 t1.result.sresult=r
 t1.result_type=result_string
+print t1.result.sresult
 push t1
 end sub
 
@@ -1355,6 +1343,28 @@ position editor_spaces*2,1 : print ver$
 ' ------------------------- clear the program structures here 
 end sub
 
+sub do_list
+dim t1 as expr_result
+dim aend as integer
+dim newlist as integer
+dim linebuf(127) as ubyte
+print
+let listptr=0
+do 
+  psram.read1(varptr(aend),listptr,4)  
+  if aend<>-1 then
+    psram.read1(varptr(newlist),listptr+16,4)  
+    do:psram.read1(varptr(t1),listptr,compiledslot): listptr+=compiledslot:loop until t1.result_type=token_end
+    psram.read1(varptr(linebuf),listptr,newlist-listptr)
+    print space$(editor_spaces); :v.writeln(varptr(linebuf))
+    listptr=newlist
+    endif
+loop until aend=-1
+ 
+ 
+end sub
+
+
 sub do_cls
 cls()
 end sub
@@ -1397,16 +1407,14 @@ v.fcircle(t1.result.iresult,t2.result.iresult,t3.result.iresult,plot_color)
 end sub
 
 
-sub do_print ' todo reconfigurable editor start position
+sub do_print  
 
 dim t1,t2 as expr_result
 dim r as integer
-ct=1
-if lparts(ct).token=token_end then print: print space$(editor_spaces) : goto 811
 
 r=0
-t1=pop()
-if t1.result_type=print_mod_comma orelse t1.result_type=print_mod_semicolon then r=t1.result_type : t1=pop()
+t1=pop() 
+if t1.result_type=print_mod_comma orelse t1.result_type=print_mod_semicolon then r=t1.result_type :  t1=pop()
 if t1.result_type=print_mod_empty then r=t1.result_type 
 if t1.result_type=result_error then printerror(t1.result.uresult): goto 811
 
@@ -1423,10 +1431,10 @@ if r=print_mod_semicolon then
   if t1.result_type=result_string then print t1.result.sresult;
 endif
 if r=0 then 
-  if t1.result_type=result_int then print t1.result.iresult
-  if t1.result_type=result_uint then print t1.result.uresult
-  if t1.result_type=result_float then print t1.result.fresult
-  if t1.result_type=result_string then print t1.result.sresult
+  if t1.result_type=result_int then print t1.result.iresult: print space$(editor_spaces);
+  if t1.result_type=result_uint then print t1.result.uresult: print space$(editor_spaces);
+  if t1.result_type=result_float then print t1.result.fresult: print space$(editor_spaces);
+  if t1.result_type=result_string then print t1.result.sresult: print space$(editor_spaces);
 endif 
 if r=print_mod_empty then print
 
