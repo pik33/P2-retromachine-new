@@ -294,6 +294,7 @@ byte pixelbuf
 long xres,yres
 long ccc[2]
 byte cursor[128]
+long leading_spaces
 obj
 ram: "psram.spin2"
 
@@ -352,7 +353,7 @@ spr13y:=600				'
 spr14y:=600				'
 spr15y:=600				'
 spr16y:=600
-				'
+leading_spaces:=0				'
 
 emptydl[0]:=%0100_0000_0000_0000_0000_0000_0000_0111
 emptydl[1]:=0
@@ -388,6 +389,7 @@ spr17x:=0
 spr17y:=0
 spr17w:=8
 spr17h:=16
+leading_spaces:=0
 
 '---------------------------- start the cog
 
@@ -885,6 +887,11 @@ return long[@ataripalette+4*c]
 
 ''---------- Clear the screen, set its foreground/background color  
 
+pub setleadingspaces(amount)
+
+leading_spaces:=amount
+
+
 pub cls(fc,bc)   :c,i
 
 c:=bc
@@ -943,13 +950,14 @@ repeat iii from 0 to strsize(text)-1
 pub writeln(text)
 
 write(text)
-cursor_x:=0
-cursor_y+=1
-if (cursor_y>st_lines-1)
-  scrollup()
-  cursor_y:=st_lines-1
-spr17x:=4*cursor_x
-spr17y:=16*cursor_y   
+crlf
+' cursor_x:=0
+'c;ursor_y+=1
+'if (cursor_y>st_lines-1)
+'  scrollup()
+'  cursor_y:=st_lines-1
+'spr17x:=4*cursor_x
+'spr17y:=16*cursor_y   
 ''-----------  Scroll the screen one line up
 
 pub scrollup(start=0, end=576 , amount=16) | i
@@ -976,7 +984,7 @@ repeat i from 0 to 15
 
 pub crlf()
 
-cursor_x:=0
+cursor_x:=leading_spaces*2
 cursor_y+=1
 if cursor_y>st_lines-1
   scrollup()

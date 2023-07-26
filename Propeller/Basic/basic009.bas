@@ -1,7 +1,7 @@
 const _clkfreq = 336956522
 const HEAPSIZE=16384
-#define PSRAM4
-'#define PSRAM16
+'#define PSRAM4
+#define PSRAM16
 
 #ifdef PSRAM16
 dim v as class using "hg009.spin2"
@@ -276,10 +276,10 @@ kbm.start()
 kbm.mouse_set_limits(1023,575)
 cls
 v.setfontfamily(4) 				' use ST Mono font
+v.setleadingspaces(editor_spaces)
+position 2*editor_spaces,1 : print ver$
+position 2*editor_spaces,3 : print "Ready"
 
-position 0,1 : print space$(editor_spaces);ver$
-position 0,3 : print space$(editor_spaces);"Ready"
-print space$(editor_spaces);
 for i=0 to 35: for j=0 to 127: textscreen(i,j)=32: next j: next i
 dim key , key2 as ulong
  
@@ -341,7 +341,7 @@ if key3<>0 then
  ' To do: arrows and DEL; use textscreen array to implement fullscreen editing
  
   if key4=141 then 
-    v.crlf() : print space$(editor_spaces);
+    v.crlf()  
       interpret(line$): line$="" :let t1=getct()-t1 
     endif 
 
@@ -1402,7 +1402,7 @@ sub do_print ' todo reconfigurable editor start position
 dim t1,t2 as expr_result
 dim r as integer
 ct=1
-if lparts(ct).token=token_end then print: print space$(editor_spaces) : goto 811
+if lparts(ct).token=token_end then print : goto 811
 
 r=0
 t1=pop()

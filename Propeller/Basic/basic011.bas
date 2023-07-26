@@ -18,9 +18,36 @@ dim paula as class using "audio093b-8-sc.spin2"
 
 #include "dir.bi"
 
+''-----------------------------------------------------------------------------------------
+''---------------------------------- Constants --------------------------------------------
+''-----------------------------------------------------------------------------------------
+
 const ver$="P2 Retromachine BASIC version 0.10"
 
-' ----------------------- Tokens -----------------------------------------
+'' ------------------------------- Keyboard constants
+
+const   key_enter=141    
+const   key_escape=155    
+const   key_backspace=136 
+const   key_tab=137       
+const   key_f1=186        
+const   key_f2=187        
+const   key_f3=188        
+const   key_f4=189        
+const   key_f5=190        
+const   key_f6=191       
+const   key_f7=192       
+const   key_f8=193     
+const   key_f9=194      
+const   key_f10=195     
+const   key_f11=196       
+const   key_f12=197        
+const   key_rightarrow=206 
+const   key_leftarrow=207  
+const   key_downarrow=208  
+const   key_uparrow=209    
+
+' ---------------------------------- Tokens 
 
 const token_plus=1
 const token_minus=2
@@ -44,36 +71,27 @@ const token_ear=19
 const token_rpar=20
 const token_lpar=21
 const token_colon=22
-
-' reuse non-function tokens with functions that have no tokens
-
-const fun_getivar=17
+const fun_getivar=17  ' at runtime, reuse non-function tokens with functions that have no compile time tokens
 const fun_getuvar=18
 const fun_getfvar=19
 const fun_getsvar=20
 const fun_negative=21
 const fun_converttoint=22
-
 const fun_assign_i=23
 const fun_assign_u=24
 const fun_assign_f=25
 const fun_assign_s=26
-
 const token_eq=27
-
 const fun_pushi=28
 const fun_pushu=29
 const fun_pushf=30
 const fun_pushs=31
-
 const print_mod_empty=32
 const print_mod_comma=33
 const print_mod_semicolon=34
-
 const token_linenum_major=35
 const token_linenum_minor=36
 const token_nextline_ptr=37
-
 const token_cls=64
 const token_new=65
 const token_plot=66
@@ -88,89 +106,92 @@ const token_for=74
 const token_next=75
 const token_list=76
 const token_run=77
-
 const token_error=255
 const token_end=510
 const token_space=511
- 
 const token_decimal=512
 const token_integer=513
 const token_float=514
 const token_string=515
 const token_name=516
 
+' ----------------------------- Expression results/variable types 
 
-' ----------------------------- End of token list -------------------------
-
-const result_int=fun_pushi
+const result_int=fun_pushi      ' variable type encodes its own push function in the compiled line
 const result_uint=fun_pushu
 const result_float=fun_pushf
 const result_string=fun_pushs
 const result_error=token_error
 
-const maxvars=1023
+' -----------------------------max number of variables and stack depth
+const maxvars=1023       
 const maxstack=128
-class part
+
+''-----------------------------------------------------------------------------------------
+''---------------------------------- Classes and types ------------------------------------
+''-----------------------------------------------------------------------------------------
+
+class part                       ' source code line part
   dim part$ as string
   dim token as integer
 end class
 
-union aresult
+union aresult			' one long for all result types (until I implement double and int64)
   dim iresult as integer
   dim uresult as ulong
   dim sresult as string
   dim fresult as double
 end union
   
-class expr_result
+class expr_result		' general variable, not only expression result :) 
   dim result as aresult
-  dim result_type as ulong ' 0 i 1 u 4f 5s 6 error, 2,3 reserved for int64
+  dim result_type as ulong  
 end class
 
-class integer_variable
+class integer_variable		' integer variable class for a variable table
   dim name as string
   dim value as integer
 end class
 
-class uint_variable
+class uint_variable		' unsigned integer variable class for a variable table
   dim name as string
   dim value as ulong
 end class
-
-
-class float_variable
+ 
+class float_variable            ' single precision float variable class for a variable table
   dim name as string
   dim value as single
 end class
 
-class string_variable
+class string_variable           ' string variable class for a variable table
   dim name as string
   dim value as string
 end class
 
-' to do : move these out of the heap into the psram...
+type parts as part(125)         ' parts to split the line into, line has 125 chars max
+type asub as sub()		' sub type to make a sub table
 
-dim ivariables as integer_variable(maxvars) ' how to make this better?? let's start from 1k vars available....   
-dim uvariables as uint_variable(maxvars) ' how to make this better?? let's start from 1k vars available....   
-dim fvariables as float_variable(maxvars) ' how to make this better?? let's start from 1k vars available....   
-dim svariables as string_variable(maxvars) ' how to make this better?? let's start from 1k vars available....   
+''-----------------------------------------------------------------------------------------
+''---------------------------------- Global variables ------------------------------------
+''-----------------------------------------------------------------------------------------
 
-dim ivarnum as integer
+dim ivariables as integer_variable(maxvars) ' int vars table 
+dim uvariables as uint_variable(maxvars)    ' uint vars table   
+dim fvariables as float_variable(maxvars)   ' single vars table   
+dim svariables as string_variable(maxvars)  ' string vars table   
+
+dim ivarnum as integer			
 dim uvarnum as integer
 dim fvarnum as integer
 dim svarnum as integer
-
-
-type parts as part(125) 
+ 
 dim lparts as parts
 
 dim audiocog,videocog as integer
 dim base as ulong
 dim mbox as ulong
 dim ansibuf(3) as ubyte
-dim textscreen (35,127) as ubyte
 dim line$ as string
-dim testaudio(883) as ushort
 
 dim plot_color,plot_x,plot_y as integer
 dim editor_spaces as integer
@@ -181,68 +202,16 @@ dim stack(maxstack) as expr_result
 dim stackpointer as integer
 dim programptr as integer
 
-type asub as sub()
-
 dim commands(255) as asub 'this is a function table
 dim tokennum as integer
 dim compiledslot as integer
 dim test as expr_result 
-compiledslot=sizeof(test)
+dim key , key2 as ulong
+dim errors$(255)
 
-
-commands(token_plus)=@do_plus 
-commands(token_minus)=@do_minus 
-commands(token_or)=@do_or 
-'commands(token_xor)=@do_xor 
-commands(token_mul)=@do_mul
-commands(token_fdiv)=@do_fdiv
-commands(token_and)=@do_and
-commands(token_div)=@do_div
-commands(token_mod)=@do_mod
-commands(token_shl)=@do_shl
-commands(token_shr)=@do_shr
-commands(token_power)=@do_power
-'commands(token_at)=@do_at
-'commands(token_inc)=@do_inc
-commands(fun_getivar)=@do_getivar
-commands(fun_getuvar)=@do_getuvar
-commands(fun_getfvar)=@do_getfvar
-commands(fun_getsvar)=@do_getsvar
-commands(fun_pushu)=@do_push 
-commands(fun_pushi)=@do_push  
-commands(fun_pushf)=@do_push  
-commands(fun_pushs)=@do_push  
-commands(fun_assign_u)=@do_assign_u
-commands(fun_assign_i)=@do_assign_i
-commands(fun_assign_f)=@do_assign_f
-commands(fun_assign_s)=@do_assign_s  
-commands(print_mod_empty)=@do_push
-commands(print_mod_comma)=@do_push
-commands(print_mod_semicolon)=@do_push
-'commands(token_assign_eq)=@do_assign
-
-
-commands(token_cls)=@do_cls
-commands(token_new)=@do_new
-commands(token_plot)=@do_plot
-commands(token_draw)=@do_draw
-commands(token_print)=@do_print
-'commands(token_circle)=@do_circle
-commands(token_fcircle)=@do_fcircle
-'commands(token_box)=@do_box
-'commands(token_frame)=@do_frame
-commands(token_color)=@do_color
-'commands(token_for)=@do_for
-'commands(token_next)=@do_next
-commands(token_list)=@do_list
-commands(token_run)=@do_run
-
-commands(token_error)=@do_error
-
-
-
-commands(fun_converttoint)=@do_converttoint 
-
+dim compiledline(125) as expr_result
+dim lineptr as integer
+dim lineptr_e as integer
 
 '----------------------------------------------------------------------------
 '-----------------------------Program start ---------------------------------
@@ -253,8 +222,15 @@ startvideo
 plot_color=154 : plot_x=0: plot_y=0
 editor_spaces=2
 paper=147: ink=154
+compiledslot=sizeof(test)
 ivarnum=0 : uvarnum=0 : fvarnum=0 : svarnum=0
-let audiocog,base=paula.start(0,0,0)
+init_commands
+init_error_strings
+stackpointer=0
+lineptr=0 
+programptr=0
+pslpoke(0,-$FFFFFFFF)
+audiocog,base=paula.start(0,0,0)
 waitms(50)
 dpoke base+20,16384
 kbm.start()
@@ -266,26 +242,14 @@ position 2*editor_spaces,1 : print ver$
 print v.buf_ptr;" BASIC bytes free"
 position 2*editor_spaces,4 : print "Ready"
 
-for i=0 to 35: for j=0 to 127: textscreen(i,j)=32: next j: next i
-dim key , key2 as ulong
- 
-dim errors$(255)
-init_error_strings
-stackpointer=0
-dim compiledline(125) as expr_result
-dim lineptr as integer
-dim lineptr_e as integer
-lineptr=0 
-programptr=0
-
-let i=-1: psram.write(varptr(i),0,4) ' write end flag at the start of psram
-
 '-------------------------------------------------------------------------------------------------------- 
 '-------------------------------------- MAIN LOOP -------------------------------------------------------
 '--------------------------------------------------------------------------------------------------------
 
 do
 waitvbl
+
+'' Do key repeat
 
 let key=kbm.get_key() 
 let leds=kbm.ledstates() 'numlock 1 capslock 2 scrollock 4
@@ -294,6 +258,7 @@ if key>3 andalso key<$80000000 andalso (key and 255) <$E0 then let key2=key : le
 if key>$80000000 then let rptcnt=0 : let rpt=0
 if key=0 andalso rpt=1 then rptcnt+=1
 if key<$80000000 then if rptcnt=25 then key3=key2 : rptcnt=21
+
 
 if key3<>0 then
   paula.play(0,@atari_spl,44100,16384,1684) 
@@ -310,12 +275,14 @@ if key3<>0 then
     endif
   endif
  
-  if key4>0 andalso key4<127 andalso v.cursor_x<254 then line$+=chr$(key4): textscreen(v.cursor_y,v.cursor_x/2)=key4 : v.putchar(key4)
-  if key4>0 andalso key4<127 andalso v.cursor_x=254 then paula.play(0,@atari2_spl,44100,16384,0,1758): waitms(300): paula.stop(0)
-
+  if key4>0 andalso key4<127 andalso v.cursor_x<254 then line$+=chr$(key4): v.putchar(key4)
+  if key4>0 andalso key4<127 andalso v.cursor_x=254 then paula.play(0,@atari2_spl,44100,16384,0,1758): waitms(300): paula.stop(0) 'end of line reached
+ 
+  'tab
   if (key3 and 255) = 43 andalso v.cursor_x>=240 then paula.play(0,@atari2_spl,44100,16384,0,1758): waitms(300): paula.stop(0)
-
-  if (key3 and 255) = 43 andalso v.cursor_x<240 then let x=(v.cursor_x mod 16)/2: for i=x to 7: line$+=" " : textscreen(v.cursor_y,v.cursor_x/2)=32 : v.write (" ") : next i  
+  if (key3 and 255) = 43 andalso v.cursor_x<240 then let x=(v.cursor_x mod 16)/2: for i=x to 7: line$+=" " :  v.write (" ") : next i  
+ 
+  'backspace
   if (key3 and 255) = 42 then 
       if v.cursor_x>4 then 
         line$=left$(line$,len(line$)-1): position v.cursor_x-2,v.cursor_y: v.putchar(32) : position v.cursor_x-2,v.cursor_y
@@ -326,7 +293,7 @@ if key3<>0 then
    
  ' To do: arrows and DEL; use textscreen array to implement fullscreen editing
  
-  if key4=141 then 
+  if key4=key_enter then 
     v.crlf() 
       interpret: line$="" :let t1=getct()-t1 
     endif 
@@ -339,7 +306,7 @@ loop
 '----------------------------------- this is the end of the main loop ------------------------------------------------------------------
 
 '---------------------------------------------------------------------------------------------------------------------------------------
-'----------------------------------- The immediate line interpreter --------------------------------------------------------------------
+'----------------------------------- The line interpreter ------------------------------------------------------------------------------
 '---------------------------------------------------------------------------------------------------------------------------------------
 
 sub interpret
@@ -1407,29 +1374,34 @@ loop until aend=-1
  
 end sub
 
+'' ----------------------------- Graphics related runtime procedures --------------------------------------
+
+'' ----------------------------- Clear the screen
 
 sub do_cls
 cls()
 end sub
 
-sub do_plot
- 
-dim t1,t2 as expr_result 
-t2=pop()
-t1=pop()
-
-plot_x=t1.result.iresult
-plot_y=t2.result.iresult
-v.putpixel(plot_x,plot_y,plot_color) 
-end sub
+'' ----------------------------- Set a color # from the palette to plot/draw
 
 sub do_color
-
 dim t1 as expr_result
 t1=pop()
 plot_color=t1.result.iresult
 end sub
 
+' ----------------------------- Plot a point, set starting point to draw a line
+
+sub do_plot
+dim t1,t2 as expr_result 
+t2=pop()
+t1=pop()
+plot_x=t1.result.iresult
+plot_y=t2.result.iresult
+v.putpixel(plot_x,plot_y,plot_color) 
+end sub
+
+' --------------------------- Draw a line to point set by plot or previous draw, set a new starting point
 
 sub do_draw
 dim t1,t2 as expr_result 
@@ -1440,6 +1412,8 @@ plot_x=t1.result.iresult
 plot_y=t2.result.iresult
 end sub
 
+' -------------------------- Draw a filled circle at x,y and radius r
+
 sub do_fcircle
 dim t1,t2,t3 as expr_result 
 
@@ -1449,6 +1423,9 @@ t1=pop()
 v.fcircle(t1.result.iresult,t2.result.iresult,t3.result.iresult,plot_color) 
 end sub
 
+'' ----------------------------- Text related runtime procedures --------------------------------------
+
+' ------------------------- Print to the screem
 
 sub do_print  
 
@@ -1483,7 +1460,99 @@ if r=print_mod_empty then print
 
 811 end sub
 
+''----------------------------------------------------------------------------------------------------
+''------------------ Initialization procedures -------------------------------------------------------
+''----------------------------------------------------------------------------------------------------
 
+
+''--------------------------- Command function pointers
+
+sub init_commands
+
+commands(token_plus)=@do_plus 
+commands(token_minus)=@do_minus 
+commands(token_or)=@do_or 
+'commands(token_xor)=@do_xor 
+commands(token_mul)=@do_mul
+commands(token_fdiv)=@do_fdiv
+commands(token_and)=@do_and
+commands(token_div)=@do_div
+commands(token_mod)=@do_mod
+commands(token_shl)=@do_shl
+commands(token_shr)=@do_shr
+commands(token_power)=@do_power
+'commands(token_at)=@do_at
+'commands(token_inc)=@do_inc
+commands(fun_getivar)=@do_getivar
+commands(fun_getuvar)=@do_getuvar
+commands(fun_getfvar)=@do_getfvar
+commands(fun_getsvar)=@do_getsvar
+commands(fun_pushu)=@do_push 
+commands(fun_pushi)=@do_push  
+commands(fun_pushf)=@do_push  
+commands(fun_pushs)=@do_push  
+commands(fun_assign_u)=@do_assign_u
+commands(fun_assign_i)=@do_assign_i
+commands(fun_assign_f)=@do_assign_f
+commands(fun_assign_s)=@do_assign_s  
+commands(print_mod_empty)=@do_push
+commands(print_mod_comma)=@do_push
+commands(print_mod_semicolon)=@do_push
+commands(token_cls)=@do_cls
+commands(token_new)=@do_new
+commands(token_plot)=@do_plot
+commands(token_draw)=@do_draw
+commands(token_print)=@do_print
+'commands(token_circle)=@do_circle
+commands(token_fcircle)=@do_fcircle
+'commands(token_box)=@do_box
+'commands(token_frame)=@do_frame
+commands(token_color)=@do_color
+'commands(token_for)=@do_for
+'commands(token_next)=@do_next
+commands(token_list)=@do_list
+commands(token_run)=@do_run
+commands(token_error)=@do_error
+commands(fun_converttoint)=@do_converttoint 
+end sub
+
+''--------------------------------Error strings -------------------------------------
+
+sub init_error_strings
+
+errors$(0)=""
+errors$(1)="Expected number, got something else."
+errors$(2)="Cannot add a number to a string."
+errors$(3)="Cannot substract strings."
+errors$(4)="Unknown error while adding."
+errors$(5)="Unknown error while substracting."
+errors$(6)="Cannot do logic operation on string or float."
+errors$(7)="Unknown error while doing logic operation."
+errors$(8)="Cannot multiply strings."
+errors$(9)="Unknown error while multiplying."
+errors$(10)="Cannot divide strings."
+errors$(11)="Unknown error while dividing."
+errors$(12)="Cannot compute a power of a string."
+errors$(13)="Unknown error while computing a power."
+errors$(14)="Right parenthesis expected."
+errors$(15)="Expected string."
+errors$(16)="Expected float."
+errors$(17)="Expected unsigned integer."
+errors$(18)="Expected integer."
+errors$(19)="No more variable slots."
+errors$(20)="Variable not found."
+errors$(21)="Comma expected."
+errors$(22)="Comma or semicolon expected."
+errors$(23)="Unknown command."
+errors$(24)="Stack underflow."
+end sub
+        
+sub printerror(err as integer)
+
+v.write("Error " ): v.write(v.inttostr(err)) : v.write(": ")  : v.writeln(errors$(err))
+end sub
+
+'' ------------------------------- Hardware start/stop/initialization 
 
 sub startpsram
 psram.startx(0, 0, 11, -1)
@@ -1516,6 +1585,8 @@ end function
 
 #define plot v.plot1
 
+'' ------------------------------- Convenient psram peek/poke
+
 sub pslpoke(addr as ulong,value as ulong)
 psram.filllongs(addr,value,1,0)
 end sub
@@ -1536,6 +1607,8 @@ psram.read1(varptr(res),adr,4)
 return res
 end function
 
+'' ------------------------------- More convenient video driver function aliases
+
 sub position(x,y)
 v.setcursorpos(x,y)
 end sub
@@ -1543,6 +1616,8 @@ end sub
 sub waitvbl
   v.waitvbl(1)
 end sub
+
+'' ------------------------------- USB keyboard scan to char translator
 
 function scantochar(key)
 
@@ -1554,6 +1629,8 @@ case 66,96 : return keys(4*(key and 127)+3) ' RAlt+shift
 
 end select
 end function
+
+'' ------------------------------- USB keyboard scan to char translation table
 
 dim shared as ubyte keys(511)={
  0,0,0,0, 			 
@@ -1684,192 +1761,9 @@ dim shared as ubyte keys(511)={
  0,0,0,0,_
  0,0,0,0,_
  0,0,0,0}
- 
- 
- /'
- 0,0,0,0,_
- 0,0,0,0,_
- 0,0,0,0,_
- 0,0,0,0,_
- 0,0,0,0,_
- 44,44,0,0,_
- 0,0,0,0,_
- 0,0,0,0,_
- 0,0,0,0,_
- 0,0,0,0,_
- 0,0,0,0,_
- 0,0,0,0,_
- 0,0,0,0,_
- 0,0,0,0,_
- 0,0,0,0,_
- 0,0,0,0,_
- 0,0,0,0,_
- 0,0,0,0,_
- 0,0,0,0,_
- 0,0,0,0,_
- 0,0,0,0,_
- 0,0,0,0,_
- 0,0,0,0,_
- 0,0,0,0,_
- 0,0,0,0,_
- 0,0,0,0,_
- 0,0,0,0,_
- 0,0,0,0,_
- 0,0,0,0,_
- 0,0,0,0,_
- 0,0,0,0,_
- 0,0,0,0,_
- 0,0,0,0,_
- 0,0,0,0,_
- 0,0,0,0,_
- 0,0,0,0,_
- 0,0,0,0,_
- 0,0,0,0,_
- 0,0,0,0,_
- 0,0,0,0,_
- 0,0,0,0,_
- 0,0,0,0,_
- 0,0,0,0,_
- 0,0,0,0,_
- 0,0,0,0,_
- 0,0,0,0,_
- 0,0,0,0,_
- 0,0,0,0,_
- 0,0,0,0,_
- 0,0,0,0,_
- 0,0,0,0,_
- 0,0,0,0,_
- 0,0,0,0,_
- 0,0,0,0,_
- 0,0,0,0,_
- 0,0,0,0,_
- 0,0,0,0,_
- 0,0,0,0,_
- 0,0,0,0,_
- 0,0,0,0,_
- 0,0,0,0,_
- 0,0,0,0,_
- 0,0,0,0,_
- 0,0,0,0,_
- 0,0,0,0,_
- 0,0,0,0,_
- 0,0,0,0,_
- 0,0,0,0,_
- 0,0,0,0,_
- 0,0,0,0,_
- 0,0,0,0,_
- 0,0,0,0,_
- 0,0,0,0,_
- 0,0,0,0,_
- 0,0,0,0,_
- 0,0,0,0,_
- 0,0,0,0,_
- 0,0,0,0,_
- 0,0,0,0,_
- 0,0,0,0,_
- 0,0,0,0,_
- 0,0,0,0,_
- 0,0,0,0,_
- 0,0,0,0,_
- 0,0,0,0,_
- 0,0,0,0,_
- 0,0,0,0,_
- 0,0,0,0,_
- 0,0,0,0,_
- 0,0,0,0,_
- 0,0,0,0,_
- 0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0,_
-0,0,0,0}
-'/
-const   key_enter=141    
-const   key_escape=155    
-const   key_backspace=136 
-const   key_tab=137       
-const   key_f1=186        
-const   key_f2=187        
-const   key_f3=188        
-const   key_f4=189        
-const   key_f5=190        
-const   key_f6=191       
-const   key_f7=192       
-const   key_f8=193     
-const   key_f9=194      
-const   key_f10=195     
-const   key_f11=196       
-const   key_f12=197        
-const   key_rightarrow=206 
-const   key_leftarrow=207  
-const   key_downarrow=208  
-const   key_uparrow=209    
 
-sub init_error_strings
-errors$(0)=""
-errors$(1)="Expected number, got something else."
-errors$(2)="Cannot add a number to a string."
-errors$(3)="Cannot substract strings."
-errors$(4)="Unknown error while adding."
-errors$(5)="Unknown error while substracting."
-errors$(6)="Cannot do logic operation on string or float."
-errors$(7)="Unknown error while doing logic operation."
-errors$(8)="Cannot multiply strings."
-errors$(9)="Unknown error while multiplying."
-errors$(10)="Cannot divide strings."
-errors$(11)="Unknown error while dividing."
-errors$(12)="Cannot compute a power of a string."
-errors$(13)="Unknown error while computing a power."
-errors$(14)="Right parenthesis expected."
-errors$(15)="Expected string."
-errors$(16)="Expected float."
-errors$(17)="Expected unsigned integer."
-errors$(18)="Expected integer."
-errors$(19)="No more variable slots."
-errors$(20)="Variable not found."
-errors$(21)="Comma expected."
-errors$(22)="Comma or semicolon expected."
-errors$(23)="Unknown command."
-errors$(24)="Stack underflow."
-end sub
-        
-sub printerror(err as integer)
 
-v.write("Error " ): v.write(v.inttostr(err)) : v.write(": ")  : v.writeln(errors$(err))
-end sub
- 
+ '' ------------------------------- Atari 8-bit type keyboard click and overflow sounds
  
 asm shared
 atari_spl file "atari.spl"

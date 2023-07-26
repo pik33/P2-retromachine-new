@@ -293,6 +293,7 @@ byte pixelbuf
 
 long ccc[2]
 byte cursor[128]
+long leading_spaces		' for Basic interpreter. A leading spaces after a new line
 obj
 ram: "psram4.spin2"
 
@@ -973,7 +974,7 @@ repeat i from 0 to 15
 
 pub crlf()
 
-cursor_x:=0
+cursor_x:=2*leading_spaces
 cursor_y+=1
 if cursor_y>st_lines-1
   scrollup()
