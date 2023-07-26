@@ -87,8 +87,9 @@ const token_color=73
 const token_for=74
 const token_next=75
 const token_list=76
+const token_run=77
 
-const token_error=509
+const token_error=255
 const token_end=510
 const token_space=511
  
@@ -234,6 +235,9 @@ commands(token_color)=@do_color
 'commands(token_for)=@do_for
 'commands(token_next)=@do_next
 commands(token_list)=@do_list
+commands(token_run)=@do_run
+
+commands(token_error)=@do_error
 
 
 
@@ -473,12 +477,13 @@ select case cmd
   case token_cls      : compile_nothing()   'no params, do nothing, only add a command to the line, but case needs something to do after 
   case token_new      : compile_nothing()   
   case token_list     : compile_nothing()   
+  case token_run      : compile_nothing()   
   case token_plot     : err=compile_int_fun_2p()   
   case token_draw     : err=compile_int_fun_2p()   
   case token_fcircle  : err=compile_int_fun_3p()  
   case token_color    : err=compile_int_fun_1p()  
   case token_print    : err=compile_print()  : goto 450
-  case else	      : compile_unknown()
+  case else	      : compile_unknown() : goto 450
 end select
 t3.result_type=cmd : compiledline(lineptr)=t3:  lineptr+=1
 450 compiledline(lineptr).result_type=token_end 
@@ -494,7 +499,7 @@ if alinemajor>0 orelse alineminor>0 then
   psram.write(varptr(af),programptr,4) ' write end flag
 
  endif 
-''for i=0 to lineptr: print compiledline(i).result_type;" ";compiledline(i).result.uresult, : next i  'debug
+'for i=0 to lineptr: print compiledline(i).result_type;" ";compiledline(i).result.uresult, : next i  'debug
 'if alinemajor>0 then 
 '  for i=0 to tokennum
 '    for j=
@@ -779,6 +784,7 @@ select case s
   case "color"       : return token_color
   case "print"	     : return token_print
   case "list"	     : return token_list
+  case "run"	     : return token_run
   case else          : return 0  
 end select
 end function
@@ -1125,7 +1131,12 @@ print t1.result.sresult
 push t1
 end sub
 
+sub do_error
 
+dim r as ulong
+r=compiledline(lineptr_e).result.uresult
+print "Error ";r;": ";errors$(r)
+end sub
 
 
 sub do_plus 
@@ -1343,6 +1354,31 @@ position editor_spaces*2,1 : print ver$
 ' ------------------------- clear the program structures here 
 end sub
 
+
+' --------------------------------------------------------------  list, run 
+
+sub do_run
+
+dim t1 as expr_result
+dim aend as integer
+dim newlist as integer
+dim linebuf(127) as ubyte
+print
+let runptr=0
+do 
+  psram.read1(varptr(aend),runptr,4)  
+  if aend<>-1 then
+    psram.read1(varptr(newlist),runptr+16,4)
+    runptr+=24  
+    let i=0: do:psram.read1(varptr(t1),runptr,compiledslot): runptr+=compiledslot:compiledline(i)=t1: i+=1: loop until t1.result_type=token_end
+    lineptr=i-1: runptr=newlist
+    execute_immediate_line
+    endif
+loop until aend=-1
+end sub
+
+
+
 sub do_list
 dim t1 as expr_result
 dim aend as integer
@@ -1355,6 +1391,7 @@ do
   if aend<>-1 then
     psram.read1(varptr(newlist),listptr+16,4)  
     do:psram.read1(varptr(t1),listptr,compiledslot): listptr+=compiledslot:loop until t1.result_type=token_end
+    longfill(linebuf,0,64)
     psram.read1(varptr(linebuf),listptr,newlist-listptr)
     print space$(editor_spaces); :v.writeln(varptr(linebuf))
     listptr=newlist
