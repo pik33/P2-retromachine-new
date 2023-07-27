@@ -1,7 +1,7 @@
 const _clkfreq = 336956522
 const HEAPSIZE=32768
-#define PSRAM4
-'#define PSRAM16
+'#define PSRAM4
+#define PSRAM16
 
 #ifdef PSRAM16
 dim v as class using "hg009.spin2"
@@ -106,6 +106,9 @@ const token_for=74
 const token_next=75
 const token_list=76
 const token_run=77
+const token_fast_goto=78
+const token_slow_goto=79
+
 const token_error=255
 const token_end=510
 const token_space=511
@@ -170,6 +173,11 @@ class string_variable           ' string variable class for a variable table
   dim value as string
 end class
 
+class goto_entry
+  dim source as ulong
+  dim dest as ulong
+end class
+
 type parts as part(125)         ' parts to split the line into, line has 125 chars max
 type asub as sub()		' sub type to make a sub table
 
@@ -218,6 +226,8 @@ dim lineptr_e as integer
 dim programstart as ulong
 dim lastline as ulong
 dim lastlineptr as ulong
+dim gototable(1023) as goto_entry
+dim gotoptr as integer
 
 '----------------------------------------------------------------------------
 '-----------------------------Program start ---------------------------------
@@ -229,15 +239,11 @@ plot_color=154 : plot_x=0: plot_y=0
 editor_spaces=2
 paper=147: ink=154
 compiledslot=sizeof(test)
-ivarnum=0 : uvarnum=0 : fvarnum=0 : svarnum=0
-programstart=0
+
 init_commands
 init_error_strings
-stackpointer=0
-lineptr=0 
-programptr=0
-lastline=0 : lastlineptr=0 ' to do - all of tgese go to do_new and call do_new
-pslpoke(0,$FFFFFFFF)
+do_new
+
 audiocog,base=paula.start(0,0,0)
 waitms(50)
 dpoke base+20,16384
@@ -249,6 +255,7 @@ v.setleadingspaces(2)
 position 2*editor_spaces,1 : print ver$
 print v.buf_ptr;" BASIC bytes free"
 position 2*editor_spaces,4 : print "Ready"
+
 
 '-------------------------------------------------------------------------------------------------------- 
 '-------------------------------------- MAIN LOOP -------------------------------------------------------
@@ -516,6 +523,7 @@ select case s
   case "print"	     : return token_print
   case "list"	     : return token_list
   case "run"	     : return token_run
+  case "goto"	     : return token_fast_goto
   case else          : return 0  
 end select
 end function
@@ -603,7 +611,8 @@ dim searchptr as ulong
 dim header as ulong(5) 
 dim header2 as ulong(5) 
 dim lineptr2 as ulong
- 
+dim llength ,llength2,llength3 as integer
+
 'line header: num major, num minor,list start, list length, prev, next. That implements 2-way list of program lines 
  
 t3.result.uresult=0
@@ -626,7 +635,9 @@ if alinemajor>0 then
      lineptr2=searchptr
      searchptr=header2(5)
    loop until header2(0)>alinemajor 
- 
+   
+   if header(4)=0 then programstart=programptr : print "replaced a first line", header(0)' replacing a first line todo: 2nd line points to 1st, so header(4)=0 !!!! BUG
+   
    ucompiledline(4)=header(4)
    ucompiledline(5)=lineptr2
    pslpoke(header(4)+20,programptr)
@@ -668,6 +679,7 @@ select case cmd
   case token_fcircle  : err=compile_int_fun_3p()  
   case token_color    : err=compile_int_fun_1p()  
   case token_print    : err=compile_print()  : goto 450
+  case token_fast_goto     : compile_goto(alinemajor)  : goto 450
   case else	      : compile_unknown() : goto 450
 end select
 t3.result_type=cmd : compiledline(lineptr)=t3:  lineptr+=1
@@ -697,6 +709,14 @@ sub compile_assign (alinemajor as ulong, alineminor=0 as ulong)
 dim i,j as integer
 dim t1 as expr_result
 dim varname$,suffix$ as string
+
+dim searchptr as ulong
+dim header as ulong(5) 
+dim header2 as ulong(5) 
+dim lineptr2 as ulong
+
+dim llength ,llength2,llength3 as integer
+
 t1.result_type=result_error : t1.result.uresult=0
   i=-1: j=-1
 if alinemajor=0 then 
@@ -709,16 +729,55 @@ endif
  
 
 if alinemajor>0 then
-  compiledline(lineptr).result_type=token_linenum_major
-  compiledline(lineptr).result.uresult=alinemajor
-  lineptr+=1
-  compiledline(lineptr).result_type=token_linenum_minor
-  compiledline(lineptr).result.uresult=alineminor
-  lineptr+=1
-  compiledline(lineptr).result_type=token_nextline_ptr
-  let nextline_ptr_pos=lineptr ' we don't know where the pointer is
-  lineptr+=1
-endif 
+  if alinemajor>lastline then lastline=alinemajor: ucompiledline(4)=lastlineptr : pslpoke(lastlineptr+20,programptr) : lastlineptr=programptr : ucompiledline(5)=$7FFF_FFFF : goto 455 
+
+  let linenum=0
+  searchptr=programstart
+  
+  do
+    psram.read1(varptr(header),searchptr,24)
+    lineptr2=searchptr
+    searchptr=header(5)
+  loop until header(0)>=alinemajor orelse header(5)=$7FFF_FFFF
+  
+  if header(0)=alinemajor andalso alineminor=0 then 'replace the line
+   do
+     psram.read1(varptr(header2),searchptr,24)
+     lineptr2=searchptr
+     searchptr=header2(5)
+   loop until header2(0)>alinemajor 
+    if header(4)=0 then programstart=programptr ' replacing a first line
+
+   ucompiledline(4)=header(4)
+   ucompiledline(5)=lineptr2
+   pslpoke(header(4)+20,programptr)
+   pslpoke(lineptr+16,programptr)
+   goto 455
+  endif 
+  
+  if header(0)>alinemajor then
+    if header(4)=0 then 'new first line
+      ucompiledline(4)=0
+      ucompiledline(5)=lineptr2
+      pslpoke(lineptr2+16,programptr)
+      programstart=programptr
+      goto 455
+    else 'insert between
+      ucompiledline(4)=header(4)
+      ucompiledline(5)=lineptr2
+      pslpoke(lineptr2+16,programptr)
+      pslpoke(header(4)+20, programptr)
+    endif  
+    
+  endif
+  
+  'psram.read1(varptr(header2),header(4),24) ' read the previous line header
+  'if header2
+
+455  ucompiledline(0)=alinemajor
+  ucompiledline(1)=alineminor
+  lineptr=2 ' 2 slots are used by the header.
+endif
   
 let suffix$=right$(varname$,1)
  expr()
@@ -782,16 +841,20 @@ compiledline(lineptr)=t1:  lineptr+=1
 compiledline(lineptr).result_type=token_end 
 
 if alinemajor>0 orelse alineminor>0 then
+
   let llength=compiledslot*(lineptr+1)
   let llength2=len (line$): if llength2 mod 4 <>0 then llength2=4*((llength2/4)+1)
   let llength3=llength+llength2
-  compiledline(nextline_ptr_pos).result.uresult=llength3+programptr 
+  ucompiledline(2)=programptr+llength
+  ucompiledline(3)=llength2 
+   
   psram.write(varptr(compiledline),programptr,llength)
   psram.write(lpeek(varptr(line$)),programptr+llength,llength2)
   programptr+=llength3
   let af=-1
   psram.write(varptr(af),programptr,4) ' write end flag
-endif
+
+endif 
 
 end sub
 
@@ -856,6 +919,23 @@ loop until lparts(ct).token=token_end orelse ct>=tokennum
 return 0
 end function
 
+function compile_goto(sourceline) as ulong
+
+if lparts(ct).token=token_decimal andalso lparts(ct+1).token=token_end then 
+   print "We have a fast goto from ";sourceline;" to ";val%(lparts(ct+1).part$)
+   
+   
+' we can compile fast goto
+'fast goto: find a line in the program that has a number to go, compile the do_fast_goto with the pointer
+' also add a goto to a goto scrachh table
+' if a new line is compiled, check the goto table. If the line is in the goto list, adjust the pointer in the goto source line
+else
+   print "We have a slow goto from ";sourceline;
+endif
+' if not, there is a slow goto. Call converttoint to get an int value from expression, then do_slow_goto
+' Do_slow_goto searches a line pointer list to find the linenum and pointer, then do the goto  
+return 0
+end function
 
 '---------------------------------------------------------------------------------------------------------------------------------------
 '------------------------------ End of the precompiler  --------------------------------------------------------------------------------
@@ -1043,36 +1123,18 @@ sub do_run
 
 dim runptr as ulong
 dim header as ulong(5)
-
+dim key22
 let runptr=programstart
 do 
   psram.read1(varptr(header),runptr,24)  
   if header(0)<>-1 then
     psram.read1(varptr(compiledline(0)),runptr+2*compiledslot,header(2)-runptr)
-    lineptr=((header(2)-runptr)/compiledslot)-2
+    lineptr=((header(2)-runptr)/compiledslot)-3
     runptr=header(5)
     execute_line
+    let key22=kbm.get_key()
     endif
-  loop until header(5)=$7FFF_FFFF
-end sub
-
-
-'---------------- Clear the program
-
-sub do_new
-dim a as integer
-
-a=-1: psram.write(varptr(a),0,4) ' write end flag at the start of psram
-ivarnum=0: svarnum=0 : uvarnum=0 : fvarnum=0
-end sub
-
-'----------------------- Error processing
-
-sub do_error
-
-dim r as ulong
-r=compiledline(lineptr_e).result.uresult
-print "Error ";r;": ";errors$(r)
+  loop until header(5)=$7FFF_FFFF orelse header(0)=-1 orelse key22=69
 end sub
 
 ' ---------------  List the program. Todo: it should accept parameters and do "more"
@@ -1094,8 +1156,39 @@ do
     listptr=header(5)
     endif
 
-loop until header(5)=$7FFF_FFFF
+loop until header(5)=$7FFF_FFFF orelse header(0)=-1
 end sub
+
+'---------------- Clear the program
+
+sub do_new
+
+pslpoke(0,$FFFFFFFF)
+ivarnum=0 : uvarnum=0 : fvarnum=0 : svarnum=0
+programstart=0
+stackpointer=0
+lineptr=0 
+programptr=0 :gotoptr=0
+lastline=0 : lastlineptr=0 
+end sub
+
+'----------------------- goto
+
+sub do_fast_goto
+end sub
+
+sub do_slow_goto
+end sub
+
+'----------------------- Error processing
+
+sub do_error
+
+dim r as ulong
+r=compiledline(lineptr_e).result.uresult
+print "Error ";r;": ";errors$(r)
+end sub
+
 
 '------------------ Assigning to a variable  
 
@@ -1399,7 +1492,7 @@ end sub
 '' ----------------------------- Clear the screen
 
 sub do_cls
-cls()
+cls(): print
 end sub
 
 '' ----------------------------- Set a color # from the palette to plot/draw
@@ -1451,7 +1544,7 @@ sub do_print
 
 dim t1,t2 as expr_result
 dim r as integer
-
+ 
 r=0
 t1=pop() 
 if t1.result_type=print_mod_comma orelse t1.result_type=print_mod_semicolon then r=t1.result_type :  t1=pop()
@@ -1477,7 +1570,7 @@ if r=0 then
   if t1.result_type=result_string then print t1.result.sresult
 endif 
 if r=print_mod_empty then print
-
+'waitms(10)
 811 end sub
 
 ''----------------------------------------------------------------------------------------------------
@@ -1532,6 +1625,8 @@ commands(token_color)=@do_color
 commands(token_list)=@do_list
 commands(token_run)=@do_run
 commands(token_error)=@do_error
+commands(token_fast_goto)=@do_fast_goto
+commands(token_slow_goto)=@do_slow_goto
 commands(fun_converttoint)=@do_converttoint 
 end sub
 
