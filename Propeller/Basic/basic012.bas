@@ -1,5 +1,5 @@
 const _clkfreq = 336956522
-const HEAPSIZE=16384
+const HEAPSIZE=32768
 #define PSRAM4
 '#define PSRAM16
 
@@ -22,7 +22,7 @@ dim paula as class using "audio093b-8-sc.spin2"
 ''---------------------------------- Constants --------------------------------------------
 ''-----------------------------------------------------------------------------------------
 
-const ver$="P2 Retromachine BASIC version 0.10"
+const ver$="P2 Retromachine BASIC version 0.12"
 
 '' ------------------------------- Keyboard constants
 
@@ -142,6 +142,7 @@ union aresult			' one long for all result types (until I implement double and in
   dim uresult as ulong
   dim sresult as string
   dim fresult as double
+  dim ulresult as ulongint  ' make an 8 byte placeholder for in64 and double
 end union
   
 class expr_result		' general variable, not only expression result :) 
@@ -210,10 +211,13 @@ dim test as expr_result
 dim key , key2 as ulong
 dim errors$(255)
 
-dim compiledline(125) as expr_result
+dim compiledline(127) as expr_result
+declare ucompiledline alias compiledline as ulong(383)
 dim lineptr as integer
 dim lineptr_e as integer
-dim programstart
+dim programstart as ulong
+dim lastline as ulong
+dim lastlineptr as ulong
 
 '----------------------------------------------------------------------------
 '-----------------------------Program start ---------------------------------
@@ -232,6 +236,7 @@ init_error_strings
 stackpointer=0
 lineptr=0 
 programptr=0
+lastline=0 : lastlineptr=0 ' to do - all of tgese go to do_new and call do_new
 pslpoke(0,$FFFFFFFF)
 audiocog,base=paula.start(0,0,0)
 waitms(50)
@@ -595,45 +600,64 @@ dim t3 as expr_result
 dim pos,err as ulong
 dim listline(125) as ubyte
 dim searchptr as ulong
+dim header as ulong(5) 
+dim header2 as ulong(5) 
+dim lineptr2 as ulong
  
+'line header: num major, num minor,list start, list length, prev, next. That implements 2-way list of program lines 
  
 t3.result.uresult=0
 if alinemajor=0 then let cmd=lparts(0).token : ct=1  else let cmd=lparts(1).token : ct=2
-' declare maxlinenum to avoid searching if program is sequentially entered
-if alinemajor>0 orelse alineminor>0 then
+if alinemajor>0 then
+  if alinemajor>lastline then lastline=alinemajor: ucompiledline(4)=lastlineptr : pslpoke(lastlineptr+20,programptr) : lastlineptr=programptr : ucompiledline(5)=$7FFF_FFFF : goto 451 
 
-' find the line before and after
-  searchptr=0
-  let searchnum=pslpeek(searchptr)
-  let linebefore=0: let lineafter=$7fffffff
+  let linenum=0
+  searchptr=programstart
   
-  do while searchnum<>-1
-    let searchnum=pslpeek(searchptr): print "searchnum=", searchnum
-    let newsearchptr=pslpeek(searchptr+16) : print "searchptr=", searchptr
-    if searchnum<alinemajor andalso searchnum>linebefore then
-      linebefore=searchnum
-      let linebeforeptr=searchptr
-      let linebeforeptr2=newsearchptr
-      
-    endif
-    if searchnum>alinemajor andalso searchnum<lineafter then  
-       lineafter=searchnum
-      let lineafterptr=searchptr   
+  do
+    psram.read1(varptr(header),searchptr,24)
+    lineptr2=searchptr
+    searchptr=header(5)
+  loop until header(0)>=alinemajor orelse header(5)=$7FFF_FFFF
+  
+  if header(0)=alinemajor andalso alineminor=0 then 'replace the line
+   do
+     psram.read1(varptr(header2),searchptr,24)
+     lineptr2=searchptr
+     searchptr=header2(5)
+   loop until header2(0)>alinemajor 
+ 
+   ucompiledline(4)=header(4)
+   ucompiledline(5)=lineptr2
+   pslpoke(header(4)+20,programptr)
+   pslpoke(lineptr+16,programptr)
+   goto 451
+  endif 
+  
+  if header(0)>alinemajor then
+    if header(4)=0 then 'new first line
+      ucompiledline(4)=0
+      ucompiledline(5)=lineptr2
+      pslpoke(lineptr2+16,programptr)
+      programstart=programptr
+      goto 451
+    else 'insert between
+      ucompiledline(4)=header(4)
+      ucompiledline(5)=lineptr2
+      pslpoke(lineptr2+16,programptr)
+      pslpoke(header(4)+20, programptr)
     endif  
-    searchptr=newsearchptr
-  loop  
-  print linebefore,linebeforeptr,lineafter,lineafterptr
+    
+  endif
+  
+  'psram.read1(varptr(header2),header(4),24) ' read the previous line header
+  'if header2
 
-  compiledline(lineptr).result_type=token_linenum_major
-  compiledline(lineptr).result.uresult=alinemajor
-  lineptr+=1
-  compiledline(lineptr).result_type=token_linenum_minor
-  compiledline(lineptr).result.uresult=alineminor
-  lineptr+=1
-  compiledline(lineptr).result_type=token_nextline_ptr
-  let nextline_ptr_pos=lineptr ' we don't know where the pointer is
-  lineptr+=1
+451  ucompiledline(0)=alinemajor
+  ucompiledline(1)=alineminor
+  lineptr=2 ' 2 slots are used by the header.
 endif
+
 select case cmd
   case token_cls      : compile_nothing()   'no params, do nothing, only add a command to the line, but case needs something to do after 
   case token_new      : compile_nothing()   
@@ -648,32 +672,14 @@ select case cmd
 end select
 t3.result_type=cmd : compiledline(lineptr)=t3:  lineptr+=1
 450 compiledline(lineptr).result_type=token_end 
+
 if alinemajor>0 orelse alineminor>0 then
 
   let llength=compiledslot*(lineptr+1)
   let llength2=len (line$): if llength2 mod 4 <>0 then llength2=4*((llength2/4)+1)
   let llength3=llength+llength2
-  '' now if next=maxint, this is the line to add at the end
-  if lineafter=$7FFF_FFFF then compiledline(nextline_ptr_pos).result.uresult=llength3+programptr
-  
-  if lineafter<$7FFF_FFFF andalso linebefore>0 then
-    '' if the next<maxint and the prev >0 insert a new line
-    '' - read the pointer from previous
-    '' - replace it with pointer to current
-    '' set the saved poiinter in the new line
-     compiledline(nextline_ptr_pos).result.uresult=linebeforeptr2
-     pslpoke(linebeforeptr+16,programptr)
-     endif
-     
-   if lineafter<$7FFF_FFFF andalso linebefore=0  then
-   '' that is a new first line!!
-   programstart=programptr
-   '' and its pointer should point to lineafter
-      compiledline(nextline_ptr_pos).result.uresult=lineafterptr
-  endif
-  '' i
-  '' if next<maxint and prev=0, declare a start variable
-  
+  ucompiledline(2)=programptr+llength
+  ucompiledline(3)=llength2 
    
   psram.write(varptr(compiledline),programptr,llength)
   psram.write(lpeek(varptr(line$)),programptr+llength,llength2)
@@ -681,7 +687,6 @@ if alinemajor>0 orelse alineminor>0 then
   let af=-1
   psram.write(varptr(af),programptr,4) ' write end flag
 
-  for i=0 to programptr step 4 : print hex$(i,8);" ";hex$(pslpeek(i),8),: next i
 endif 
 end sub
 
@@ -988,6 +993,7 @@ sub execute_line
 dim cmd as asub
 
 for lineptr_e=0 to lineptr-1
+'print lineptr_e,compiledline(lineptr_e).result_type
 cmd=commands(compiledline(lineptr_e).result_type)
 cmd
 next lineptr_e
@@ -1031,25 +1037,25 @@ end sub
 
 '----------------- Run the program 
 
+'' line header: linenum major, linenum minor, list start, list length, prev ptr, next ptr
+
 sub do_run
 
-dim t1 as expr_result
-dim aend as integer
-dim newlist as integer
-dim linebuf(127) as ubyte
-print
-let runptr=0
+dim runptr as ulong
+dim header as ulong(5)
+
+let runptr=programstart
 do 
-  psram.read1(varptr(aend),runptr,4)  
-  if aend<>-1 then
-    psram.read1(varptr(newlist),runptr+16,4)
-    runptr+=24  
-    let i=0: do:psram.read1(varptr(t1),runptr,compiledslot): runptr+=compiledslot:compiledline(i)=t1: i+=1: loop until t1.result_type=token_end
-    lineptr=i-1: runptr=newlist
+  psram.read1(varptr(header),runptr,24)  
+  if header(0)<>-1 then
+    psram.read1(varptr(compiledline(0)),runptr+2*compiledslot,header(2)-runptr)
+    lineptr=((header(2)-runptr)/compiledslot)-2
+    runptr=header(5)
     execute_line
     endif
-loop until aend=-1
+  loop until header(5)=$7FFF_FFFF
 end sub
+
 
 '---------------- Clear the program
 
@@ -1075,21 +1081,20 @@ sub do_list
 dim t1 as expr_result
 dim aend as integer
 dim newlist as integer
+dim header as ulong(5)
 dim linebuf(127) as ubyte
 print
-let listptr=0
+let listptr=programstart
 do 
-  psram.read1(varptr(aend),listptr,4)  
-  if aend<>-1 then
-    psram.read1(varptr(newlist),listptr+16,4)  
-    do:psram.read1(varptr(t1),listptr,compiledslot): listptr+=compiledslot:loop until t1.result_type=token_end
+  psram.read1(varptr(header),listptr,24)  
+  if header(0)<>-1 then
     longfill(linebuf,0,64)
-    print listptr,newlist: waitms(5000)
-    psram.read1(varptr(linebuf),listptr,newlist-listptr)
+    psram.read1(varptr(linebuf),header(2),header(3))
     v.writeln(varptr(linebuf))
-    listptr=newlist
+    listptr=header(5)
     endif
-loop until aend=-1
+
+loop until header(5)=$7FFF_FFFF
 end sub
 
 '------------------ Assigning to a variable  
