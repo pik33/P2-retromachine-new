@@ -636,7 +636,7 @@ if alinemajor>0 then
      searchptr=header2(5)
    loop until header2(0)>alinemajor 
    
-   if header(4)=0 then programstart=programptr : print "replaced a first line", header(0)' replacing a first line todo: 2nd line points to 1st, so header(4)=0 !!!! BUG
+   if header(4)=-1 then programstart=programptr : print "replaced a first line", header(0)' replacing a first line todo: 2nd line points to 1st, so header(4)=0 !!!! BUG
    
    ucompiledline(4)=header(4)
    ucompiledline(5)=lineptr2
@@ -746,7 +746,7 @@ if alinemajor>0 then
      lineptr2=searchptr
      searchptr=header2(5)
    loop until header2(0)>alinemajor 
-    if header(4)=0 then programstart=programptr ' replacing a first line
+    if header(4)=-1 then programstart=programptr ' replacing a first line
 
    ucompiledline(4)=header(4)
    ucompiledline(5)=lineptr2
@@ -1169,7 +1169,7 @@ programstart=0
 stackpointer=0
 lineptr=0 
 programptr=0 :gotoptr=0
-lastline=0 : lastlineptr=0 
+lastline=0 : lastlineptr=-1
 end sub
 
 '----------------------- goto
