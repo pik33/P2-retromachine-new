@@ -213,6 +213,7 @@ dim errors$(255)
 dim compiledline(125) as expr_result
 dim lineptr as integer
 dim lineptr_e as integer
+dim programstart
 
 '----------------------------------------------------------------------------
 '-----------------------------Program start ---------------------------------
@@ -225,12 +226,13 @@ editor_spaces=2
 paper=147: ink=154
 compiledslot=sizeof(test)
 ivarnum=0 : uvarnum=0 : fvarnum=0 : svarnum=0
+programstart=0
 init_commands
 init_error_strings
 stackpointer=0
 lineptr=0 
 programptr=0
-pslpoke(0,-$FFFFFFFF)
+pslpoke(0,$FFFFFFFF)
 audiocog,base=paula.start(0,0,0)
 waitms(50)
 dpoke base+20,16384
@@ -592,11 +594,36 @@ sub compile (alinemajor as ulong, alineminor=0 as ulong)
 dim t3 as expr_result
 dim pos,err as ulong
 dim listline(125) as ubyte
+dim searchptr as ulong
+ 
  
 t3.result.uresult=0
 if alinemajor=0 then let cmd=lparts(0).token : ct=1  else let cmd=lparts(1).token : ct=2
+' declare maxlinenum to avoid searching if program is sequentially entered
+if alinemajor>0 orelse alineminor>0 then
 
-if alinemajor>0 then
+' find the line before and after
+  searchptr=0
+  let searchnum=pslpeek(searchptr)
+  let linebefore=0: let lineafter=$7fffffff
+  
+  do while searchnum<>-1
+    let searchnum=pslpeek(searchptr): print "searchnum=", searchnum
+    let newsearchptr=pslpeek(searchptr+16) : print "searchptr=", searchptr
+    if searchnum<alinemajor andalso searchnum>linebefore then
+      linebefore=searchnum
+      let linebeforeptr=searchptr
+      let linebeforeptr2=newsearchptr
+      
+    endif
+    if searchnum>alinemajor andalso searchnum<lineafter then  
+       lineafter=searchnum
+      let lineafterptr=searchptr   
+    endif  
+    searchptr=newsearchptr
+  loop  
+  print linebefore,linebeforeptr,lineafter,lineafterptr
+
   compiledline(lineptr).result_type=token_linenum_major
   compiledline(lineptr).result.uresult=alinemajor
   lineptr+=1
@@ -626,13 +653,35 @@ if alinemajor>0 orelse alineminor>0 then
   let llength=compiledslot*(lineptr+1)
   let llength2=len (line$): if llength2 mod 4 <>0 then llength2=4*((llength2/4)+1)
   let llength3=llength+llength2
-  compiledline(nextline_ptr_pos).result.uresult=llength3+programptr 
+  '' now if next=maxint, this is the line to add at the end
+  if lineafter=$7FFF_FFFF then compiledline(nextline_ptr_pos).result.uresult=llength3+programptr
+  
+  if lineafter<$7FFF_FFFF andalso linebefore>0 then
+    '' if the next<maxint and the prev >0 insert a new line
+    '' - read the pointer from previous
+    '' - replace it with pointer to current
+    '' set the saved poiinter in the new line
+     compiledline(nextline_ptr_pos).result.uresult=linebeforeptr2
+     pslpoke(linebeforeptr+16,programptr)
+     endif
+     
+   if lineafter<$7FFF_FFFF andalso linebefore=0  then
+   '' that is a new first line!!
+   programstart=programptr
+   '' and its pointer should point to lineafter
+      compiledline(nextline_ptr_pos).result.uresult=lineafterptr
+  endif
+  '' i
+  '' if next<maxint and prev=0, declare a start variable
+  
+   
   psram.write(varptr(compiledline),programptr,llength)
   psram.write(lpeek(varptr(line$)),programptr+llength,llength2)
   programptr+=llength3
   let af=-1
   psram.write(varptr(af),programptr,4) ' write end flag
 
+  for i=0 to programptr step 4 : print hex$(i,8);" ";hex$(pslpeek(i),8),: next i
 endif 
 end sub
 
@@ -1035,6 +1084,7 @@ do
     psram.read1(varptr(newlist),listptr+16,4)  
     do:psram.read1(varptr(t1),listptr,compiledslot): listptr+=compiledslot:loop until t1.result_type=token_end
     longfill(linebuf,0,64)
+    print listptr,newlist: waitms(5000)
     psram.read1(varptr(linebuf),listptr,newlist-listptr)
     v.writeln(varptr(linebuf))
     listptr=newlist

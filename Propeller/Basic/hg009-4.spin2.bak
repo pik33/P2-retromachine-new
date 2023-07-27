@@ -290,7 +290,7 @@ long mailbox0
 long displaylist[12]              ' now 8 longs is sufficient for a DL for simple modes
 long emptydl[2]
 byte pixelbuf
-long xres,yres
+
 long ccc[2]
 byte cursor[128]
 long leading_spaces		' for Basic interpreter. A leading spaces after a new line
@@ -352,7 +352,7 @@ spr13y:=600                             '
 spr14y:=600                             '
 spr15y:=600                             '
 spr16y:=600
-leading_spaces:=0				'
+                                '
 
 emptydl[0]:=%0100_0000_0000_0000_0000_0000_0000_0111
 emptydl[1]:=0
@@ -388,7 +388,6 @@ spr17x:=0
 spr17y:=0
 spr17w:=8
 spr17h:=16
-leading_spaces:=0
 
 '---------------------------- start the cog
 
@@ -409,10 +408,9 @@ pub setmode() | i', 'xzoom, yzoom, azoom
 
 dl_ptr:=@emptydl[0]
 
-if cog>0 
-   waitvbl(1)						    	' if the driver is active, wait for vblank to set the new mode and DL	
-xres:=1024
-yres:=576  
+if cog>0
+   waitvbl(1)                                                   ' if the driver is active, wait for vblank to set the new mode and DL
+
 ppl:=(timings[3])
 cpl:=timings[7]<<1                                              ' now cpl is longs per line
 cpl1:=cpl '' todo remove
@@ -884,12 +882,7 @@ return long[@ataripalette+4*c]
 '                                                                        *
 '*************************************************************************
 
-''---------- Clear the screen, set its foreground/background color  
-
-pub setleadingspaces(amount)
-
-leading_spaces:=amount
-
+''---------- Clear the screen, set its foreground/background color
 
 pub cls(fc,bc)   :c,i
 
@@ -948,14 +941,13 @@ repeat iii from 0 to strsize(text)-1
 pub writeln(text)
 
 write(text)
-crlf
-' cursor_x:=0
-'c;ursor_y+=1
-'if (cursor_y>st_lines-1)
-'  scrollup()
-'  cursor_y:=st_lines-1
-'spr17x:=4*cursor_x
-'spr17y:=16*cursor_y   
+cursor_x:=0
+cursor_y+=1
+if (cursor_y>st_lines-1)
+  scrollup()
+  cursor_y:=st_lines-1
+spr17x:=4*cursor_x
+spr17y:=16*cursor_y
 ''-----------  Scroll the screen one line up
 
 pub scrollup() | i
