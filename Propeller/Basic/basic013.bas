@@ -22,7 +22,7 @@ dim paula as class using "audio093b-8-sc.spin2"
 ''---------------------------------- Constants --------------------------------------------
 ''-----------------------------------------------------------------------------------------
 
-const ver$="P2 Retromachine BASIC version 0.12"
+const ver$="P2 Retromachine BASIC version 0.13"
 
 '' ------------------------------- Keyboard constants
 
@@ -108,6 +108,9 @@ const token_list=76
 const token_run=77
 const token_fast_goto=78
 const token_slow_goto=79
+const token_csave=80
+const token_save=81
+const token_load=82
 
 const token_error=255
 const token_end=510
@@ -229,6 +232,8 @@ dim lastline as ulong
 dim lastlineptr as ulong
 dim gototable(maxgoto) as goto_entry
 dim gotoptr as integer
+dim currentdir$ as string
+
 'dim varname$ as string ' for compile_assign
 '----------------------------------------------------------------------------
 '-----------------------------Program start ---------------------------------
@@ -253,6 +258,10 @@ kbm.mouse_set_limits(1023,575)
 cls
 v.setfontfamily(4) 				' use ST Mono font
 v.setleadingspaces(2)
+mount "/sd", _vfs_open_sdcard()
+chdir "/sd"
+currentdir$="/sd/"
+
 position 2*editor_spaces,1 : print ver$
 print v.buf_ptr;" BASIC bytes free"
 position 2*editor_spaces,4 : print "Ready"
@@ -314,7 +323,7 @@ if key3<>0 then
       interpret: line$="" :let t1=getct()-t1 
     endif 
 
-  key3=0
+  key3=0 :rpt=0: rptcnt=0
   endif
 
 loop
@@ -525,6 +534,9 @@ select case s
   case "list"	     : return token_list
   case "run"	     : return token_run
   case "goto"	     : return token_fast_goto
+  case "csave"	     : return token_csave
+  case "save"	     : return token_save
+  case "load"	     : return token_load
   case else          : return 0  
 end select
 end function
@@ -616,10 +628,11 @@ do
   searchptr=header(5)
 loop until header(0)>=aline orelse header(5)=$7FFF_FFFF  ' we have a line that number is >= new line
 
+
 if header(0)<>aline then return -1
 
 if header(5)=$7FFF_FFFF andalso header(4)=$FFFF_FFFF then ' this is one and only line in the program
-  programstart=0 : programptr=0
+  programstart=0 : programptr=0 : lastline=0 : lastlineptr=-1  
   header(0)=$FFFF_FFFF : header(1)=0 : header(2)=0: header(3)=0: header(4)=0: header(5)=0 
   psram.write(varptr(header),0,24)
   return 0
@@ -629,17 +642,17 @@ if header(5)=$7FFF_FFFF andalso header(4)<>$FFFF_FFFF then ' this is the last, a
   pslpoke(header(4)+20,$7FFF_FFFF) ' unlink the previous line
   lastlineptr=header(4)            ' keep last line pointer to avoid searching while sequentially adding a new line
   lastline=pslpeek(header(4))
-  print "deleted the last line"
   return 0
 endif   
 
-if header(5)<>$7FFF_FFFF andalso header(4)=$7FFF_FFFF then ' this is the first line, but not the last
+if header(5)<>$7FFF_FFFF andalso header(4)=$FFFF_FFFF then ' this is the first line, but not the last
+   print "deleted first line"
   pslpoke(header(5)+16,$FFFF_FFFF) 
   programstart=header(5) ' adjust the program start to point on the first new line
   return 0
 endif
 
-if header(5)<>$7FFF_FFFF andalso header(4)<>$7FFF_FFFF then ' the line is not first and not last
+if header(5)<>$7FFF_FFFF andalso header(4)<>$FFFF_FFFF then ' the line is not first and not last
    pslpoke(header(5)+16,header(4))  
    pslpoke(header(4)+20, header(5))
    return 0
@@ -727,8 +740,13 @@ select case cmd
   case token_fcircle  : err=compile_int_fun_3p()  
   case token_color    : err=compile_int_fun_1p()  
   case token_print    : err=compile_print()  : goto 450
-  case token_fast_goto     : compile_goto()  : goto 450
+  case token_fast_goto     : if linetype=1 then compile_goto()  : goto 450 else printerror(25) : goto 450
+  case token_csave    : compile_nothing()  
+  case token_save    : compile_fun_1p()  'todo compile_str_fun_1p
+  case token_load    : compile_fun_1p()  'todo compile_str_fun_1p
+
   case else	      : compile_unknown() : goto 450
+
 end select
 t3.result_type=cmd : compiledline(lineptr)=t3:  lineptr+=1
 450 compiledline(lineptr).result_type=token_end 
@@ -808,7 +826,7 @@ endif
 compiledline(lineptr)=t1:  lineptr+=1 
 compiledline(lineptr).result_type=token_end 
 
-for i=0 to lineptr: print i, compiledline(i).result_type;" ";compiledline(i).result.uresult, : next i
+
 
 end sub
 
@@ -817,11 +835,13 @@ end sub
 sub compile (alinemajor as ulong, alineminor=0 as ulong)
 
 'line header: num major, num minor,list start, list length, prev, next. That implements 2-way list of program lines 
+' num_minor bit 31: the line is goto target. If deleted, a proper record(s) has to be added to goto list
  
-if alinemajor=0 then compile_immediate(0) : return else compile_immediate(1)
+if alinemajor=0 then compile_immediate(0) : return  
 
 ucompiledline(0)=alinemajor
 ucompiledline(1)=alineminor
+compile_immediate(1)
 
 if alinemajor >lastline then 
   add_line_at_end(alinemajor)
@@ -836,11 +856,11 @@ end sub
 sub compile_assign (alinemajor as ulong, alineminor=0 as ulong)  
 
 
-if alinemajor=0 then compile_immediate_assign(0) : return else compile_immediate_assign(1)
+if alinemajor=0 then compile_immediate_assign(0) : return  
 
 ucompiledline(0)=alinemajor
 ucompiledline(1)=alineminor
-
+compile_immediate_assign(1)
 if alinemajor >lastline then 
   add_line_at_end(alinemajor)
 else
@@ -914,7 +934,8 @@ end function
 function compile_goto( ) as ulong
 
 if lparts(ct).token=token_decimal andalso lparts(ct+1).token=token_end then 
-   print "We have a fast goto to ";val%(lparts(ct+1).part$) 
+
+   print "We have a fast goto from ";ucompiledline(0);" to ";val%(lparts(ct+1).part$) 
    
 ' we can compile fast goto
 'fast goto: find a line in the program that has a number to go, compile the do_fast_goto with the pointer
@@ -927,6 +948,13 @@ endif
 ' Do_slow_goto searches a line pointer list to find the linenum and pointer, then do the goto  
 return 0
 end function
+
+function compile_fun_1p() as ulong
+
+expr()
+return 0
+end function
+
 
 '---------------------------------------------------------------------------------------------------------------------------------------
 '------------------------------ End of the precompiler  --------------------------------------------------------------------------------
@@ -1019,6 +1047,12 @@ if suffix$="$" then
   for i=0 to svarnum-1
       if svariables(i).name=varname$ then j=i : exit
     next i
+  if  j=-1 andalso svarnum<maxvars then   
+    svariables(svarnum).name=varname$
+    svariables(svarnum).value=""
+    j=svarnum
+    svarnum+=1 
+  endif     
   t2.result_type=fun_getsvar:t2.result.uresult=j
   goto 701
 endif  
@@ -1027,6 +1061,13 @@ if suffix$="%" then
   for i=0 to uvarnum-1
       if uvariables(i).name=varname$ then j=i : exit
     next i
+   if  j=-1 andalso uvarnum<maxvars then   
+    uvariables(uvarnum).name=varname$
+    uvariables(uvarnum).value=0
+    j=uvarnum
+    uvarnum+=1
+  endif   
+    
   t2.result_type=fun_getuvar:t2.result.uresult=j
   goto 701
 endif 
@@ -1035,6 +1076,13 @@ if suffix$="!" then
   for i=0 to fvarnum-1
       if fvariables(i).name=varname$ then j=i : exit
     next i
+     if  j=-1 andalso fvarnum<maxvars then   
+    fvariables(fvarnum).name=varname$
+    fvariables(fvarnum).value=0.0
+    j=fvarnum
+    uvarnum+=1
+  endif     
+    
   t2.result_type=fun_getfvar:t2.result.uresult=j
   goto 701
 endif 
@@ -1042,6 +1090,12 @@ endif
 for i=0 to ivarnum-1
   if ivariables(i).name=varname$ then j=i : exit
 next i
+   if  j=-1 andalso ivarnum<maxvars then   
+    ivariables(ivarnum).name=varname$
+    ivariables(ivarnum).value=0
+    j=ivarnum
+    ivarnum+=1
+  endif   
 t2.result_type=fun_getivar:t2.result.uresult=j
 
 701 
@@ -1106,6 +1160,88 @@ if stackpointer<maxstack then
 endif
 end sub
 
+'' cassette save test
+
+sub test_csave
+
+dim i,j as integer
+dim qqq as ulong
+dim sample(256) as ubyte
+print programptr
+for i=0 to 255: sample(i)=127+(i mod 2): next i 
+paula.play8(7,varptr(sample),8000,16384,256,0)
+waitms 5000 : waitms 5000
+do: loop until lpeek(base+32*7)>32768
+for i=0 to programptr step 8 '  It should save also programstart. It should have a header as in ZX
+
+  q=pslpeek(i)
+  for bit=0 to 31
+    if (q and (1 shl bit)) then sample(4*bit)=127: sample(4*bit+1)=128 : sample(4*bit+2)=127 : sample (4*bit+3)=128 else sample(4*bit)=128: sample(4*bit+1)=128 : sample(4*bit+2)=127 : sample (4*bit+3)=127
+  next bit
+  do:loop until lpeek(base+32*7)<32768
+ q=pslpeek(i+4)
+  for bit=0 to 31
+    if (q and (1 shl bit)) then sample(128+4*bit)=127: sample(128+4*bit+1)=128 : sample(128+4*bit+2)=127 : sample (128+4*bit+3)=128 else sample(128+4*bit)=128: sample(128+4*bit+1)=128 : sample(128+4*bit+2)=127 : sample (128+4*bit+3)=127
+  next bit 
+   do:loop until lpeek(base+32*7)>32768 
+
+  
+  'do: qqq=lpeek(base+64) : print qqq : loop 'until qqq>=32768 
+next i
+dpoke base+32*7+20,0
+end sub
+
+' ----------------- Save the program
+
+sub do_save                           ''' <------------------------ TODO vartables has to be saved too! Or maybe o
+dim t1 as expr_result
+dim filebuf as ubyte(511)
+dim i as integer
+t1=pop() 
+if t1.result_type=result_string then
+  if t1.result.sresult="" then t1.result.sresult="noname.bas"
+  close #9: open currentdir$+t1.result.sresult for output as #9
+  i=0
+  do
+    let amount=programptr-i: if amount>512 then amount=512
+    psram.read1(varptr(filebuf(0)),i,512)
+    put #9,i+1,filebuf(0),amount
+    i+=amount
+  loop until amount<512
+  put #9,i+1,programptr,1
+  put #9,i+5,programstart,1
+  put #9,i+9,lastline,1
+  put #9,i+13,lastlineptr,1
+  close #9  
+endif  
+end sub
+
+'----------------- Load the program
+
+sub do_load
+dim t1 as expr_result
+dim filebuf as ubyte(511)
+dim i, amount as integer
+
+t1=pop() 
+if t1.result_type=result_string then
+  do_new
+  if t1.result.sresult="" then t1.result.sresult="noname.bas"
+  close #9: open currentdir$+t1.result.sresult for input as #9
+  i=0
+  do
+    get #9,i+1,filebuf(0),512,amount
+    psram.write(varptr(filebuf(0)),i,amount)
+    i+=amount
+  loop until amount<512
+  programptr=pslpeek(i-16) 
+  programstart=pslpeek(i-12) 
+  lastline=pslpeek(i-8) 
+  lastlineptr=pslpeek(i-4) 
+  close #9  
+endif  
+end sub
+
 '----------------- Run the program 
 
 '' line header: linenum major, linenum minor, list start, list length, prev ptr, next ptr
@@ -1115,7 +1251,7 @@ sub do_run
 dim runptr as ulong
 dim header as ulong(5)
 dim key22 : key22=0
-let runptr=programstart
+let runptr=programstart  
 do 
   psram.read1(varptr(header),runptr,24)  
   if header(0)<>-1 then
@@ -1619,6 +1755,9 @@ commands(token_error)=@do_error
 commands(token_fast_goto)=@do_fast_goto
 commands(token_slow_goto)=@do_slow_goto
 commands(fun_converttoint)=@do_converttoint 
+commands(token_csave)=@test_csave
+commands(token_save)=@do_save
+commands(token_load)=@do_load
 end sub
 
 ''--------------------------------Error strings -------------------------------------
@@ -1650,6 +1789,7 @@ errors$(21)="Comma expected."
 errors$(22)="Comma or semicolon expected."
 errors$(23)="Unknown command."
 errors$(24)="Stack underflow."
+errors$(25)="Cannot execute goto in the immediate mode."
 end sub
         
 sub printerror(err as integer)

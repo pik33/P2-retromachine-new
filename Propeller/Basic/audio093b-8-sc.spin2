@@ -95,7 +95,7 @@ pub play(channel,sample,splfreq,vol,len,loop=-1) |base2
 base2:=@channel1[0]+32*channel
 long[base2+8]:=sample+$C0000000 
 long[base2+12]:= len
-if loop >0 
+if loop >=0 
   long[base2+16]:= loop
 else
   long[base2+16]:= len+2
@@ -103,6 +103,39 @@ word[base2+20]:=vol
 word[base2+24]:= 3546911/splfreq 
 word[base2+26]:=256 ' todo: use skip to make accurate sample rate
 long[base2+28]:=$40000000
+    
+    
+pub playtoend8(channel,sample,splfreq,vol,len) |base2,i
+
+base2:=@channel1[0]+32*channel
+long[base2]:=0
+long[base2+8]:=sample+$40000000 
+long[base2+12]:= len
+long[base2+16]:= len+1
+word[base2+20]:=vol
+word[base2+24]:= 3546911/splfreq 
+word[base2+26]:=256 ' todo: use skip to make accurate sample rate
+long[base2+28]:=$40000000
+repeat 
+  i:=long[base2]
+until (i >>8) >=len
+
+pub play8(channel,sample,splfreq,vol,len,loop=-1) |base2,i
+
+base2:=@channel1[0]+32*channel
+long[base2]:=0
+long[base2+8]:=sample+$40000000 
+if loop>=0
+  long[base2+12]:=loop
+  long[base2+16]:= len
+else
+  long[base2+11]:= len
+  long[base2+16]:= len+1
+word[base2+20]:=vol
+word[base2+24]:= 3546911/splfreq 
+word[base2+26]:=256 ' todo: use skip to make accurate sample rate
+long[base2+28]:=$40000000
+
     
 pub stop(channel) 'silence it
 
