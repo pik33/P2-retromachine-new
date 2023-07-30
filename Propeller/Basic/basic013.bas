@@ -23,7 +23,7 @@ dim paula as class using "audio093b-8-sc.spin2"
 ''-----------------------------------------------------------------------------------------
 
 const ver$="P2 Retromachine BASIC version 0.13"
-
+const ver=13
 '' ------------------------------- Keyboard constants
 
 const   key_enter=141    
@@ -233,6 +233,10 @@ dim lastlineptr as ulong
 dim gototable(maxgoto) as goto_entry
 dim gotoptr as integer
 dim currentdir$ as string
+
+dim sample(255) as ubyte ' for csave
+dim block(1023) as ubyte ' for csave
+dim blockptr as ulong
 
 'dim varname$ as string ' for compile_assign
 '----------------------------------------------------------------------------
@@ -741,7 +745,7 @@ select case cmd
   case token_color    : err=compile_int_fun_1p()  
   case token_print    : err=compile_print()  : goto 450
   case token_fast_goto     : if linetype=1 then compile_goto()  : goto 450 else printerror(25) : goto 450
-  case token_csave    : compile_nothing()  
+  case token_csave    : compile_fun_1p()  
   case token_save    : compile_fun_1p()  'todo compile_str_fun_1p
   case token_load    : compile_fun_1p()  'todo compile_str_fun_1p
 
@@ -1160,35 +1164,93 @@ if stackpointer<maxstack then
 endif
 end sub
 
-'' cassette save test
+ 
+  
+sub csave_block(address as ulong)
+
+' let it be 1k blocks=256 longs=8 kbits=32 k samples
+' we enter it at the state of playing 1 kHz header tone
+
+for i=0 to 63 step 2
+  do: loop until lpeek(base+32*7)>32768
+  q=lpeek(address+4*i)
+     for bit=0 to 31
+      if (q and (1 shl bit)) then sample(4*bit)=127: sample(4*bit+1)=128 : sample(4*bit+2)=127 : sample (4*bit+3)=128 else sample(4*bit)=128: sample(4*bit+1)=128 : sample(4*bit+2)=127 : sample (4*bit+3)=127
+    next bit  
+  do: loop until lpeek(base+32*7)<32768
+  q=lpeek(address+4+4*i)
+     for bit=0 to 31
+      if (q and (1 shl bit)) then sample(128+4*bit)=127: sample(128+4*bit+1)=128 : sample(128+4*bit+2)=127 : sample (128+4*bit+3)=128 else sample(128+4*bit)=128: sample(128+4*bit+1)=128 : sample(128+4*bit+2)=127 : sample (128+4*bit+3)=127
+    next bit  
+next i
+do: loop until lpeek(base+32*7)>32768
+for i=0 to 127: if i mod 8 < 4 then sample(i)=127 else sample(i)=128 
+next i
+
+do: loop until lpeek(base+32*7)<32768
+for i=128 to 255: if i mod 8 < 4 then sample(i)=127 else sample(i)=128 
+next i
+end sub
+
+sub csave_addtoblock(d as ubyte, force as ubyte)
+
+
+if force=0 then
+  block(blockptr)=d
+  blockptr+=1
+  if blockptr>=255 then
+    csave_block(varptr(block(0)))
+    blockptr=0
+    waitms(300)
+  endif
+else
+  block(blockptr)=d
+  if blockptr<255 then for i=blockptr to 255 : block(i)=0 : next i 
+  csave_block(varptr(block(0)))
+  blockptr=0
+  waitms(300)
+endif
+end sub  
 
 sub test_csave
 
+
 dim i,j as integer
 dim qqq as ulong
-dim sample(256) as ubyte
-print programptr
-for i=0 to 255: sample(i)=127+(i mod 2): next i 
-paula.play8(7,varptr(sample),8000,16384,256,0)
-waitms 5000 : waitms 5000
-do: loop until lpeek(base+32*7)>32768
-for i=0 to programptr step 8 '  It should save also programstart. It should have a header as in ZX
+ 
+dim linebuf(127) as ubyte ' todo : 127
+dim name$ as string
+dim t1 as expr_result
+dim saveptr as ulong
+dim header(5) as ulong
+'dim fileheader,savestart, saveptr as ulong
 
-  q=pslpeek(i)
-  for bit=0 to 31
-    if (q and (1 shl bit)) then sample(4*bit)=127: sample(4*bit+1)=128 : sample(4*bit+2)=127 : sample (4*bit+3)=128 else sample(4*bit)=128: sample(4*bit+1)=128 : sample(4*bit+2)=127 : sample (4*bit+3)=127
-  next bit
-  do:loop until lpeek(base+32*7)<32768
- q=pslpeek(i+4)
-  for bit=0 to 31
-    if (q and (1 shl bit)) then sample(128+4*bit)=127: sample(128+4*bit+1)=128 : sample(128+4*bit+2)=127 : sample (128+4*bit+3)=128 else sample(128+4*bit)=128: sample(128+4*bit+1)=128 : sample(128+4*bit+2)=127 : sample (128+4*bit+3)=127
-  next bit 
-   do:loop until lpeek(base+32*7)>32768 
+t1=pop()
+if t1.result_type<>result_string then name$="noname.bas" else name$=t1.result.sresult
 
-  
-  'do: qqq=lpeek(base+64) : print qqq : loop 'until qqq>=32768 
+' prepare 1 kHz header wave
+
+for i=0 to 255: if i mod 8 < 4 then sample(i)=127 else sample(i)=128 
 next i
-dpoke base+32*7+20,0
+paula.play8(7,varptr(sample),8000,16384,256,0)
+waitms 3000 
+
+blockptr=0
+csave_addtoblock($72,0): csave_addtoblock($62,0): csave_addtoblock($61,0): csave_addtoblock($0D,0) ' rba+ver(13)
+for i=1 to len(name$): csave_addtoblock(asc(mid$(name$,i,1)),0) : next i : csave_addtoblock(0,0) 
+csave_addtoblock($72,0): csave_addtoblock($62,0): csave_addtoblock($73,0): csave_addtoblock($0D,0) ' rbs+ver(13)
+
+saveptr=programstart
+do
+  psram.read1(varptr(header(0)),saveptr,24)
+  psram.read1(varptr(linebuf(0)),header(2),header(3))  
+  csave_addtoblock(header(3),0) ' that's always <255
+  for i=0 to header(3)-1: csave_addtoblock(linebuf(i),0)    :next i
+  saveptr=header(5)
+loop until header(5)=$7FFFFFFF
+csave_addtoblock(0,1)
+waitms(500)
+dpoke base+7*32+20,0
 end sub
 
 ' ----------------- Save the program
@@ -1197,49 +1259,57 @@ sub do_save                           ''' <------------------------ TODO vartabl
 dim t1 as expr_result
 dim filebuf as ubyte(511)
 dim i as integer
+dim fileheader,savestart, saveptr as ulong
+dim header(5) as ulong
+dim linebuf(125) as ubyte
+
+fileheader=$0D616272' rba+ver'
+
 t1=pop() 
 if t1.result_type=result_string then
   if t1.result.sresult="" then t1.result.sresult="noname.bas"
   close #9: open currentdir$+t1.result.sresult for output as #9
-  i=0
+  put #9,1,fileheader,1
+  i=5
+  saveptr=programstart
   do
-    let amount=programptr-i: if amount>512 then amount=512
-    psram.read1(varptr(filebuf(0)),i,512)
-    put #9,i+1,filebuf(0),amount
-    i+=amount
-  loop until amount<512
-  put #9,i+1,programptr,1
-  put #9,i+5,programstart,1
-  put #9,i+9,lastline,1
-  put #9,i+13,lastlineptr,1
+    psram.read1(varptr(header(0)),saveptr,24)
+    psram.read1(varptr(linebuf(0)),header(2),header(3))  
+    put #9,i,header(3),1 : i+=4
+    put #9,i,linebuf(0),header(3) : i+=header(3)
+    saveptr=header(5)
+  loop until header(5)=$7FFFFFFF
   close #9  
 endif  
 end sub
 
 '----------------- Load the program
-
+'lo todo: errors while loading
 sub do_load
 dim t1 as expr_result
-dim filebuf as ubyte(511)
 dim i, amount as integer
+dim header,linelength as ulong
+dim line2 as ubyte(125)
+dim line2$ as string 
 
+lpoke varptr(line2$),varptr(line2)
 t1=pop() 
 if t1.result_type=result_string then
   do_new
   if t1.result.sresult="" then t1.result.sresult="noname.bas"
   close #9: open currentdir$+t1.result.sresult for input as #9
-  i=0
+  i=5
+  get #9,1,header,1
+  if header<>$0D616272 then printerror(26) : close #9 : return
   do
-    get #9,i+1,filebuf(0),512,amount
-    psram.write(varptr(filebuf(0)),i,amount)
-    i+=amount
-  loop until amount<512
-  programptr=pslpeek(i-16) 
-  programstart=pslpeek(i-12) 
-  lastline=pslpeek(i-8) 
-  lastlineptr=pslpeek(i-4) 
+    get #9,i,linelength,1,amount : i+=4 : line2(linelength)=0
+   if amount=1 then  
+      get #9,i,line2(0),linelength : i+=linelength
+      line$=line2$: interpret 
+  endif 
+  loop until amount<1
   close #9  
-endif  
+endif   ' line$="": for j=0 to header(3)-1: line$+=chr$(linebuf(j)): next j
 end sub
 
 '----------------- Run the program 
@@ -1790,6 +1860,7 @@ errors$(22)="Comma or semicolon expected."
 errors$(23)="Unknown command."
 errors$(24)="Stack underflow."
 errors$(25)="Cannot execute goto in the immediate mode."
+errors$(26)="Cannot load from this file."
 end sub
         
 sub printerror(err as integer)
