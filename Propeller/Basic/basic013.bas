@@ -1225,6 +1225,7 @@ dim saveptr as ulong
 dim header(5) as ulong
 'dim fileheader,savestart, saveptr as ulong
 
+if pslpeek(0)=$FFFFFFFF then printerror(27): return
 t1=pop()
 if t1.result_type<>result_string then name$="noname.bas" else name$=t1.result.sresult
 
@@ -1266,6 +1267,7 @@ dim linebuf(125) as ubyte
 fileheader=$0D616272' rba+ver'
 
 t1=pop() 
+if pslpeek(0)=$FFFFFFFF then printerror(27): return
 if t1.result_type=result_string then
   if t1.result.sresult="" then t1.result.sresult="noname.bas"
   close #9: open currentdir$+t1.result.sresult for output as #9
@@ -1324,7 +1326,7 @@ dim key22 : key22=0
 let runptr=programstart  
 do 
   psram.read1(varptr(header),runptr,24)  
-  if header(0)<>-1 then
+  if header(0)<>$FFFFFFFF then
     psram.read1(varptr(compiledline(0)),runptr+2*compiledslot,header(2)-runptr)
     lineptr=((header(2)-runptr)/compiledslot)-3
     runptr=header(5)
@@ -1346,7 +1348,7 @@ print
 let listptr=programstart
 do 
   psram.read1(varptr(header),listptr,24)  
-  if header(0)<>-1 then
+  if header(0)<> $FFFFFFFF then
     longfill(linebuf,0,64)
     psram.read1(varptr(linebuf),header(2),header(3))
     v.writeln(varptr(linebuf))  
@@ -1861,6 +1863,7 @@ errors$(23)="Unknown command."
 errors$(24)="Stack underflow."
 errors$(25)="Cannot execute goto in the immediate mode."
 errors$(26)="Cannot load from this file."
+errors$(27)="The program is empty."
 end sub
         
 sub printerror(err as integer)
