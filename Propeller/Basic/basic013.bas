@@ -1250,7 +1250,7 @@ do
   saveptr=header(5)
 loop until header(5)=$7FFFFFFF
 csave_addtoblock(0,1)
-waitms(500)
+'waitms(500)
 dpoke base+7*32+20,0
 end sub
 
