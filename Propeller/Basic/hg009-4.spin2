@@ -477,10 +477,14 @@ if ((x>=0) & (x<4*s_cpl) & (y>=0) & (y<s_lines))
 
 pub fastline(x1,x2,y,c)                                                                 ' a fast 8bpp horizontal line
 
-if y<0
+if y<0 || y>=yres
   return
 if x1>x2
   x1,x2:=x2,x1
+if x1<0 
+  x1:=0
+if x2>=xres
+  x2:=xres-1  
 ram.fill(s_buf_ptr+(4*s_cpl1*y+x1),c,1+x2-x1,0,1)
 
 

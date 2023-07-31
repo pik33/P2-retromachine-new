@@ -1,7 +1,7 @@
 const _clkfreq = 336956522
 const HEAPSIZE=32768
-'#define PSRAM4
-#define PSRAM16
+#define PSRAM4
+'#define PSRAM16
 
 #ifdef PSRAM16
 dim v as class using "hg009.spin2"
@@ -111,6 +111,8 @@ const token_slow_goto=79
 const token_csave=80
 const token_save=81
 const token_load=82
+const token_find_goto=83
+const token_rnd=84
 
 const token_error=255
 const token_end=510
@@ -237,6 +239,9 @@ dim currentdir$ as string
 dim sample(255) as ubyte ' for csave
 dim block(1023) as ubyte ' for csave
 dim blockptr as ulong
+dim runptr as ulong
+dim inrun as ulong
+dim runheader as ulong(5)
 
 'dim varname$ as string ' for compile_assign
 '----------------------------------------------------------------------------
@@ -431,6 +436,7 @@ lparts(i).token=isseparator(lparts(i).part$): if lparts(i).token>0 then goto 102
 lparts(i).token=isoperator(lparts(i).part$): if lparts(i).token>0 then goto 102
 lparts(i).token=isassign(lparts(i).part$) : if lparts(i).token>0 then goto 102
 lparts(i).token=iscommand(lparts(i).part$): if lparts(i).token>0 then goto 102
+lparts(i).token=isfunction(lparts(i).part$): if lparts(i).token>0 then goto 102
 
 let b1=isnum(lparts(i).part$):let b2=isint(lparts(i).part$):let b3=isdec(lparts(i).part$)
 if b1 andalso b2 andalso b3 then lparts(i).token=token_decimal : goto 102 					' pure decimal for line num
@@ -544,6 +550,14 @@ select case s
   case else          : return 0  
 end select
 end function
+
+function isfunction(s as string) as ubyte
+
+select case s
+  case "rnd"           	: return token_rnd
+  case else		: return 0
+end select
+end function  
 
 function isname(s as string) as boolean
 
@@ -754,6 +768,7 @@ select case cmd
 end select
 t3.result_type=cmd : compiledline(lineptr)=t3:  lineptr+=1
 450 compiledline(lineptr).result_type=token_end 
+'for i=0 to lineptr: print compiledline(i).result_type;" ";compiledline(i).result.uresult : next i
 end sub
 
 
@@ -830,7 +845,7 @@ endif
 compiledline(lineptr)=t1:  lineptr+=1 
 compiledline(lineptr).result_type=token_end 
 
-
+'for i=0 to lineptr: print compiledline(i).result_type;" ";compiledline(i).result.uresult : next i
 
 end sub
 
@@ -937,16 +952,30 @@ end function
 
 function compile_goto( ) as ulong
 
+dim gotoline, gotoptr,oldgotoptr as integer
+dim gotoheader as ulong(5)
+
 if lparts(ct).token=token_decimal andalso lparts(ct+1).token=token_end then 
 
-   print "We have a fast goto from ";ucompiledline(0);" to ";val%(lparts(ct+1).part$) 
-   
-' we can compile fast goto
-'fast goto: find a line in the program that has a number to go, compile the do_fast_goto with the pointer
-' also add a goto to a goto scrachh table
-' if a new line is compiled, check the goto table. If the line is in the goto list, adjust the pointer in the goto source line
+  gotoline=val%(lparts(ct).part$) 
+  compiledline(lineptr).result_type=token_fast_goto
+' now find a pointer to goto
+  gotoptr=programstart
+  do
+    psram.read1(varptr(gotoheader),gotoptr,24)  
+    if gotoheader(0)<>$FFFFFFFF then
+      oldgotoptr=gotoptr
+      gotoptr=gotoheader(5)
+    endif
+  loop until runheader(5)=$7FFF_FFFF orelse gotoheader(0)=-1 orelse gotoheader(0)=gotoline
+  if gotoheader(0)=gotoline then
+    compiledline(lineptr).result.uresult=oldgotoptr ' we got the pointer
+  else
+   compiledline(lineptr).result.uresult=$80000000+gotoline
+  endif  
+  lineptr+=1
 else
-   print "We have a slow goto "
+   print "We have a slow goto, todo  "
 endif
 ' if not, there is a slow goto. Call converttoint to get an int value from expression, then do_slow_goto
 ' Do_slow_goto searches a line pointer list to find the linenum and pointer, then do the goto  
@@ -1033,10 +1062,23 @@ select case op
     ct+=1
     expr() 
     if lparts(ct).token=token_rpar then ct+=1
+  case else
+    getfun(m) : ct+=1
+      
     
 end select    
 end sub
 
+sub getfun(m as integer) ' todo - functions return type, todo" fun can have expr list after it
+dim oldct as ulong
+dim t2 as expr_result
+ ' if lparts(ct+1).token=token_lpar then oldct=ct: ct+=1: expr()
+  t2.result_type=lparts(ct).token  ' todo here: expression lists..... 
+  compiledline(lineptr)=t2: lineptr+=1   ' if t2.result.uresult=-1, generate error
+if m=-1 then t2.result_type=fun_negative: compiledline(lineptr)=t2: lineptr+=1
+ end sub
+  
+  
 sub getvar(m as integer) 
 
 dim i,j as integer
@@ -1164,7 +1206,6 @@ if stackpointer<maxstack then
 endif
 end sub
 
- 
   
 sub csave_block(address as ulong)
 
@@ -1320,20 +1361,26 @@ end sub
 
 sub do_run
 
-dim runptr as ulong
-dim header as ulong(5)
+
+
 dim key22 : key22=0
 let runptr=programstart  
+if inrun>0 then 
+  psram.read1(varptr(runheader),runptr,24)  
+  return
+endif
+inrun=1
 do 
-  psram.read1(varptr(header),runptr,24)  
-  if header(0)<>$FFFFFFFF then
-    psram.read1(varptr(compiledline(0)),runptr+2*compiledslot,header(2)-runptr)
-    lineptr=((header(2)-runptr)/compiledslot)-3
-    runptr=header(5)
+  psram.read1(varptr(runheader),runptr,24)  
+  if runheader(0)<>$FFFFFFFF then
+    psram.read1(varptr(compiledline(0)),runptr+2*compiledslot,runheader(2)-runptr)
+    lineptr=((runheader(2)-runptr)/compiledslot)-3
+    runptr=runheader(5)
     execute_line
     let key22=kbm.get_key()
     endif
-  loop until header(5)=$7FFF_FFFF orelse header(0)=-1 orelse key22=69
+  loop until runheader(5)=$7FFF_FFFF orelse runheader(0)=-1 orelse key22=69
+inrun=0
 end sub
 
 ' ---------------  List the program. Todo: it should accept parameters and do "more"
@@ -1372,8 +1419,13 @@ lastline=0 : lastlineptr=-1
 end sub
 
 '----------------------- goto
-
 sub do_fast_goto
+
+runptr=compiledline(lineptr_e).result.uresult
+runheader(5)=0
+end sub
+
+sub do_find_goto
 end sub
 
 sub do_slow_goto
@@ -1686,6 +1738,17 @@ t1.result.iresult=a1 : t1.result_type=r : push t1
 
 end sub
 
+
+sub do_rnd
+
+dim t1 as expr_result
+
+t1.result_type=result_uint
+t1.result.uresult=getrnd()
+ 
+push t1
+end sub
+
 '' ----------------------------- Graphics related runtime procedures --------------------------------------
 
 '' ----------------------------- Clear the screen
@@ -1825,11 +1888,13 @@ commands(token_list)=@do_list
 commands(token_run)=@do_run
 commands(token_error)=@do_error
 commands(token_fast_goto)=@do_fast_goto
+commands(token_find_goto)=@do_find_goto
 commands(token_slow_goto)=@do_slow_goto
 commands(fun_converttoint)=@do_converttoint 
 commands(token_csave)=@test_csave
 commands(token_save)=@do_save
 commands(token_load)=@do_load
+commands(token_rnd)=@do_rnd
 end sub
 
 ''--------------------------------Error strings -------------------------------------
