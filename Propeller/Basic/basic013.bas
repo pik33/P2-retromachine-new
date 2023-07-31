@@ -115,6 +115,7 @@ const token_find_goto=83
 const token_rnd=84
 const token_pinwrite=85
 const token_waitms=86
+const token_waitvbl=87
 
 const token_error=255
 const token_end=510
@@ -556,6 +557,7 @@ select case s
   case "load"	     : return token_load
   case "pinwrite"	     : return token_pinwrite
   case "waitms"	     : return token_waitms
+  case "waitvbl"	     : return token_waitvbl
   case else          : return 0  
 end select
 end function
@@ -773,6 +775,7 @@ select case cmd
   case token_load    : compile_fun_1p()  'todo compile_str_fun_1p
   case token_pinwrite    : compile_int_fun_2p()
   case token_waitms    : compile_int_fun_1p()
+  case token_waitvbl    : compile_nothing()
   case else	      : compile_unknown() : goto 450
 
 end select
@@ -1859,6 +1862,10 @@ dim t1 as expr_result
 t1=pop() 'value
 waitms(t1.result.uresult)
 end sub
+
+sub do_waitvbl
+waitvbl
+end sub
 ''----------------------------------------------------------------------------------------------------
 ''------------------ Initialization procedures -------------------------------------------------------
 ''----------------------------------------------------------------------------------------------------
@@ -1920,6 +1927,7 @@ commands(token_save)=@do_save
 commands(token_load)=@do_load
 commands(token_pinwrite)=@do_pinwrite
 commands(token_waitms)=@do_waitms
+commands(token_waitvbl)=@do_waitvbl
 end sub
 
 ''--------------------------------Error strings -------------------------------------
