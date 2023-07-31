@@ -113,6 +113,8 @@ const token_save=81
 const token_load=82
 const token_find_goto=83
 const token_rnd=84
+const token_pinwrite=85
+const token_waitms=86
 
 const token_error=255
 const token_end=510
@@ -277,7 +279,8 @@ position 2*editor_spaces,1 : print ver$
 print v.buf_ptr;" BASIC bytes free"
 position 2*editor_spaces,4 : print "Ready"
 
-
+pinwrite 38,0
+pinwrite 39,1
 '-------------------------------------------------------------------------------------------------------- 
 '-------------------------------------- MAIN LOOP -------------------------------------------------------
 '--------------------------------------------------------------------------------------------------------
@@ -551,6 +554,8 @@ select case s
   case "csave"	     : return token_csave
   case "save"	     : return token_save
   case "load"	     : return token_load
+  case "pinwrite"	     : return token_pinwrite
+  case "waitms"	     : return token_waitms
   case else          : return 0  
 end select
 end function
@@ -766,7 +771,8 @@ select case cmd
   case token_csave    : compile_fun_1p()  
   case token_save    : compile_fun_1p()  'todo compile_str_fun_1p
   case token_load    : compile_fun_1p()  'todo compile_str_fun_1p
-
+  case token_pinwrite    : compile_int_fun_2p()
+  case token_waitms    : compile_int_fun_1p()
   case else	      : compile_unknown() : goto 450
 
 end select
@@ -1840,6 +1846,19 @@ if r=print_mod_empty then print
 'waitms(10)
 811 end sub
 
+
+sub do_pinwrite
+dim t1,t2 as expr_result
+t1=pop() 'value
+t2=pop() ' pin
+pinwrite(t2.result.uresult,t1.result.uresult)
+end sub
+
+sub do_waitms
+dim t1 as expr_result
+t1=pop() 'value
+waitms(t1.result.uresult)
+end sub
 ''----------------------------------------------------------------------------------------------------
 ''------------------ Initialization procedures -------------------------------------------------------
 ''----------------------------------------------------------------------------------------------------
@@ -1899,7 +1918,8 @@ commands(fun_converttoint)=@do_converttoint
 commands(token_csave)=@test_csave
 commands(token_save)=@do_save
 commands(token_load)=@do_load
-commands(token_rnd)=@do_rnd
+commands(token_pinwrite)=@do_pinwrite
+commands(token_waitms)=@do_waitms
 end sub
 
 ''--------------------------------Error strings -------------------------------------
