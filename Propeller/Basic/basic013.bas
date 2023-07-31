@@ -1,7 +1,7 @@
 const _clkfreq = 336956522
 const HEAPSIZE=32768
-#define PSRAM4
-'#define PSRAM16
+'#define PSRAM4
+#define PSRAM16
 
 #ifdef PSRAM16
 dim v as class using "hg009.spin2"
@@ -329,13 +329,15 @@ if key3<>0 then
  
   if key4=key_enter then 
     v.crlf() 
-      interpret: line$="" :let t1=getct()-t1 
+      interpret: line$="" :let t1=getct()-t1 :rpt=0: rptcnt=0
     endif 
 
-  key3=0 :rpt=0: rptcnt=0
+  key3=0 
   endif
 
 loop
+
+
 
 '----------------------------------- this is the end of the main loop ------------------------------------------------------------------
 
@@ -1379,7 +1381,7 @@ do
     execute_line
     let key22=kbm.get_key()
     endif
-  loop until runheader(5)=$7FFF_FFFF orelse runheader(0)=-1 orelse key22=69
+  loop until runheader(5)=$7FFF_FFFF orelse runheader(0)=-1 orelse key22=69 orelse key22=$106
 inrun=0
 end sub
 
