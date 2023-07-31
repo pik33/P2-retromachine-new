@@ -208,6 +208,8 @@ dim base as ulong
 dim mbox as ulong
 dim ansibuf(3) as ubyte
 dim line$ as string
+dim fullline$ as string
+dim cont as ulong
 
 dim plot_color,plot_x,plot_y as integer
 dim editor_spaces as integer
@@ -287,7 +289,7 @@ waitvbl
 
 let key=kbm.get_key() 
 let leds=kbm.ledstates() 'numlock 1 capslock 2 scrollock 4
-if key>0 andalso key<4 then paula.play(0,@atari2_spl,44100,16384,0,1758): waitms(10): paula.stop(0)
+if key>0 andalso key<4 then paula.play(7,@atari2_spl,44100,16384,0,1758): waitms(10): paula.stop(7)
 if key>3 andalso key<$80000000 andalso (key and 255) <$E0 then let key2=key : let rpt=1 : let key3=key2
 if key>$80000000 then let rptcnt=0 : let rpt=0
 if key=0 andalso rpt=1 then rptcnt+=1
@@ -295,7 +297,7 @@ if key<$80000000 then if rptcnt=25 then key3=key2 : rptcnt=21
 
 
 if key3<>0 then
-  paula.play(0,@atari_spl,44100,16384,1684) 
+  paula.play(7,@atari_spl,44100,16384,1684) 
   let key4=scantochar(key3) 
   if leds and 2 = 2 then 
     if key4>96 andalso key4<123 then
@@ -355,7 +357,7 @@ dim separators(125)
 
 
 ' ---------------------------------------------------  Pass 1: Split the line to parts, detect and concatenate strings
-
+fullline$=line$: cont=0 ' 
 
 108 for i=0 to 125: separators(i)=0 :next i
 for i=0 to 125: lparts(i).part$="": next i
@@ -465,7 +467,7 @@ compile(0) : '' execute(0) ' print "  this is a command to execute"  ''' param=l
 103 ' for i=0 to lineptr: print compiledline(i).result_type;" ";compiledline(i).result.uresult, : next i
 execute_line()
 
-if rest$<>"" then line$=rest$: goto 108
+if rest$<>"" then line$=rest$: cont=1 : goto 108 ' change the var, to tell the compiler that it continues. It then should add to the end of the line
 
 101 v.writeln("") : v.writeln("Ready") 
 104 end sub
@@ -685,13 +687,13 @@ sub save_line
 dim llength,llength2,llength3 as ulong
 
 llength=compiledslot*(lineptr+1)
-llength2=len (line$): if llength2 mod 4 <>0 then llength2=4*((llength2/4)+1)
+llength2=len (fullline$): if llength2 mod 4 <>0 then llength2=4*((llength2/4)+1)
 llength3=llength+llength2
 ucompiledline(2)=programptr+llength
 ucompiledline(3)=llength2 
    
 psram.write(varptr(compiledline),programptr,llength)
-psram.write(lpeek(varptr(line$)),programptr+llength,llength2)
+psram.write(lpeek(varptr(fullline$)),programptr+llength,llength2)
 programptr+=llength3
 
 end sub
@@ -748,7 +750,7 @@ dim t3 as expr_result
 cmd=0
 if linetype=0 then cmd=lparts(0).token : ct=1 : lineptr=0 
 if linetype=1 then cmd=lparts(1).token : ct=2 : lineptr=2
-
+if linetype=2 then cmd=lparts(0).token : ct=1 ' don't set lineptr
 
 select case cmd
   case token_cls      : compile_nothing()   'no params, do nothing, only add a command to the line, but case needs something to do after 
@@ -853,7 +855,7 @@ end sub
 
 ' ------------------ compile the line that is calling a command 
 
-sub compile (alinemajor as ulong, alineminor=0 as ulong)
+sub compile (alinemajor as ulong, alineminor=0 as ulong, cont=0 as ulong)
 
 'line header: num major, num minor,list start, list length, prev, next. That implements 2-way list of program lines 
 ' num_minor bit 31: the line is goto target. If deleted, a proper record(s) has to be added to goto list
@@ -862,7 +864,7 @@ if alinemajor=0 then compile_immediate(0) : return
 
 ucompiledline(0)=alinemajor
 ucompiledline(1)=alineminor
-compile_immediate(1)
+if cont=0 then compile_immediate(1) else compile_immediate(2)
 
 if alinemajor >lastline then 
   add_line_at_end(alinemajor)
@@ -874,14 +876,14 @@ end sub
 
 ' ------------------ compile the line that is assigning to a variable
 
-sub compile_assign (alinemajor as ulong, alineminor=0 as ulong)  
+sub compile_assign (alinemajor as ulong, alineminor=0 as ulong, cont=0 as ulong)  
 
 
 if alinemajor=0 then compile_immediate_assign(0) : return  
 
 ucompiledline(0)=alinemajor
 ucompiledline(1)=alineminor
-compile_immediate_assign(1)
+if cont=0 then compile_immediate_assign(1) else compile_immediate_assign(2)
 if alinemajor >lastline then 
   add_line_at_end(alinemajor)
 else
@@ -1382,6 +1384,7 @@ do
     let key22=kbm.get_key()
     endif
   loop until runheader(5)=$7FFF_FFFF orelse runheader(0)=-1 orelse key22=69 orelse key22=$106
+  if key22=69 orelse key22=$106 then paula.play(7,@atari_spl,44100,16384,1684) : print "Stopped at line ";runheader(0)
 inrun=0
 end sub
 
