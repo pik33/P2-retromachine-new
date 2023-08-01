@@ -22,8 +22,8 @@ dim paula as class using "audio093b-8-sc.spin2"
 ''---------------------------------- Constants --------------------------------------------
 ''-----------------------------------------------------------------------------------------
 
-const ver$="P2 Retromachine BASIC version 0.13"
-const ver=13
+const ver$="P2 Retromachine BASIC version 0.14"
+const ver=14
 '' ------------------------------- Keyboard constants
 
 const   key_enter=141    
@@ -1982,10 +1982,8 @@ end sub
 sub do_rnd
 
 dim t1 as expr_result
-
 t1.result_type=result_uint
 t1.result.uresult=getrnd()
- 
 push t1
 end sub
 
@@ -2179,6 +2177,7 @@ commands(token_ge)=@do_ge
 commands(token_le)=@do_le
 commands(token_gt)=@do_gt
 commands(token_lt)=@do_lt
+commands(token_rnd)=@do_rnd
 end sub
 
 ''--------------------------------Error strings -------------------------------------

@@ -477,7 +477,7 @@ if ((x>=0) & (x<4*s_cpl) & (y>=0) & (y<s_lines))
 
 pub fastline(x1,x2,y,c)                                                                 ' a fast 8bpp horizontal line
 
-if y<0 || y>=yres || x1>=xres || x2 >+xres
+if y<0 || y>=yres || (x1<0 && x2<0) || (x1>xres && x2>xres)
   return
 if x1>x2
   x1,x2:=x2,x1
