@@ -1108,7 +1108,29 @@ end function
 '---------------------------- Compile time expression decoder/evaluator ----------------------------------------------------------------
 '---------------------------------------------------------------------------------------------------------------------------------------
 
+
 sub expr() 
+
+' On input: ct = current token position
+' On output: expression result value and a new ct
+
+dim t3 as expr_result
+dim op as integer
+t3.result.uresult=0
+addsub()             			' call higher priority operator check. It will itself call getval/getvar if no multiplies or divides
+op = lparts(ct).token				' that idea is from github adamdunkels/ubasic
+do while (op = token_eq orelse op = token_gt orelse op = token_lt orelse op=token_ge orelse op=token_le)
+  ct+=1
+  addsub() 
+  t3.result_type=op: compiledline(lineptr)=t3: lineptr+=1
+  op = lparts(ct).token
+  loop
+end sub
+
+
+
+
+sub addsub() 
 
 ' On input: ct = current token position
 ' On output: expression result value and a new ct
@@ -1832,6 +1854,48 @@ t1.result.uresult=13 : t1.result_type=result_error
 1140 push t1
 end sub
 
+
+sub do_eq
+dim t1,t2 as expr_result 
+t2=pop()
+t1=pop()
+' placeholder to do the job
+push t1
+end sub
+
+sub do_ge
+dim t1,t2 as expr_result 
+t2=pop()
+t1=pop()
+' placeholder to do the job
+push t1
+end sub
+
+sub do_le
+dim t1,t2 as expr_result 
+t2=pop()
+t1=pop()
+' placeholder to do the job
+push t1
+end sub
+
+sub do_gt
+dim t1,t2 as expr_result 
+t2=pop()
+t1=pop()
+' placeholder to do the job
+push t1
+end sub
+
+sub do_lt
+dim t1,t2 as expr_result 
+t2=pop()
+t1=pop()
+' placeholder to do the job
+push t1
+end sub
+
+
 ' -------------------   convert a variable on the top of stack to integer
 
 sub do_converttoint
@@ -2048,6 +2112,11 @@ commands(token_pinwrite)=@do_pinwrite
 commands(token_waitms)=@do_waitms
 commands(token_waitvbl)=@do_waitvbl
 commands(token_if)=@do_if
+commands(token_eq)=@do_eq
+commands(token_ge)=@do_ge
+commands(token_le)=@do_le
+commands(token_gt)=@do_gt
+commands(token_lt)=@do_lt
 end sub
 
 ''--------------------------------Error strings -------------------------------------
