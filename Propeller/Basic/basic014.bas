@@ -63,14 +63,16 @@ const token_shr=11
 const token_power=12
 const token_not=13
 const token_at=14
-const token_inc=15
-const token_dec=16
+const token_gt=15
+const token_lt=16
 const token_comma=17
 const token_semicolon=18
 const token_ear=19
 const token_rpar=20
 const token_lpar=21
 const token_colon=22
+
+
 const fun_getivar=17  ' at runtime, reuse non-function tokens with functions that have no compile time tokens
 const fun_getuvar=18
 const fun_getfvar=19
@@ -81,7 +83,9 @@ const fun_assign_i=23
 const fun_assign_u=24
 const fun_assign_f=25
 const fun_assign_s=26
+
 const token_eq=27
+ 
 const fun_pushi=28
 const fun_pushu=29
 const fun_pushf=30
@@ -92,6 +96,13 @@ const print_mod_semicolon=34
 const token_linenum_major=35
 const token_linenum_minor=36
 const token_nextline_ptr=37
+
+const token_le=38
+const token_ge=39
+const token_inc=40
+const token_dec=41
+
+
 const token_cls=64
 const token_new=65
 const token_plot=66
@@ -116,6 +127,9 @@ const token_rnd=84
 const token_pinwrite=85
 const token_waitms=86
 const token_waitvbl=87
+const token_if=88
+
+
 
 const token_error=255
 const token_end=510
@@ -280,8 +294,8 @@ position 2*editor_spaces,1 : print ver$
 print v.buf_ptr;" BASIC bytes free"
 position 2*editor_spaces,4 : print "Ready"
 
-pinwrite 38,0
-pinwrite 39,1
+
+
 '-------------------------------------------------------------------------------------------------------- 
 '-------------------------------------- MAIN LOOP -------------------------------------------------------
 '--------------------------------------------------------------------------------------------------------
@@ -358,14 +372,14 @@ dim i,j,k,q
 dim result as expr_result
 dim etype as integer
 dim separators(125)
-
+dim linenum as ulong
 
 ' ---------------------------------------------------  Pass 1: Split the line to parts, detect and concatenate strings
-fullline$=line$: cont=0 ' 
+fullline$=line$: cont=0  : linenum=0 : lineptr=0 
 
 108 for i=0 to 125: separators(i)=0 :next i
 for i=0 to 125: lparts(i).part$="": next i
-lineptr=0 
+
 
 
 ' 1a : extract the first command, split the line to first command and the rest
@@ -373,7 +387,17 @@ lineptr=0
 line$=trim$(line$):let d$="" : let l=len(line$) ' TODO BUG!!!!!!! strings has to be left intact !!!!! Don't lcase$, don't reduce spaces before extracting strings
 if l=0 then goto 101
 let d=instr(1,line$,":"): if d>0 andalso d<len(line$)  then let rest$=right$(line$,len(line$)-d):line$=left$(line$,d-1) else rest$="" 
+if cont=0 andalso rest$<>"" then cont=0
+if cont=4 andalso rest$<>"" then cont=1
+if cont=4 andalso rest$="" then cont=2
+if cont=0 andalso rest$="" then cont=3 
 
+''print "in interpret: line$= ";line$," rest$= ";rest$; " cont= "; cont
+
+' cont: 0: this is the first part of the line that will continue
+' 1 - this is the continuation of the line
+' 2 - this is the last continued line
+' 3 - this is the ome and only part
 
 ' 1b: find separators
 
@@ -407,10 +431,22 @@ do
 i=0 : do
  if right$(lparts(i).part$,1)="""" andalso left$(lparts(i+1).part$,1)=""""  then 
    lparts(i).part$=lparts(i).part$+right$(lparts(i+1).part$,len(lparts(i+1).part$)-1)
-   for j=i+1 to k: lparts(j)=lparts(j+1): next j :
+   for j=i+1 to k: lparts(j)=lparts(j+1): next j  
    i-=1 : k-=1 ' do not move i if concatenated
  endif
  i+=1 : loop until i>=k 
+ 
+' 1e2: concatenate >=, <=, ++, --, +=, *=, -=, /=, ^=
+ 
+i=0 : do
+  let s1$=lparts(i).part$ : let s2$=lparts(i+1).part$
+  if ((s1$=">" orelse s1$=">" orelse s1$="+" orelse s1$="-" orelse s1$="*" orelse s1$="/" orelse s1$="^") andalso s2$="=") orelse (s1$="+" andalso s2$="+") orelse (s1$="-" andalso s2$="-") then
+    lparts(i).part$=s1$+s2$
+    for j=i+1 to k : lparts(j)=lparts(j+1) : next j
+   i-=1 : k-=1 ' do not move i if concatenated
+ endif
+ i+=1 : loop until i>=k  
+ 
 
 ' 1f : now remove parts that are spaces
 
@@ -433,6 +469,7 @@ for j=0 to k-1
   if left$(lparts(j).part$,1)<>"""" orelse right$(lparts(j).part$,1)<>"""" then lparts(j).part$=lcase$(lparts(j).part$) 
 next j
 
+''for i=0 to k-1 : print lparts(i).part$,: next i
 '-------------------------------------------------------- Pass 2: Tokenize the line
 
 if len(lparts(0).part$)=0 then goto 101				' empty line, nothing to do
@@ -459,9 +496,12 @@ lparts(k).token=token_end : tokennum=k
 ''for i=0 to k:print lparts(i).part$,lparts(i).token:next i
 
 '2b determine a type of the line
- 
-if isdec(lparts(0).part$) andalso lparts(2).token<>token_eq then   compile(val%(lparts(0).part$)) : goto 104  								'<-- TODO: add a line to a program
-if isdec(lparts(0).part$) andalso lparts(2).token=token_eq then compile_assign(val%(lparts(0).part$)) : goto 104  								'<-- TODO: add a line to a program
+if isdec(lparts(0).part$) then linenum=val%(lparts(0).part$)
+if linenum>0  andalso (cont=0 orelse cont=3) andalso lparts(2).token<>token_eq  then   compile(linenum,0,cont) : if rest$<>"" then line$=rest$: cont=4 : goto 108 else goto 104  								'<-- TODO: add a line to a program
+if linenum>0 andalso (cont=1 orelse cont=2) andalso lparts(1).token<>token_eq  then  compile(linenum,0,cont) : if rest$<>"" then line$=rest$: cont=4 : goto 108 else goto 104  	
+							'<-- TODO: add a line to a program
+if linenum>0 andalso (cont=0 orelse cont=3) andalso lparts(2).token=token_eq then  compile_assign(linenum,0,cont) : if rest$<>"" then line$=rest$: cont=4 : goto 108 else goto 104  								'<-- TODO: add a line to a program
+if linenum>0 andalso (cont=1 orelse cont=2) andalso lparts(1).token=token_eq then  compile_assign(linenum,0,cont) : if rest$<>"" then line$=rest$: cont=4 : goto 108 else goto 104  								'<-- TODO: add a line to a program
 if lparts(0).token=token_name andalso lparts(1).token=token_eq then compile_assign(0) : goto 103    					' assign a variable
 if lparts(0).token=token_name andalso lparts(1).token=token_rpar then print " User functions and arrays not yet implemented" : goto 101
 
@@ -469,9 +509,7 @@ if lparts(0).token=token_name andalso lparts(1).token=token_rpar then print " Us
 
 compile(0) : '' execute(0) ' print "  this is a command to execute"  ''' param=line to compile
 103 ' for i=0 to lineptr: print compiledline(i).result_type;" ";compiledline(i).result.uresult, : next i
-execute_line()
-
-if rest$<>"" then line$=rest$: cont=1 : goto 108 ' change the var, to tell the compiler that it continues. It then should add to the end of the line
+execute_line() : if rest$<>"" then line$=rest$:  goto 108 
 
 101 v.writeln("") : v.writeln("Ready") 
 104 end sub
@@ -496,8 +534,15 @@ select case s
   case "^"   : return token_power
   case "not" : return token_not
   case "@"   : return token_at
-  case "++"  : return token_inc
-  case "--"  : return token_dec
+  case "="   : return token_eq ' the compiler then will determine what type is to assign
+  case ">="  : return token_ge   
+  case "<="  : return token_le  
+  case "<"   : return token_lt   
+  case ">"   : return token_gt 
+  case "++"   : return token_inc 
+  case "--"   : return token_dec 
+
+
   case else  : return 0 
 end select
 end function
@@ -518,6 +563,8 @@ select case s
   case "("   : return token_lpar
   case ":"   : return token_colon
   case " "   : return token_space
+  case ">"   : return token_gt
+  case "<"   : return token_lt
   case else  : return 0
 end select
 end function
@@ -675,7 +722,7 @@ if header(5)=$7FFF_FFFF andalso header(4)<>$FFFF_FFFF then ' this is the last, a
 endif   
 
 if header(5)<>$7FFF_FFFF andalso header(4)=$FFFF_FFFF then ' this is the first line, but not the last
-   print "deleted first line"
+'   print "deleted first line"
   pslpoke(header(5)+16,$FFFF_FFFF) 
   programstart=header(5) ' adjust the program start to point on the first new line
   return 0
@@ -754,11 +801,18 @@ sub compile_immediate(linetype as ulong)
 dim cmd,err as ulong
 dim t3 as expr_result
 
+' linetype=cont+1, linetype=0 immediate
+'  : 1: this is the first part of the line that will continue
+' 2 - this is the continuation of the line
+' 3 - this is the last continued line
+' 4 - this is the one and only part
+
+
 cmd=0
 if linetype=0 then cmd=lparts(0).token : ct=1 : lineptr=0 
-if linetype=1 then cmd=lparts(1).token : ct=2 : lineptr=2
-if linetype=2 then cmd=lparts(0).token : ct=1 ' don't set lineptr
-
+if linetype=2 orelse linetype=3 then cmd=lparts(0).token : ct=1 ' don't set lineptr
+if linetype=4 orelse linetype=1 then cmd=lparts(1).token : ct=2 : lineptr=2
+'print lineptr
 select case cmd
   case token_cls      : compile_nothing()   'no params, do nothing, only add a command to the line, but case needs something to do after 
   case token_new      : compile_nothing()   
@@ -769,19 +823,21 @@ select case cmd
   case token_fcircle  : err=compile_int_fun_3p()  
   case token_color    : err=compile_int_fun_1p()  
   case token_print    : err=compile_print()  : goto 450
-  case token_fast_goto     : if linetype=1 then compile_goto()  : goto 450 else printerror(25) : goto 450
+  case token_fast_goto     : if linetype>0 then compile_goto()  : goto 450 else printerror(25) : goto 450
   case token_csave    : compile_fun_1p()  
   case token_save    : compile_fun_1p()  'todo compile_str_fun_1p
   case token_load    : compile_fun_1p()  'todo compile_str_fun_1p
   case token_pinwrite    : compile_int_fun_2p()
   case token_waitms    : compile_int_fun_1p()
   case token_waitvbl    : compile_nothing()
+  case token_if    : compile_if() : goto 450
   case else	      : compile_unknown() : goto 450
 
 end select
 t3.result_type=cmd : compiledline(lineptr)=t3:  lineptr+=1
-450 compiledline(lineptr).result_type=token_end 
-'for i=0 to lineptr: print compiledline(i).result_type;" ";compiledline(i).result.uresult : next i
+450 if linetype=0 orelse linetype=3 orelse linetype=4 then compiledline(lineptr).result_type=token_end ' end token if the last part or imm
+
+ 'for i=0 to lineptr: print compiledline(i).result_type;" ";compiledline(i).result.uresult : next i
 end sub
 
 
@@ -795,8 +851,10 @@ dim varname2$ as string
 t1.result_type=result_error : t1.result.uresult=0
 i=-1: j=-1
 
-if linetype=0 then varname2$=lparts(0).part$ :  ct=2  : lineptr=0 
-if linetype=1 then varname2$=lparts(1).part$ :  ct=3  : lineptr=2
+if linetype=0 then varname2$=lparts(0).part$: ct=2 : lineptr=0 
+if linetype=2 orelse linetype=3 then varname2$=lparts(0).part$ : ct=2 ' don't set lineptr
+if linetype=4 orelse linetype=1 then varname2$=lparts(1).part$ : ct=3 : lineptr=2
+
 'print "Called compile immediate assign with linetype",linetype
 suffix2$=right$(varname2$,1)
 expr()
@@ -856,7 +914,7 @@ else '  if suffix$<>"$" andalso suffix$<>"!" andalso suffix$<>"%"  then
 endif  
 
 compiledline(lineptr)=t1:  lineptr+=1 
-compiledline(lineptr).result_type=token_end 
+ if linetype=0 orelse linetype=3 orelse linetype=4 then compiledline(lineptr).result_type=token_end
 
 'for i=0 to lineptr: print compiledline(i).result_type;" ";compiledline(i).result.uresult : next i
 
@@ -869,37 +927,51 @@ sub compile (alinemajor as ulong, alineminor=0 as ulong, cont=0 as ulong)
 'line header: num major, num minor,list start, list length, prev, next. That implements 2-way list of program lines 
 ' num_minor bit 31: the line is goto target. If deleted, a proper record(s) has to be added to goto list
  
+'  print "called compile with line= "; alinemajor;" and cont= "; cont 
 if alinemajor=0 then compile_immediate(0) : return  
 
 ucompiledline(0)=alinemajor
 ucompiledline(1)=alineminor
-if cont=0 then compile_immediate(1) else compile_immediate(2)
 
-if alinemajor >lastline then 
-  add_line_at_end(alinemajor)
-else
-  deleteline(alinemajor)  
-  if alinemajor>lastline then add_line_at_end(alinemajor) else insertline(alinemajor) ' yes I know that's not optimal    
-endif 
+
+' cont: 0: this is the first part of the line that will continue
+' 1 - this is the continuation of the line
+' 2 - this is the last continued line
+' 3 - this is the ome and only part
+
+
+compile_immediate(cont+1) 
+
+if cont=3 orelse cont=2 then 
+  if alinemajor >lastline then 
+    add_line_at_end(alinemajor)
+  else
+    deleteline(alinemajor)  
+    if alinemajor>lastline then add_line_at_end(alinemajor) else insertline(alinemajor) ' yes I know that's not optimal    
+  endif 
+endif   
 end sub
 
 ' ------------------ compile the line that is assigning to a variable
 
 sub compile_assign (alinemajor as ulong, alineminor=0 as ulong, cont=0 as ulong)  
 
-
+'  print "called compile_assign  with line= "; alinemajor;" and cont= "; cont 
 if alinemajor=0 then compile_immediate_assign(0) : return  
 
 ucompiledline(0)=alinemajor
 ucompiledline(1)=alineminor
-if cont=0 then compile_immediate_assign(1) else compile_immediate_assign(2)
-if alinemajor >lastline then 
-  add_line_at_end(alinemajor)
-else
-  deleteline(alinemajor)  
-  if alinemajor>lastline then add_line_at_end(alinemajor) else insertline(alinemajor)   
-endif 
 
+compile_immediate_assign(cont+1) 
+
+if cont=3 orelse cont=2 then 
+  if alinemajor >lastline then 
+    add_line_at_end(alinemajor)
+  else
+    deleteline(alinemajor)  
+    if alinemajor>lastline then add_line_at_end(alinemajor) else insertline(alinemajor)   
+  endif 
+endif 
 end sub
 
 ' --------------- Helper compile functions 
@@ -962,6 +1034,31 @@ do
 loop until lparts(ct).token=token_end orelse ct>=tokennum
 return 0
 end function
+
+function compile_if() as ulong ' todo reconfigurable editor start position
+
+dim t1 as expr_result
+t1.result.uresult=0 : t1.result_type=result_uint
+
+expr()
+
+
+''; todo l 
+
+
+if lparts(ct).token=token_end then t1.result_type=print_mod_empty: compiledline(lineptr)=t1:  lineptr+=1 : t1.result_type=token_print : compiledline(lineptr)=t1:  lineptr+=1 :return 0 	'print without parameters
+do
+  expr()
+  if lparts(ct).token=token_comma then t1.result_type=print_mod_comma : compiledline(lineptr)=t1:  lineptr+=1 : t1.result_type=token_print : compiledline(lineptr)=t1:  lineptr+=1
+  if lparts(ct).token=token_semicolon then  t1.result_type=print_mod_semicolon : compiledline(lineptr)=t1:  lineptr+=1 : t1.result_type=token_print : compiledline(lineptr)=t1:  lineptr+=1
+  if lparts(ct).token=token_end then t1.result_type=token_print : compiledline(lineptr)=t1:  lineptr+=1
+  if lparts(ct).token <>token_comma andalso lparts(ct).token <>token_semicolon andalso lparts(ct).token <>token_end then return 22
+  ct+=1  
+loop until lparts(ct).token=token_end orelse ct>=tokennum
+return 0
+end function
+
+
 
 function compile_goto( ) as ulong
 
@@ -1146,15 +1243,18 @@ if suffix$="!" then
   goto 701
 endif 
 
+ 
 for i=0 to ivarnum-1
   if ivariables(i).name=varname$ then j=i : exit
 next i
+ 
    if  j=-1 andalso ivarnum<maxvars then   
     ivariables(ivarnum).name=varname$
     ivariables(ivarnum).value=0
     j=ivarnum
     ivarnum+=1
   endif   
+ 
 t2.result_type=fun_getivar:t2.result.uresult=j
 
 701 
@@ -1866,6 +1966,25 @@ end sub
 sub do_waitvbl
 waitvbl
 end sub
+
+sub do_dir
+dim filename as string
+chdir("/sd/")       ' set working directory
+print
+filename = dir$("*", fbNormal)  ' start scan for all files and directories
+while filename <> "" and filename <> nil
+  print filename
+  filename = dir$()      ' continue scan
+end while
+end sub
+
+sub do_if
+
+dim t1 as expr_result
+t1=pop()
+if t1.result.uresult = 0 then lineptr_e=lineptr-1
+end sub
+
 ''----------------------------------------------------------------------------------------------------
 ''------------------ Initialization procedures -------------------------------------------------------
 ''----------------------------------------------------------------------------------------------------
@@ -1928,6 +2047,7 @@ commands(token_load)=@do_load
 commands(token_pinwrite)=@do_pinwrite
 commands(token_waitms)=@do_waitms
 commands(token_waitvbl)=@do_waitvbl
+commands(token_if)=@do_if
 end sub
 
 ''--------------------------------Error strings -------------------------------------
