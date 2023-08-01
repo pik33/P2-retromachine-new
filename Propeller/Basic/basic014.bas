@@ -1,7 +1,7 @@
 const _clkfreq = 336956522
 const HEAPSIZE=32768
-#define PSRAM4
-'#define PSRAM16
+'#define PSRAM4
+#define PSRAM16
 
 #ifdef PSRAM16
 dim v as class using "hg009.spin2"
@@ -293,8 +293,6 @@ currentdir$="/sd/"
 position 2*editor_spaces,1 : print ver$
 print v.buf_ptr;" BASIC bytes free"
 position 2*editor_spaces,4 : print "Ready"
-
-
 
 '-------------------------------------------------------------------------------------------------------- 
 '-------------------------------------- MAIN LOOP -------------------------------------------------------
@@ -1856,45 +1854,109 @@ end sub
 
 
 sub do_eq
-dim t1,t2 as expr_result 
-t2=pop()
-t1=pop()
-' placeholder to do the job
-push t1
-end sub
 
-sub do_ge
 dim t1,t2 as expr_result 
 t2=pop()
 t1=pop()
-' placeholder to do the job
-push t1
-end sub
 
-sub do_le
-dim t1,t2 as expr_result 
-t2=pop()
-t1=pop()
-' placeholder to do the job
+if t1.result_type=result_string andalso t2.result_type=result_string then t1.result.uresult=(t1.result.sresult=t2.result.sresult) : goto 1150
+if t1.result_type=result_float andalso t2.result_type=result_float then t1.result.uresult=(t1.result.fresult=t2.result.fresult) : goto 1150
+if t1.result_type=result_float andalso t2.result_type=result_int then t1.result.uresult=(t1.result.fresult=t2.result.iresult) : goto 1150
+if t1.result_type=result_float andalso t2.result_type=result_uint then t1.result.uresult=(t1.result.fresult=t2.result.uresult) : goto 1150
+if t1.result_type=result_int andalso t2.result_type=result_float then t1.result.uresult=(t1.result.iresult=t2.result.fresult) : goto 1150
+if t1.result_type=result_int andalso t2.result_type=result_int then t1.result.uresult=(t1.result.iresult=t2.result.iresult) : goto 1150
+if t1.result_type=result_int andalso t2.result_type=result_uint then t1.result.uresult=(t1.result.iresult=t2.result.uresult) : goto 1150
+if t1.result_type=result_uint andalso t2.result_type=result_float then t1.result.uresult=(t1.result.uresult=t2.result.fresult) : goto 1150
+if t1.result_type=result_uint andalso t2.result_type=result_int then t1.result.uresult=(t1.result.uresult=t2.result.iresult) : goto 1150
+if t1.result_type=result_uint andalso t2.result_type=result_uint then t1.result.uresult=(t1.result.uresult=t2.result.uresult) : goto 1150
+t1.result.uresult=0
+1150 t1.result_type=result_int 
 push t1
 end sub
 
 sub do_gt
+
 dim t1,t2 as expr_result 
 t2=pop()
 t1=pop()
-' placeholder to do the job
+
+if t1.result_type=result_string andalso t2.result_type=result_string then t1.result.uresult=(t1.result.sresult>t2.result.sresult) : goto 1160
+if t1.result_type=result_float andalso t2.result_type=result_float then t1.result.uresult=(t1.result.fresult>t2.result.fresult) : goto 1160
+if t1.result_type=result_float andalso t2.result_type=result_int then t1.result.uresult=(t1.result.fresult>t2.result.iresult) : goto 1160
+if t1.result_type=result_float andalso t2.result_type=result_uint then t1.result.uresult=(t1.result.fresult>t2.result.uresult) : goto 1160
+if t1.result_type=result_int andalso t2.result_type=result_float then t1.result.uresult=(t1.result.iresult>t2.result.fresult) : goto 1160
+if t1.result_type=result_int andalso t2.result_type=result_int then t1.result.uresult=(t1.result.iresult>t2.result.iresult) : goto 1160
+if t1.result_type=result_int andalso t2.result_type=result_uint then t1.result.uresult=(t1.result.iresult>t2.result.uresult) : goto 1160
+if t1.result_type=result_uint andalso t2.result_type=result_float then t1.result.uresult=(t1.result.uresult>t2.result.fresult) : goto 1160
+if t1.result_type=result_uint andalso t2.result_type=result_int then t1.result.uresult=(t1.result.uresult>t2.result.iresult) : goto 1160
+if t1.result_type=result_uint andalso t2.result_type=result_uint then t1.result.uresult=(t1.result.uresult>t2.result.uresult) : goto 1160
+t1.result.uresult=0
+1160 t1.result_type=result_int 
 push t1
 end sub
 
 sub do_lt
+
 dim t1,t2 as expr_result 
 t2=pop()
 t1=pop()
-' placeholder to do the job
+
+if t1.result_type=result_string andalso t2.result_type=result_string then t1.result.uresult=(t1.result.sresult<t2.result.sresult) : goto 1170
+if t1.result_type=result_float andalso t2.result_type=result_float then t1.result.uresult=(t1.result.fresult<t2.result.fresult) : goto 1170
+if t1.result_type=result_float andalso t2.result_type=result_int then t1.result.uresult=(t1.result.fresult<t2.result.iresult) : goto 1170
+if t1.result_type=result_float andalso t2.result_type=result_uint then t1.result.uresult=(t1.result.fresult<t2.result.uresult) : goto 1170
+if t1.result_type=result_int andalso t2.result_type=result_float then t1.result.uresult=(t1.result.iresult<t2.result.fresult) : goto 1170
+if t1.result_type=result_int andalso t2.result_type=result_int then t1.result.uresult=(t1.result.iresult<t2.result.iresult) : goto 1170
+if t1.result_type=result_int andalso t2.result_type=result_uint then t1.result.uresult=(t1.result.iresult<t2.result.uresult) : goto 1170
+if t1.result_type=result_uint andalso t2.result_type=result_float then t1.result.uresult=(t1.result.uresult<t2.result.fresult) : goto 1170
+if t1.result_type=result_uint andalso t2.result_type=result_int then t1.result.uresult=(t1.result.uresult<t2.result.iresult) : goto 1170
+if t1.result_type=result_uint andalso t2.result_type=result_uint then t1.result.uresult=(t1.result.uresult<t2.result.uresult) : goto 1170
+t1.result.uresult=0
+1170 t1.result_type=result_int 
 push t1
 end sub
 
+sub do_ge
+
+dim t1,t2 as expr_result 
+t2=pop()
+t1=pop()
+
+if t1.result_type=result_string andalso t2.result_type=result_string then t1.result.uresult=(t1.result.sresult>=t2.result.sresult) : goto 1180
+if t1.result_type=result_float andalso t2.result_type=result_float then t1.result.uresult=(t1.result.fresult>=t2.result.fresult) : goto 1180
+if t1.result_type=result_float andalso t2.result_type=result_int then t1.result.uresult=(t1.result.fresult>=t2.result.iresult) : goto 1180
+if t1.result_type=result_float andalso t2.result_type=result_uint then t1.result.uresult=(t1.result.fresult>=t2.result.uresult) : goto 1180
+if t1.result_type=result_int andalso t2.result_type=result_float then t1.result.uresult=(t1.result.iresult>=t2.result.fresult) : goto 1180
+if t1.result_type=result_int andalso t2.result_type=result_int then t1.result.uresult=(t1.result.iresult>=t2.result.iresult) : goto 1180
+if t1.result_type=result_int andalso t2.result_type=result_uint then t1.result.uresult=(t1.result.iresult>=t2.result.uresult) : goto 1180
+if t1.result_type=result_uint andalso t2.result_type=result_float then t1.result.uresult=(t1.result.uresult>=t2.result.fresult) : goto 1180
+if t1.result_type=result_uint andalso t2.result_type=result_int then t1.result.uresult=(t1.result.uresult>=t2.result.iresult) : goto 1180
+if t1.result_type=result_uint andalso t2.result_type=result_uint then t1.result.uresult=(t1.result.uresult>=t2.result.uresult) : goto 1180
+t1.result.uresult=0
+1180 t1.result_type=result_int 
+push t1
+end sub
+
+sub do_le
+
+dim t1,t2 as expr_result 
+t2=pop()
+t1=pop()
+
+if t1.result_type=result_string andalso t2.result_type=result_string then t1.result.uresult=(t1.result.sresult<=t2.result.sresult) : goto 1190
+if t1.result_type=result_float andalso t2.result_type=result_float then t1.result.uresult=(t1.result.fresult<=t2.result.fresult) : goto 1190
+if t1.result_type=result_float andalso t2.result_type=result_int then t1.result.uresult=(t1.result.fresult<=t2.result.iresult) : goto 1190
+if t1.result_type=result_float andalso t2.result_type=result_uint then t1.result.uresult=(t1.result.fresult<=t2.result.uresult) : goto 1190
+if t1.result_type=result_int andalso t2.result_type=result_float then t1.result.uresult=(t1.result.iresult<=t2.result.fresult) : goto 1190
+if t1.result_type=result_int andalso t2.result_type=result_int then t1.result.uresult=(t1.result.iresult<=t2.result.iresult) : goto 1190
+if t1.result_type=result_int andalso t2.result_type=result_uint then t1.result.uresult=(t1.result.iresult<=t2.result.uresult) : goto 1190
+if t1.result_type=result_uint andalso t2.result_type=result_float then t1.result.uresult=(t1.result.uresult<=t2.result.fresult) : goto 1190
+if t1.result_type=result_uint andalso t2.result_type=result_int then t1.result.uresult=(t1.result.uresult<=t2.result.iresult) : goto 1190
+if t1.result_type=result_uint andalso t2.result_type=result_uint then t1.result.uresult=(t1.result.uresult<=t2.result.uresult) : goto 1190
+t1.result.uresult=0
+1190 t1.result_type=result_int 
+push t1
+end sub
 
 ' -------------------   convert a variable on the top of stack to integer
 
