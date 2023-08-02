@@ -1,6 +1,6 @@
 const HEAPSIZE=32768
-#define PSRAM4
-'#define PSRAM16
+'#define PSRAM4
+#define PSRAM16
 
 #ifdef PSRAM16
 const _clkfreq = 336956522
@@ -867,7 +867,7 @@ if linetype=2 orelse linetype=3 then varname2$=lparts(0).part$ : ct=2 ' don't se
 if linetype=4 orelse linetype=1 then varname2$=lparts(1).part$ : ct=3 : lineptr=2
 if linetype=5 then varname2$=lparts(ct).part$ : ct+=2 ' continued after if/else
  
-print "Called compile immediate assign with linetype",linetype, "varname=",varname2$, "lineptr=", lineptr
+'print "Called compile immediate assign with linetype",linetype, "varname=",varname2$, "lineptr=", lineptr
 
 suffix2$=right$(varname2$,1)
 expr()
@@ -930,7 +930,7 @@ compiledline(lineptr)=t1:  lineptr+=1
  if linetype=0 orelse linetype=3 orelse linetype=4 then compiledline(lineptr).result_type=token_end
 
 for i=0 to lineptr: print compiledline(i).result_type;" ";compiledline(i).result.uresult : next i
-print "at exit lineptr=",lineptr
+'print "at exit lineptr=",lineptr
 end sub
 
 ' ------------------ compile the line that is calling a command 
@@ -2289,7 +2289,7 @@ end sub
 '' ------------------------------- Hardware start/stop/initialization 
 
 sub startpsram
-pscog,pslock=psram.startx(0, 1024, 11, 6)
+pscog=psram.startx(0, 1024, 11, 7)
 mbox=psram.getMailbox(0)
 end sub
 

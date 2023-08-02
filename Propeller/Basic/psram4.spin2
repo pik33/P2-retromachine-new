@@ -88,7 +88,7 @@ This is an extended API to start the PSRAM driver using custom parameters.
     delay      - input delay value to use for the memory (0-15), 0=automatically compute based on frequency
     desiredcog - a cog ID from 0-7 can be nominated for the driver cog, or will be auto allocated if it is -1
 }}
-PUB startx(freq, burst, delay, desiredcog) : result,lock | driverAddr
+PUB startx(freq, burst, delay, desiredcog) : result | driverAddr
     stop() ' restart driver if required
 
     ' use current frequency if none specified
@@ -100,7 +100,7 @@ PUB startx(freq, burst, delay, desiredcog) : result,lock | driverAddr
 
     burst := (((MAX_CS_LOW_USEC*(freq/4000000)) - 132) >> 4) << 4  ' some sane rounded value
     if burst < 0
-        return ERR_TOO_SLOW,-1 ' P2 frequency is too low for any 8us transfers
+        return ERR_TOO_SLOW 'P2 frequency is too low for any 8us transfers
 
     ' compute the input delay
 
@@ -113,7 +113,7 @@ PUB startx(freq, burst, delay, desiredcog) : result,lock | driverAddr
 
     driverlock := LOCKNEW()  
     if driverlock == -1
-        return ERR_NO_LOCK,-1
+        return ERR_NO_LOCK
 
     ' patch in the proper data and HUB addresses to the startup structure
 
@@ -138,7 +138,7 @@ PUB startx(freq, burst, delay, desiredcog) : result,lock | driverAddr
     drivercog := coginit(desiredcog, driverAddr, @startupData)
     repeat until long[@startupData] == 0 
 
-    return drivercog,driverlock
+    return drivercog 
 
 '..............................................................................
 
