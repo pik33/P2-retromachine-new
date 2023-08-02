@@ -132,6 +132,8 @@ const token_if=88
 const token_brun=89
 const token_else=90
 const token_then=91
+const token_beep=92
+const token_dir=93
 
 
 
@@ -495,15 +497,21 @@ lparts(i).token=-1
 102 next i 
 lparts(k).token=token_end : tokennum=k
 
+
 ''for i=0 to k:print lparts(i).part$,lparts(i).token:next i
 
 '2b determine a type of the line
 if isdec(lparts(0).part$) then linenum=val%(lparts(0).part$)
+
+if linenum>0 andalso k=1 then deleteline(linenum) : goto 104
+
 if linenum>0  andalso (cont=0 orelse cont=3) andalso lparts(2).token<>token_eq  then   compile(linenum,0,cont) : if rest$<>"" then line$=rest$: cont=4 : goto 108 else goto 104  								'<-- TODO: add a line to a program
 if linenum>0 andalso (cont=1 orelse cont=2) andalso lparts(1).token<>token_eq  then  compile(linenum,0,cont) : if rest$<>"" then line$=rest$: cont=4 : goto 108 else goto 104  	
 							'<-- TODO: add a line to a program
 if linenum>0 andalso (cont=0 orelse cont=3) andalso lparts(2).token=token_eq then  compile_assign(linenum,0,cont) : if rest$<>"" then line$=rest$: cont=4 : goto 108 else goto 104  								'<-- TODO: add a line to a program
 if linenum>0 andalso (cont=1 orelse cont=2) andalso lparts(1).token=token_eq then  compile_assign(linenum,0,cont) : if rest$<>"" then line$=rest$: cont=4 : goto 108 else goto 104  								'<-- TODO: add a line to a program
+
+
 if lparts(0).token=token_name andalso lparts(1).token=token_eq then compile_assign(0) : goto 103    					' assign a variable
 if lparts(0).token=token_name andalso lparts(1).token=token_rpar then print " User functions and arrays not yet implemented" : goto 101
 
@@ -611,6 +619,8 @@ select case s
   case "if"	     : return token_if
   case "else"	     : return token_else
   case "then"	     : return token_then
+  case "beep"	     : return token_beep
+  case "dir"	     : return token_dir
   case else          : return 0  
 end select
 end function
@@ -703,7 +713,6 @@ dim lineptr2,searchptr as ulong
 
 searchptr=programstart
 dim header as ulong(5) 
-
 do
   psram.read1(varptr(header),searchptr,24)
   lineptr2=searchptr
@@ -714,10 +723,8 @@ loop until header(0)>=aline orelse header(5)=$7FFF_FFFF  ' we have a line that n
 if header(0)<>aline then return -1
 
 if header(5)=$7FFF_FFFF andalso header(4)=$FFFF_FFFF then ' this is one and only line in the program
-  programstart=0 : programptr=0 : lastline=0 : lastlineptr=-1  
-  header(0)=$FFFF_FFFF : header(1)=0 : header(2)=0: header(3)=0: header(4)=0: header(5)=0 
-  psram.write(varptr(header),0,24)
-  return 0
+  programstart=0 : programptr=0 : lastline=0 : lastlineptr=-1  : lineptr=0 
+  pslpoke(0,$FFFFFFFF) : pslpoke 16,$FFFFFFFF : pslpoke 20,$7FFFFFFF
 endif
 
 if header(5)=$7FFF_FFFF andalso header(4)<>$FFFF_FFFF then ' this is the last, and not first, line of the program
@@ -842,6 +849,8 @@ if linetype=5 then cmd=lparts(ct).token : ct+=1 ' continued after if/else
   case token_if      :   if linetype<5 then compile_if() :goto 450
                         if linetype=5 then compile_error(28) :goto 450
   case token_else    :   compile_nothing() : goto 450
+  case token_beep	:compile_int_fun_2p()
+  case token_dir	:compile_nothing
   case else	      : compile_unknown() : goto 450
 
 end select
@@ -929,7 +938,7 @@ endif
 compiledline(lineptr)=t1:  lineptr+=1 
  if linetype=0 orelse linetype=3 orelse linetype=4 then compiledline(lineptr).result_type=token_end
 
-for i=0 to lineptr: print compiledline(i).result_type;" ";compiledline(i).result.uresult : next i
+'for i=0 to lineptr: print compiledline(i).result_type;" ";compiledline(i).result.uresult : next i
 'print "at exit lineptr=",lineptr
 end sub
 
@@ -1060,10 +1069,10 @@ function compile_if() as ulong ' todo reconfigurable editor start position
 dim t1 as expr_result
 dim cmd as ulong
 
-print "In compile_if"
+'print "In compile_if"
 compile_int_fun_1p()
 cmd=lparts(ct).token : ct+=1
-print cmd: if cmd<> token_then then print "Expected then" else print "Found then"
+'print cmd ' : if cmd<> token_then then print "Expected then" else print "Found then"
 t1.result_type=token_if : compiledline(lineptr)=t1:  lineptr+=1
 if isassign(lparts(ct+1).part$) then compile_immediate_assign(5) else compile_immediate(5)
 
@@ -1543,7 +1552,7 @@ dim linebuf(127) as ubyte
 print
 let listptr=programstart
 do 
-  psram.read1(varptr(header),listptr,24)  
+  psram.read1(varptr(header),listptr,24) ': print header(0),header(1),header(2),header(3),header(4),header(5), programstart
   if header(0)<> $FFFFFFFF then
     longfill(linebuf,0,64)
     psram.read1(varptr(linebuf),header(2),header(3))
@@ -2117,11 +2126,29 @@ sub do_dir
 dim filename as string
 chdir("/sd/")       ' set working directory
 print
-filename = dir$("*", fbNormal)  ' start scan for all files and directories
+
+filename=dir$("*", fbDirectory)
 while filename <> "" and filename <> nil
+  print "[dir] ";filename
+  filename = dir$()      ' continue scan
+
+   
+end while
+
+filename = dir$("*", fbNormal )  ' start scan for all files and directories
+do while filename <> "" and filename <> nil
   print filename
   filename = dir$()      ' continue scan
-end while
+    if v.getcursory()=34 then    'bug, after first break, cursory is always 35
+    print "-----more, press any key";
+    do 
+    loop while kbm.get_key()<>0
+    do
+    loop while kbm.get_key()=0
+      paula.play(7,@atari_spl,44100,16384,1684) 
+    position 0,35: print "                             ";: position 4,35  
+  endif  
+loop
 end sub
 
 sub do_if
@@ -2169,6 +2196,23 @@ if t1.result_type=result_string then
 
   endif  
 end sub
+
+
+sub do_beep
+
+dim t1,t2 as expr_result
+dim freq as ulong
+dim sample(1) as ubyte
+t2=pop()
+t1=pop()
+freq=t1.result.iresult
+sample(0)=127: sample(1)=128
+paula.play8(7,varptr(sample),freq*2,16384,2,0)
+push t2
+do_waitms
+paula.stop(7)
+end sub
+
 
 '--------------------------- THE END OF THE MAIN PROGRAM ------------------------------------------------------
 
@@ -2244,6 +2288,8 @@ commands(token_gt)=@do_gt
 commands(token_lt)=@do_lt
 commands(token_rnd)=@do_rnd
 commands(token_brun)=@do_brun
+commands(token_beep)=@do_beep
+commands(token_dir)=@do_dir
 end sub
 
 ''--------------------------------Error strings -------------------------------------

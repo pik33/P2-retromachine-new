@@ -809,6 +809,12 @@ cursor_y:=y
 spr17x:=4*x
 spr17y:=16*y
 
+pub getcursorx():x
+return cursor_x
+
+pub getcursory():y
+return cursor_y
+
 '*************************************************************************
 '                                                                        *
 '  VBlank functions                                                      *

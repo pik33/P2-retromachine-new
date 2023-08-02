@@ -129,7 +129,7 @@ if loop>=0
   long[base2+12]:=loop
   long[base2+16]:= len
 else
-  long[base2+11]:= len
+  long[base2+12]:= len
   long[base2+16]:= len+1
 word[base2+20]:=vol
 word[base2+24]:= 3546911/splfreq 
