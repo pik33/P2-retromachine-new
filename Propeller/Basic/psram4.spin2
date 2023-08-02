@@ -36,9 +36,9 @@
 CON
     
     ' P2 EDGE with PSRAM pin mappings (P2-EC32MB)
-    DATABUS  = 48
-    CLK_PIN  = 55
-    CE_PIN   = 54
+    DATABUS  = 48  
+    CLK_PIN  = 55  
+    CE_PIN   = 54  
 '    DATABUS  = 0
   '  CLK_PIN  = 7
  '   CE_PIN   = 6

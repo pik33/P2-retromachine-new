@@ -98,7 +98,7 @@ CON
 
 
 hdmi_base       = 0                                             'must be a multiple of 8
-_clkfreq        = 336956522                                     'this is the retromachine standard main clock, PAL color frequency * 95
+'_clkfreq        = 336956522                                     'this is the retromachine standard main clock, PAL color frequency * 95
 debugger        = 1                                             'set this to non-zero value if you want to use BRK debugger
 
 
@@ -420,7 +420,7 @@ palette_ptr:=@ataripalette                                      ' use 256-colors
 repeat i from 0 to 3
   timings[i]:=timings[i]+hdmibase<<17+ timingsxxt               ' add a streamer config (imm->pins) to horizontal timings
 clkfreq:=timings[9]                                             ' set the clock frequency for the mode
-hubset(timings[10])
+'hubset(timings[10])
 waitms(1)                                                       ' wait for stabilization
 lines:=timings[11]
 t_lines:=lines/16
@@ -1256,7 +1256,7 @@ p301            xcont   m_bs,hsync0                       ' make a right porch
                 xcont   m_bv,hsync0
                 xcont   lutg8,#0                          ' display the line
                  add     linenum,#1                        ' increment the current line number
-                 call    #sprite                           ' process sprites for line+1
+                call    #sprite                           ' process sprites for line+1
 
 
                 cmp     linenum,i_totalvis  wz            ' check if all lines displayed
@@ -1340,6 +1340,8 @@ preload         mov     buf1c,dlinum                       ' preload a line buff
                 incmod  dlinum,#3
 
                 shr     framebuf2,#4                      ' get the PSRAM start address from DL - Todo: use new DL format
+         
+               
                 mov     buf2,a1024
                 mov     cmd,framebuf2                      ' set the address
                 setnib  cmd, #%1011, #7                    ' attach the command - read burst from the external memory

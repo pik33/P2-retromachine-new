@@ -1,14 +1,15 @@
-const _clkfreq = 336956522
 const HEAPSIZE=32768
 #define PSRAM4
 '#define PSRAM16
 
 #ifdef PSRAM16
+const _clkfreq = 336956522
 dim v as class using "hg009.spin2"
 dim psram as class using "psram.spin2"
 #endif
 
 #ifdef PSRAM4
+const _clkfreq = 330000000
 dim v as class using "hg009-4.spin2"
 dim psram as class using "psram4.spin2"
 #endif
@@ -129,6 +130,8 @@ const token_waitms=86
 const token_waitvbl=87
 const token_if=88
 const token_brun=89
+const token_else=90
+const token_then=91
 
 
 
@@ -294,7 +297,7 @@ currentdir$="/sd/"
 position 2*editor_spaces,1 : print ver$
 print v.buf_ptr;" BASIC bytes free"
 position 2*editor_spaces,4 : print "Ready"
-
+'hubset( %1_000001__00_0001_1010__1111_1011)
 '-------------------------------------------------------------------------------------------------------- 
 '-------------------------------------- MAIN LOOP -------------------------------------------------------
 '--------------------------------------------------------------------------------------------------------
@@ -383,7 +386,7 @@ for i=0 to 125: lparts(i).part$="": next i
 
 ' 1a : extract the first command, split the line to first command and the rest
 
-line$=trim$(line$):let d$="" : let l=len(line$) ' TODO BUG!!!!!!! strings has to be left intact !!!!! Don't lcase$, don't reduce spaces before extracting strings
+line$=trim$(line$):let d$="" : let l=len(line$) 
 if l=0 then goto 101
 let d=instr(1,line$,":"): if d>0 andalso d<len(line$)  then let rest$=right$(line$,len(line$)-d):line$=left$(line$,d-1) else rest$="" 
 if cont=0 andalso rest$<>"" then cont=0
@@ -602,9 +605,12 @@ select case s
   case "save"	     : return token_save
   case "load"	     : return token_load
   case "brun"	     : return token_brun
-  case "pinwrite"	     : return token_pinwrite
+  case "pinwrite"    : return token_pinwrite
   case "waitms"	     : return token_waitms
-  case "waitvbl"	     : return token_waitvbl
+  case "waitvbl"     : return token_waitvbl
+  case "if"	     : return token_if
+  case "else"	     : return token_else
+  case "then"	     : return token_then
   case else          : return 0  
 end select
 end function
@@ -812,8 +818,10 @@ cmd=0
 if linetype=0 then cmd=lparts(0).token : ct=1 : lineptr=0 
 if linetype=2 orelse linetype=3 then cmd=lparts(0).token : ct=1 ' don't set lineptr
 if linetype=4 orelse linetype=1 then cmd=lparts(1).token : ct=2 : lineptr=2
+if linetype=5 then cmd=lparts(ct).token : ct+=1 ' continued after if/else
+
 'print lineptr
-select case cmd
+451 select case cmd
   case token_cls      : compile_nothing()   'no params, do nothing, only add a command to the line, but case needs something to do after 
   case token_new      : compile_nothing()   
   case token_list     : compile_nothing()   
@@ -831,7 +839,9 @@ select case cmd
   case token_pinwrite    : compile_int_fun_2p()
   case token_waitms    : compile_int_fun_1p()
   case token_waitvbl    : compile_nothing()
-  case token_if    : compile_if() : goto 450
+  case token_if      :   if linetype<5 then compile_if() :goto 450
+                        if linetype=5 then compile_error(28) :goto 450
+  case token_else    :   compile_nothing() : goto 450
   case else	      : compile_unknown() : goto 450
 
 end select
@@ -855,8 +865,10 @@ i=-1: j=-1
 if linetype=0 then varname2$=lparts(0).part$: ct=2 : lineptr=0 
 if linetype=2 orelse linetype=3 then varname2$=lparts(0).part$ : ct=2 ' don't set lineptr
 if linetype=4 orelse linetype=1 then varname2$=lparts(1).part$ : ct=3 : lineptr=2
+if linetype=5 then varname2$=lparts(ct).part$ : ct+=2 ' continued after if/else
+ 
+print "Called compile immediate assign with linetype",linetype, "varname=",varname2$, "lineptr=", lineptr
 
-'print "Called compile immediate assign with linetype",linetype
 suffix2$=right$(varname2$,1)
 expr()
 
@@ -917,8 +929,8 @@ endif
 compiledline(lineptr)=t1:  lineptr+=1 
  if linetype=0 orelse linetype=3 orelse linetype=4 then compiledline(lineptr).result_type=token_end
 
-'for i=0 to lineptr: print compiledline(i).result_type;" ";compiledline(i).result.uresult : next i
-
+for i=0 to lineptr: print compiledline(i).result_type;" ";compiledline(i).result.uresult : next i
+print "at exit lineptr=",lineptr
 end sub
 
 ' ------------------ compile the line that is calling a command 
@@ -980,6 +992,13 @@ end sub
 sub compile_nothing
 end sub
 
+sub compile_error(errno)
+dim t1 as expr_result 
+t1.result_type=token_error : t1.result.uresult=errno
+compiledline(lineptr)=t1: lineptr+=1 
+end sub
+
+
 sub compile_unknown() 
 
 dim t1 as expr_result 
@@ -1039,23 +1058,16 @@ end function
 function compile_if() as ulong ' todo reconfigurable editor start position
 
 dim t1 as expr_result
-t1.result.uresult=0 : t1.result_type=result_uint
+dim cmd as ulong
 
-expr()
+print "In compile_if"
+compile_int_fun_1p()
+cmd=lparts(ct).token : ct+=1
+print cmd: if cmd<> token_then then print "Expected then" else print "Found then"
+t1.result_type=token_if : compiledline(lineptr)=t1:  lineptr+=1
+if isassign(lparts(ct+1).part$) then compile_immediate_assign(5) else compile_immediate(5)
 
 
-''; todo l 
-
-
-if lparts(ct).token=token_end then t1.result_type=print_mod_empty: compiledline(lineptr)=t1:  lineptr+=1 : t1.result_type=token_print : compiledline(lineptr)=t1:  lineptr+=1 :return 0 	'print without parameters
-do
-  expr()
-  if lparts(ct).token=token_comma then t1.result_type=print_mod_comma : compiledline(lineptr)=t1:  lineptr+=1 : t1.result_type=token_print : compiledline(lineptr)=t1:  lineptr+=1
-  if lparts(ct).token=token_semicolon then  t1.result_type=print_mod_semicolon : compiledline(lineptr)=t1:  lineptr+=1 : t1.result_type=token_print : compiledline(lineptr)=t1:  lineptr+=1
-  if lparts(ct).token=token_end then t1.result_type=token_print : compiledline(lineptr)=t1:  lineptr+=1
-  if lparts(ct).token <>token_comma andalso lparts(ct).token <>token_semicolon andalso lparts(ct).token <>token_end then return 22
-  ct+=1  
-loop until lparts(ct).token=token_end orelse ct>=tokennum
 return 0
 end function
 
@@ -2119,6 +2131,11 @@ t1=pop()
 if t1.result.uresult = 0 then lineptr_e=lineptr-1
 end sub
 
+
+sub do_nothing
+' else, then  itself does nothing.
+end sub
+
 sub do_brun
 
 dim t1 as expr_result
@@ -2218,6 +2235,8 @@ commands(token_pinwrite)=@do_pinwrite
 commands(token_waitms)=@do_waitms
 commands(token_waitvbl)=@do_waitvbl
 commands(token_if)=@do_if
+commands(token_else)=@do_nothing
+commands(token_then)=@do_nothing
 commands(token_eq)=@do_eq
 commands(token_ge)=@do_ge
 commands(token_le)=@do_le
@@ -2259,6 +2278,7 @@ errors$(24)="Stack underflow."
 errors$(25)="Cannot execute goto in the immediate mode."
 errors$(26)="Cannot load from this file."
 errors$(27)="The program is empty."
+errors$(28)="If after if."
 end sub
         
 sub printerror(err as integer)
@@ -2269,7 +2289,7 @@ end sub
 '' ------------------------------- Hardware start/stop/initialization 
 
 sub startpsram
-pscog,pslock=psram.startx(0, 0, 11, 7)
+pscog,pslock=psram.startx(0, 1024, 11, 6)
 mbox=psram.getMailbox(0)
 end sub
 
@@ -2290,10 +2310,12 @@ function startvideo(mode=64, pin=0, mb=0) 'todo return a cog#
 
 videocog=v.start(pin,mbox)
 
-for thecog=0 to 7:psram.setQos(thecog, 112 << 16) :next thecog
-psram.setQoS(videocog, $7FFFf400) 
+for thecog=0 to 7:psram.setQos(thecog, 80 << 16) :next thecog
+psram.setQoS(videocog, $0400f400) 
 open SendRecvDevice(@v.putchar, nil, nil) as #0
 return videocog
+waitms(100)
+
 end function
 
 
