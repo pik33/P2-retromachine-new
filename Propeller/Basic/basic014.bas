@@ -372,7 +372,7 @@ loop
 sub interpret
 
  
-dim i,j,k,q
+dim i,j,k,q,err
 dim result as expr_result
 dim etype as integer
 dim separators(125)
@@ -505,8 +505,17 @@ if isdec(lparts(0).part$) then linenum=val%(lparts(0).part$)
 
 if linenum>0 andalso k=1 then deleteline(linenum) : goto 104
 
-if linenum>0  andalso (cont=0 orelse cont=3) andalso lparts(2).token<>token_eq  then   compile(linenum,0,cont) : if rest$<>"" then line$=rest$: cont=4 : goto 108 else goto 104  								'<-- TODO: add a line to a program
-if linenum>0 andalso (cont=1 orelse cont=2) andalso lparts(1).token<>token_eq  then  compile(linenum,0,cont) : if rest$<>"" then line$=rest$: cont=4 : goto 108 else goto 104  	
+if linenum>0  andalso (cont=0 orelse cont=3) andalso lparts(2).token<>token_eq  then  
+  err= compile(linenum,0,cont)
+  if err<>0 then printerror(err): goto 104
+  if rest$<>"" then  line$=rest$ : cont=4 : goto 108 else goto 104
+endif
+      							
+if linenum>0 andalso (cont=1 orelse cont=2) andalso lparts(1).token<>token_eq  then 
+  err= compile(linenum,0,cont) :
+  if err<>0 then printerror(err): goto 104
+  if rest$<>"" then line$=rest$: cont=4 : goto 108 else goto 104  	
+endif
 							'<-- TODO: add a line to a program
 if linenum>0 andalso (cont=0 orelse cont=3) andalso lparts(2).token=token_eq then  compile_assign(linenum,0,cont) : if rest$<>"" then line$=rest$: cont=4 : goto 108 else goto 104  								'<-- TODO: add a line to a program
 if linenum>0 andalso (cont=1 orelse cont=2) andalso lparts(1).token=token_eq then  compile_assign(linenum,0,cont) : if rest$<>"" then line$=rest$: cont=4 : goto 108 else goto 104  								'<-- TODO: add a line to a program
@@ -517,9 +526,10 @@ if lparts(0).token=token_name andalso lparts(1).token=token_rpar then print " Us
 
 ' if we are here, this is not a program line to add, so try to execute this
 
-compile(0) : '' execute(0) ' print "  this is a command to execute"  ''' param=line to compile
+err=compile(0) : '' execute(0) ' print "  this is a command to execute"  ''' param=line to compile
 103 ' for i=0 to lineptr: print compiledline(i).result_type;" ";compiledline(i).result.uresult, : next i
-execute_line() : if rest$<>"" then line$=rest$:  goto 108 
+if err=0 then execute_line() else printerror(err)
+if rest$<>"" then line$=rest$:  goto 108 
 
 101 v.writeln("") : v.writeln("Ready") 
 104 end sub
@@ -809,7 +819,7 @@ save_line
 pslpoke(programptr,$FFFFFFFF) ' write end flag ' is it eeded at all here? 
 end sub
 
-sub compile_immediate(linetype as ulong)
+function compile_immediate(linetype as ulong) as integer
 
 dim cmd,err as ulong
 dim t3 as expr_result
@@ -820,7 +830,7 @@ dim t3 as expr_result
 ' 3 - this is the last continued line
 ' 4 - this is the one and only part
 
-
+err=0
 cmd=0
 if linetype=0 then cmd=lparts(0).token : ct=1 : lineptr=0 
 if linetype=2 orelse linetype=3 then cmd=lparts(0).token : ct=1 ' don't set lineptr
@@ -849,16 +859,18 @@ if linetype=5 then cmd=lparts(ct).token : ct+=1 ' continued after if/else
   case token_if      :   if linetype<5 then compile_if() :goto 450
                         if linetype=5 then compile_error(28) :goto 450
   case token_else    :   compile_nothing() : goto 450
-  case token_beep	:compile_int_fun_2p()
+  case token_beep	: err=compile_int_fun_2p()
   case token_dir	:compile_nothing
   case else	      : compile_unknown() : goto 450
 
 end select
+
 t3.result_type=cmd : compiledline(lineptr)=t3:  lineptr+=1
 450 if linetype=0 orelse linetype=3 orelse linetype=4 then compiledline(lineptr).result_type=token_end ' end token if the last part or imm
 
- 'for i=0 to lineptr: print compiledline(i).result_type;" ";compiledline(i).result.uresult : next i
-end sub
+' for i=0 to lineptr: print compiledline(i).result_type;" ";compiledline(i).result.uresult : next i
+return err
+end function
 
 
 sub compile_immediate_assign(linetype as ulong)
@@ -944,13 +956,14 @@ end sub
 
 ' ------------------ compile the line that is calling a command 
 
-sub compile (alinemajor as ulong, alineminor=0 as ulong, cont=0 as ulong)
+function compile (alinemajor as ulong, alineminor=0 as ulong, cont=0 as ulong)
 
+dim err as integer
 'line header: num major, num minor,list start, list length, prev, next. That implements 2-way list of program lines 
 ' num_minor bit 31: the line is goto target. If deleted, a proper record(s) has to be added to goto list
  
 '  print "called compile with line= "; alinemajor;" and cont= "; cont 
-if alinemajor=0 then compile_immediate(0) : return  
+if alinemajor=0 then err=compile_immediate(0) : return err  
 
 ucompiledline(0)=alinemajor
 ucompiledline(1)=alineminor
@@ -962,17 +975,20 @@ ucompiledline(1)=alineminor
 ' 3 - this is the ome and only part
 
 
-compile_immediate(cont+1) 
+err=compile_immediate(cont+1) 
+if err=0 then
+  if cont=3 orelse cont=2 then 
+    if alinemajor >lastline then 
+      add_line_at_end(alinemajor)
+    else
+      deleteline(alinemajor)  
+      if alinemajor>lastline then add_line_at_end(alinemajor) else insertline(alinemajor) ' yes I know that's not optimal    
+    endif 
+  endif   
 
-if cont=3 orelse cont=2 then 
-  if alinemajor >lastline then 
-    add_line_at_end(alinemajor)
-  else
-    deleteline(alinemajor)  
-    if alinemajor>lastline then add_line_at_end(alinemajor) else insertline(alinemajor) ' yes I know that's not optimal    
-  endif 
-endif   
-end sub
+endif 
+return err
+end function
 
 ' ------------------ compile the line that is assigning to a variable
 
@@ -1015,27 +1031,36 @@ t1.result_type=token_error : t1.result.uresult=23
 compiledline(lineptr)=t1: lineptr+=1 
 end sub
 
-sub compile_converttoint() 
+function compile_converttoint() as integer
 
 dim t1 as expr_result 
+dim err as integer
+err=0
 t1.result.uresult=0
-expr()
-t1.result_type=fun_converttoint
-compiledline(lineptr)=t1: lineptr+=1 
-end sub
+err=expr()
+if err=0 then
+  t1.result_type=fun_converttoint
+  compiledline(lineptr)=t1: lineptr+=1 
+  return 0
+else
+  return err
+endif      
+end function
 
 function compile_int_fun_1p() as ulong
  
-compile_converttoint()  
-return 0
+ dim err as integer
+let err=compile_converttoint()  
+return err
 end function
 
 function compile_int_fun_2p() as ulong
  
-compile_converttoint()  
+  dim err as integer
+err=compile_converttoint() : if err>0 then return err
 if lparts(ct).token<> token_comma then return 21 else ct+=1 ' todo error
-compile_converttoint() 
-return 0
+err=compile_converttoint() 
+return err
 end function
 
 function compile_int_fun_3p() as ulong
@@ -1131,13 +1156,17 @@ end function
 '---------------------------------------------------------------------------------------------------------------------------------------
 
 
-sub expr() 
+function expr() as integer 
 
 ' On input: ct = current token position
 ' On output: expression result value and a new ct
 
+
 dim t3 as expr_result
 dim op as integer
+
+
+op=lparts(ct).token : if op=token_end then t3.result.uresult=29 : t3.result_type=result_error : compiledline(lineptr)=t3 : lineptr+=1: return 29
 t3.result.uresult=0
 addsub()             			' call higher priority operator check. It will itself call getval/getvar if no multiplies or divides
 op = lparts(ct).token				' that idea is from github adamdunkels/ubasic
@@ -1147,7 +1176,8 @@ do while (op = token_eq orelse op = token_gt orelse op = token_lt orelse op=toke
   t3.result_type=op: compiledline(lineptr)=t3: lineptr+=1
   op = lparts(ct).token
   loop
-end sub
+return 0  
+end function
 
 
 
@@ -1487,7 +1517,7 @@ end sub
 'lo todo: errors while loading
 sub do_load
 dim t1 as expr_result
-dim i, amount as integer
+dim i, r, amount as integer
 dim header,linelength as ulong
 dim line2 as ubyte(125)
 dim line2$ as string 
@@ -1498,6 +1528,7 @@ if t1.result_type=result_string then
   do_new
   if t1.result.sresult="" then t1.result.sresult="noname.bas"
   close #9: open currentdir$+t1.result.sresult for input as #9
+    r=geterr() : if r then print "System error ";r;": ";strerror$(r) :close #9 : return
   i=5
   get #9,1,header,1
   if header<>$0D616272 then printerror(26) : close #9 : return
@@ -1509,7 +1540,9 @@ if t1.result_type=result_string then
   endif 
   loop until amount<1
   close #9  
-endif   ' line$="": for j=0 to header(3)-1: line$+=chr$(linebuf(j)): next j
+else
+  printerror(30)  ' line$="": for j=0 to header(3)-1: line$+=chr$(linebuf(j)): next j
+endif
 end sub
 
 '----------------- Run the program 
@@ -2172,6 +2205,7 @@ t1=pop()
 if t1.result_type=result_string then
 
   open t1.result.sresult for input as #9
+  r=geterr() : if r then print "System error ";r;": ";strerror$(r) :close #9 : return
   let pos=1: let r=0 : let psramptr=0
   do
     get #9,pos,block(0),1024,r : pos+=r	
@@ -2325,6 +2359,8 @@ errors$(25)="Cannot execute goto in the immediate mode."
 errors$(26)="Cannot load from this file."
 errors$(27)="The program is empty."
 errors$(28)="If after if."
+errors$(29)="Empty expression."
+errors$(30)="String expected."
 end sub
         
 sub printerror(err as integer)
