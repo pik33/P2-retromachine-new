@@ -1,7 +1,7 @@
 const _clkfreq = 336956522
 const HEAPSIZE=32768
-'#define PSRAM4
-#define PSRAM16
+#define PSRAM4
+'#define PSRAM16
 
 #ifdef PSRAM16
 dim v as class using "hg009.spin2"
@@ -128,6 +128,7 @@ const token_pinwrite=85
 const token_waitms=86
 const token_waitvbl=87
 const token_if=88
+const token_brun=89
 
 
 
@@ -220,7 +221,7 @@ dim svarnum as integer
  
 dim lparts as parts
 
-dim audiocog,videocog as integer
+dim audiocog,videocog,usbcog,pscog,pslock as integer
 dim base as ulong
 dim mbox as ulong
 dim ansibuf(3) as ubyte
@@ -281,7 +282,7 @@ do_new
 audiocog,base=paula.start(0,0,0)
 waitms(50)
 dpoke base+20,16384
-kbm.start()
+usbcog=kbm.start()
 kbm.mouse_set_limits(1023,575)
 cls
 v.setfontfamily(4) 				' use ST Mono font
@@ -600,6 +601,7 @@ select case s
   case "csave"	     : return token_csave
   case "save"	     : return token_save
   case "load"	     : return token_load
+  case "brun"	     : return token_brun
   case "pinwrite"	     : return token_pinwrite
   case "waitms"	     : return token_waitms
   case "waitvbl"	     : return token_waitvbl
@@ -825,6 +827,7 @@ select case cmd
   case token_csave    : compile_fun_1p()  
   case token_save    : compile_fun_1p()  'todo compile_str_fun_1p
   case token_load    : compile_fun_1p()  'todo compile_str_fun_1p
+  case token_brun    : compile_fun_1p()  'todo compile_str_fun_1p
   case token_pinwrite    : compile_int_fun_2p()
   case token_waitms    : compile_int_fun_1p()
   case token_waitvbl    : compile_nothing()
@@ -2084,7 +2087,14 @@ end sub
 sub do_waitms
 dim t1 as expr_result
 t1=pop() 'value
-waitms(t1.result.uresult)
+if t1.result.uresult < 5000 then 
+  waitms(t1.result.uresult)
+else
+  for i=1 to t1.result.uresult/5000
+    waitms(5000)
+  next i
+  waitms(t1.result.uresult mod 5000)
+endif
 end sub
 
 sub do_waitvbl
@@ -2108,6 +2118,42 @@ dim t1 as expr_result
 t1=pop()
 if t1.result.uresult = 0 then lineptr_e=lineptr-1
 end sub
+
+sub do_brun
+
+dim t1 as expr_result
+dim pos,r,psramptr as integer
+
+t1=pop() 
+if t1.result_type=result_string then
+
+  open t1.result.sresult for input as #9
+  let pos=1: let r=0 : let psramptr=0
+  do
+    get #9,pos,block(0),1024,r : pos+=r	
+    psram.write(varptr(block(0)),psramptr,1024)	
+    psramptr+=r 
+					                                         ' move the buffer to the RAM and update RAM position. Todo: this can be done all at once
+  loop until r<>1024  orelse psramptr>=$7C000  					         ' do until eof or memory full
+
+' stop all driver cogs except PSRAM
+
+    cpustop(audiocog)
+    cpustop(videocog)
+    cpustop(usbcog)
+
+'start loading cog
+
+    let loadingcog=cpu(@loadcog,@pslock) 
+
+' stop itself
+    
+    cpustop(cpuid())
+
+  endif  
+end sub
+
+'--------------------------- THE END OF THE MAIN PROGRAM ------------------------------------------------------
 
 ''----------------------------------------------------------------------------------------------------
 ''------------------ Initialization procedures -------------------------------------------------------
@@ -2178,6 +2224,7 @@ commands(token_le)=@do_le
 commands(token_gt)=@do_gt
 commands(token_lt)=@do_lt
 commands(token_rnd)=@do_rnd
+commands(token_brun)=@do_brun
 end sub
 
 ''--------------------------------Error strings -------------------------------------
@@ -2222,7 +2269,7 @@ end sub
 '' ------------------------------- Hardware start/stop/initialization 
 
 sub startpsram
-psram.startx(0, 0, 11, -1)
+pscog,pslock=psram.startx(0, 0, 11, 7)
 mbox=psram.getMailbox(0)
 end sub
 
@@ -2240,7 +2287,7 @@ v.cls(fg,bg)
 end sub
 
 function startvideo(mode=64, pin=0, mb=0) 'todo return a cog#
-dim videocog as ulong
+
 videocog=v.start(pin,mbox)
 
 for thecog=0 to 7:psram.setQos(thecog, 112 << 16) :next thecog
@@ -2436,3 +2483,46 @@ asm shared
 atari_spl file "atari.spl"
 atari2_spl file "atari2.spl" '1758
 end asm
+
+'' ------------------------------- the loader cog for BRUN
+
+		asm shared
+
+             	org
+loadcog      	cogid   t11              		' get a cogid
+                mul     t11, #12                        ' compute the offset to PSRAM mailbox 
+                add     mailbox, t11                     ' add offset to find this COG's mailbox
+
+                mov     psramaddr,#0
+
+p101            mov     buf1,psramaddr			' psramaddr=hubaddr
+                mov     buf2,##16384			' loading size
+                mov     cmd,psramaddr                   ' set the address for reading
+                setnib  cmd, #%1011, #7                 ' attach the command - read burst
+                setq    #2			 	' write 3 longs to the mailbox
+                wrlong  cmd, mailbox			' read the PSRAM
+p102            rdlong  cmd, mailbox                	' poll mailbox for result
+                tjs     cmd, #p102                 	' retry until valid 
+
+                add 	psramaddr,##16384
+		cmp 	psramaddr,##$7C000 wcz
+	if_lt	jmp 	#p101				' loop until full hub loaded
+
+                
+                cogstop #7				' stop psram driver
+    
+                cogid 	t11				' get id
+                coginit #0,#0				' start the new program
+                cogstop t11				' stop the loader
+
+t11 		long 	0
+mailbox 	long 	$7FF00
+psramaddr 	long 	0
+pslockval	long 	0
+cmd             long    0
+buf1            long    0
+buf2            long    16384
+
+		end asm
+		
+'----- The end ---------------------------------------------------------------------------------------------------

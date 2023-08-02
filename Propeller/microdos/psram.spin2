@@ -457,8 +457,8 @@ qosData
     
 ' mailbox storage
 
-mailboxes
-    long    0[8*3]          ' 3 longs per mailbox per COG
+'mailboxes
+    'long    0[8*3]          ' 3 longs per mailbox per COG
 
 {{
 -------------

@@ -36,7 +36,7 @@
 CON
     
     ' P2 EDGE with PSRAM pin mappings (P2-EC32MB)
-    DATABUS  = 48
+   DATABUS  = 48
     CLK_PIN  = 55
     CE_PIN   = 54
 '    DATABUS  = 0
@@ -88,7 +88,7 @@ This is an extended API to start the PSRAM driver using custom parameters.
     delay      - input delay value to use for the memory (0-15), 0=automatically compute based on frequency
     desiredcog - a cog ID from 0-7 can be nominated for the driver cog, or will be auto allocated if it is -1
 }}
-PUB startx(freq, burst, delay, desiredcog) : result,lock | driverAddr
+PUB startx(freq, burst, delay, desiredcog) : result | driverAddr
     stop() ' restart driver if required
 
     ' use current frequency if none specified
@@ -100,7 +100,7 @@ PUB startx(freq, burst, delay, desiredcog) : result,lock | driverAddr
 
     burst := (((MAX_CS_LOW_USEC*(freq/4000000)) - 132) >> 4) << 4  ' some sane rounded value
     if burst < 0
-        return ERR_TOO_SLOW,-1 ' P2 frequency is too low for any 8us transfers
+        return ERR_TOO_SLOW ' P2 frequency is too low for any 8us transfers
 
     ' compute the input delay
 
@@ -113,14 +113,14 @@ PUB startx(freq, burst, delay, desiredcog) : result,lock | driverAddr
 
     driverlock := LOCKNEW()  
     if driverlock == -1
-        return ERR_NO_LOCK,-1
+        return ERR_NO_LOCK
 
     ' patch in the proper data and HUB addresses to the startup structure
 
     long[@startupData][0]:=clkfreq
     long[@startupData][5]:=@deviceData
     long[@startupData][6]:=@qosData
-    long[@startupData][7]:=$7FF00
+    long[@startupData][7]:=@mailboxes
 
     ' setup some default bank and QoS parameter values
 
@@ -138,7 +138,7 @@ PUB startx(freq, burst, delay, desiredcog) : result,lock | driverAddr
     drivercog := coginit(desiredcog, driverAddr, @startupData)
     repeat until long[@startupData] == 0 
 
-    return drivercog,driverlock
+    return drivercog
 
 '..............................................................................
 
@@ -151,8 +151,8 @@ PUB stop() : i
     if drivercog <> -1
         cogstop(drivercog) ' a rather brutal stop
         repeat i from 0 to 7
-            if long[$7FF00+i*3] < 0
-                long[$7FF00+i*3] := -ERR_ABORTED ' abort request
+            if long[@mailboxes][i*3] < 0
+                long[@mailboxes][i*3] := -ERR_ABORTED ' abort request
         drivercog := -1
     if driverlock <> -1
         LOCKRET(driverlock)
@@ -174,7 +174,7 @@ PUB read1(dstHubAddr, srcAddr, count) : result | mailbox
         return ERR_INACTIVE
     if count == 0 ' don't even bother reading
         return 0
-    mailbox := $7FF00 + cogid()*12     ' compute COG's mailbox address
+    mailbox := @mailboxes + cogid()*12     ' compute COG's mailbox address
     if long[mailbox] < 0
         return ERR_MAILBOX_BUSY
     long[mailbox][2] := count
@@ -201,7 +201,7 @@ PUB write(srcHubAddr, dstAddr, count) : result | mailbox
         return ERR_INACTIVE
     if count == 0 ' don't even bother writing
         return 0
-    mailbox := $7FF00 + cogid()*12     ' compute COG's mailbox address
+    mailbox := @mailboxes + cogid()*12     ' compute COG's mailbox address
     if long[mailbox] < 0
         return ERR_MAILBOX_BUSY
     long[mailbox][2] := count
@@ -241,7 +241,7 @@ operation, it will build a listItem structure in HUB RAM at this address to do t
 PUB gfxCopyImage(dstAddr, dstPitch, srcAddr, srcPitch, byteWidth, height, hubBuffer, listPtr) : r | mailbox, list
     ' when no valid listPtr, fill request into scratch space and execute a single request list 
     if listPtr == 0
-        mailbox := $7FF00 + cogid()*12     ' compute COG's mailbox address
+        mailbox := @mailboxes + cogid()*12     ' compute COG's mailbox address
         if long[mailbox] < 0
             return ERR_MAILBOX_BUSY ' don't clobber existing list item
         list := @listdata[cogid()*8]
@@ -288,7 +288,7 @@ operation, it will build a listItem structure in HUB RAM at this address to do t
 }}
 PUB gfxWriteImage(srcHubAddr, srcPitch, dstAddr, dstPitch, byteWidth, height, listPtr) : r | mailbox, list
     if listPtr == 0
-        mailbox := $7FF00 + cogid()*12
+        mailbox := @mailboxes + cogid()*12
         if long[mailbox] < 0
             return ERR_MAILBOX_BUSY ' don't clobber existing list item
         list := @listdata[cogid()*8]
@@ -363,7 +363,7 @@ PUB gfxLine(dstAddr, dstPitch, xoffset, yoffset, pattern, listPtr, datasize) : r
         return ERR_INVALID
     ' when no ptr, fill in scratch space and execute a single request list 
     if listPtr == 0
-        mailbox := $7FF00 + cogid()*12
+        mailbox := @mailboxes + cogid()*12
         if long[mailbox] < 0
             return ERR_MAILBOX_BUSY ' don't clobber existing list item
         list := @listdata[cogid()*8]
@@ -431,7 +431,7 @@ PUB fill(addr, pattern, count, listPtr, datasize) : r | mailbox, req
         return 0
     if drivercog == -1
         return ERR_INACTIVE
-    mailbox := $7FF00 + 12*cogid() ' get mailbox base address for this COG
+    mailbox := @mailboxes + 12*cogid() ' get mailbox base address for this COG
     if long[mailbox] < 0
         return ERR_MAILBOX_BUSY
     long[mailbox][2] := count
@@ -518,7 +518,7 @@ PUB setQos(cog, qos) : result | mailbox
     if cog < 0 or cog > 7 ' enforce cog id range
         return ERR_INVALID
     long[@qosData][cog] := qos & !$1ff
-    mailbox := $7FF00 + drivercog*12
+    mailbox := @mailboxes + drivercog*12
     repeat until LOCKTRY(driverlock)
     long[mailbox] := driver.R_CONFIG + cogid()
     repeat while long[mailbox] < 0
@@ -543,7 +543,7 @@ This API return the mailbox start address in HUB RAM for a given cog.
 It can also be useful for the P2 video driver.
 }}
 PUB getMailbox(cog) : result
-    return $7FF00 + cog*12
+    return @mailboxes + cog*12
 
 '..............................................................................
 
@@ -568,7 +568,7 @@ PRI modifyBankParams(andmask, ormask) : result | value, i , mailbox
     if drivercog == -1
         return ERR_INACTIVE
 
-    mailbox := $7FF00 + drivercog*12
+    mailbox := @mailboxes + drivercog*12
     repeat until LOCKTRY(driverlock)
     ' configure parameter(s) over all spanned banks and update local storage also
     repeat i from 0 to 1
@@ -622,7 +622,7 @@ startupData
     long    DATABUS     ' PSRAM data bus start pin
     long    deviceData  ' address of devices data structure in HUBRAM
     long    qosData     ' address of QoS data structure in HUBRAM
-    long    $7FF00   ' address of mailbox structure in HUBRAM
+    long    mailboxes   ' address of mailbox structure in HUBRAM
 
 ' data for memory
 deviceData
@@ -637,8 +637,8 @@ qosData
     long    $7FFF0000[8]    ' cog 0-7 default QoS parameters
     
 ' mailbox storage
-'mailboxes
- '   long    0[8*3]          ' 3 longs per mailbox per COG
+mailboxes
+    long    0[8*3]          ' 3 longs per mailbox per COG
 
 {{
 -------------
