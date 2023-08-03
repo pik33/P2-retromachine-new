@@ -1,0 +1,120 @@
+The P2 Retromachine Basic
+
+Version 0.15 - pre-Alpha
+-------------------------
+
+The P2 Retromachine Basic is a Basic interpreter for a Propeller2 platform with an external RAM. Currently tested/developed versions work on P2-EC32 or on an Eval board with 4-bit PSRAM attached.
+
+The goal is to make the Propeller2 platform a fully independent computer that can be programmed and used without any external PC.
+
+Version 0.15 is a pre-alpha stage. It has very limited set of functions, there is a lot ogf bugs in it, and is in a rapid development process that means all can change in the future versions
+
+The current version of the interpreter needs a digital video accessory board at P0, AV accessory board at P8 and a serial host accessory board at P16
+
+Connect a monitor to the DV accessory board with a HDMI cable. The generated digital video is 1024x576 at 8 bpp and 50 Hz
+Connect an amplifier or headphones to the headphone output of the AV board
+Connect an USB keyboard or a hub to the upper USB port on a serial host accessory.
+
+
+Using the interpreter:
+----------------------
+
+The interpreter starts in an interactive mode. You can enter commands that are executed immediately after.
+
+To switch to the programming mode, write a line starting from an unsigned integer number. The line will then be added to a program, and no "ready" prompt will be displayed.
+You can then write another line of program. All lines have to be started with a number and are ordered using these line number.
+
+You can use more commands in one program line, separated by a colon (:). The line can not exceed 125 characters. 
+
+Writing a line without a number exits the programming mode. The line written will be executed and a "Ready" prompt will be displayed.
+
+The program can be listed with 'list' and saved on an SD card with 'save "filename"'.
+
+To run the program, use 'run' command in the immediate mode. The precompiled program to run is placed in, and executed from the external memory (PSRAM) 
+
+If the program doesn't end itself, ctr-c or f12 stops it.
+
+To delete the program from memory and start a new one, use 'new'.
+
+Any compiled P2 binary file saved on an SD card can be executed from within the interpreter using 'brun'. That allows to have a collection of P2 binary programs on the SD card and call them when needed.
+
+
+Variables:
+----------
+
+There are 4 types of variables available. There are no instruction to declare a variable yet. The first use of the variable declares it
+
+- string. The name of the string variable has to end with "$". Example: test$="This is a test string"
+- single precision float. The name of a float variable has to end with "!". Example: test!=2.345
+- unsigned integer, ends with "#"
+- all other variable names will be treated as 32bit signed integer
+
+a,a!,a# and a$ are different variables. There can be up to 1024 variables of every type in 0.15. 
+Arrays are not yet implemented.
+
+Operators:
+----------
+
+Supported operators in 0.15 are:
+
+- assign: =
+
+- comparison: =, <,>,>=,<=
+
+- arithmetic: +,-,*,/,div, mod, ^
+
+- logic: and, or, shl, shr
+
+Priority: (highest) mul/div/mod -> add/sub/logic -> comparison (lowest)
+
+There are 2 divide operators: / is a float divide and the result is always float. 'div' is an integer divide.
+
+Program control:
+----------------
+
+Version 0.15 implements 'goto' and 'if-then-else' to control the program execution
+
+'goto' jumps to the line with the given number. In 0.15 that number has to be a constant unsigned integer, not a variable, and the line to which the goto is executed has to exist in the program.
+
+This means you have to write in the reverse order:
+
+60 print i
+20 if i>0 then goto 60
+
+Also, the line that is a target for goto cannot be replaced. If replaced, the old line will be executed instead. 
+These are temporary limits to be removed in 0.16.
+
+'if-then-else' construction has a syntax like this
+
+20 if a=0 then b=1: else c=2
+
+There can be more than one if, but only one else. Every if in the line that fails will jump to the else section.
+
+Commands:
+----------
+
+Alphabetically sorted
+
+beep frequency, time   	generates the square vave at frequency in Hz for the time in ms
+brun "filename"  	loads and executes a binary file compiled for a P2 by anything
+cls 			clears the screen
+color 			sets a color for graphic operations. There are 256 colors, 16 hues (high nibble) and 16 brightnesses (low nibble) similar to the 8-bit Atari. 0 to 15 are greys
+csave			tries to save a program to an audio cassette. Experimental and there is no cload yet.
+dir			lists the main directory of an SD card
+draw end_x, end_y	draws the line to point end_x, end_y. This will be the starting point for the new draw. The first starting point can be set with 'plot'
+fcircle x,y,r		draws the filled circle with the center at x,y and radius r
+goto line		jumps to the line
+if			with then and else controls the program flow
+list			outputs the code on the screen
+load "filename"         loads a Basic program from the file
+new			clears the program memory and all variables
+pinwrite pin, value	if value=0 set the pin output to low, else sets the pin output to high. Use to blink a led.
+plot x,y		sets a pixel color at x,y to the color determined by a previous "color" command and sets a new starting point for 'draw'
+print			outputs to the screen and moves the cursor to the new line if , or ; is not used. Use , after an argument to print the new one after a tab (8 characters), use ; to print the next argument directly after the previous. 
+run			starts the program. You can use "run" inside the program to restart it.
+save "filename"		saves the program to the file
+waitms time		waits "time" miliseconds. Doesn't have any upper limits as it creates an internal loop when time>5000 ms
+waitvbl			waits for the screen vertical blank. Use to synchronize the program with the screen refresh
+
+
+
