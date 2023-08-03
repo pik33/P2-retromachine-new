@@ -23,8 +23,8 @@ dim paula as class using "audio093b-8-sc.spin2"
 ''---------------------------------- Constants --------------------------------------------
 ''-----------------------------------------------------------------------------------------
 
-const ver$="P2 Retromachine BASIC version 0.14"
-const ver=14
+const ver$="P2 Retromachine BASIC version 0.15"
+const ver=15
 '' ------------------------------- Keyboard constants
 
 const   key_enter=141    
