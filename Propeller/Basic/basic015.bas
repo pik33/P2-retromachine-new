@@ -372,14 +372,15 @@ loop
 sub interpret
 
  
-dim i,j,k,q,err
+dim i,j,k,q 
 dim result as expr_result
 dim etype as integer
 dim separators(125)
 dim linenum as ulong
+dim err as integer
 
 ' ---------------------------------------------------  Pass 1: Split the line to parts, detect and concatenate strings
-fullline$=line$: cont=0  : linenum=0 : lineptr=0 
+fullline$=line$: cont=0  : linenum=0 : lineptr=0 : err=0
 
 108 for i=0 to 125: separators(i)=0 :next i
 for i=0 to 125: lparts(i).part$="": next i
@@ -516,10 +517,16 @@ if linenum>0 andalso (cont=1 orelse cont=2) andalso lparts(1).token<>token_eq  t
   if err<>0 then printerror(err): goto 104
   if rest$<>"" then line$=rest$: cont=4 : goto 108 else goto 104  	
 endif
-							'<-- TODO: add a line to a program
-if linenum>0 andalso (cont=0 orelse cont=3) andalso lparts(2).token=token_eq then  compile_assign(linenum,0,cont) : if rest$<>"" then line$=rest$: cont=4 : goto 108 else goto 104  								'<-- TODO: add a line to a program
-if linenum>0 andalso (cont=1 orelse cont=2) andalso lparts(1).token=token_eq then  compile_assign(linenum,0,cont) : if rest$<>"" then line$=rest$: cont=4 : goto 108 else goto 104  								'<-- TODO: add a line to a program
-
+							 
+if linenum>0 andalso (cont=0 orelse cont=3) andalso lparts(2).token=token_eq then  
+  compile_assign(linenum,0,cont)
+  if rest$<>"" then line$=rest$: cont=4 : goto 108 else goto 104
+endif
+    							 
+if linenum>0 andalso (cont=1 orelse cont=2) andalso lparts(1).token=token_eq then 
+  compile_assign(linenum,0,cont) 
+  if rest$<>"" then line$=rest$: cont=4 : goto 108 else goto 104  								'<-- TODO: add a line to a program
+endif
 
 if lparts(0).token=token_name andalso lparts(1).token=token_eq then compile_assign(0) : goto 103    					' assign a variable
 if lparts(0).token=token_name andalso lparts(1).token=token_rpar then print " User functions and arrays not yet implemented" : goto 101
