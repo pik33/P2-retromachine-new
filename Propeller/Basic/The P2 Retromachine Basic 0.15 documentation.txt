@@ -7,12 +7,12 @@ The P2 Retromachine Basic is a Basic interpreter for a Propeller2 platform with 
 
 The goal is to make the Propeller2 platform a fully independent computer that can be programmed and used without any external PC.
 
-Version 0.15 is a pre-alpha stage. It has very limited set of functions, there is a lot ogf bugs in it, and is in a rapid development process that means all can change in the future versions
+Version 0.15 is a pre-alpha stage. It has very limited set of functions, there is a lot of bugs in it, and is in a rapid development process that means all can change in the future versions.
 
-The current version of the interpreter needs a digital video accessory board at P0, AV accessory board at P8 and a serial host accessory board at P16
+The current version of the interpreter needs a digital video accessory board at P0, AV accessory board at P8 and a serial host accessory board at P16.
 
-Connect a monitor to the DV accessory board with a HDMI cable. The generated digital video is 1024x576 at 8 bpp and 50 Hz
-Connect an amplifier or headphones to the headphone output of the AV board
+Connect a monitor to the DV accessory board with a HDMI cable. The generated digital video is 1024x576 at 8 bpp and 50 Hz.
+Connect an amplifier or headphones to the headphone output of the AV board.
 Connect an USB keyboard or a hub to the upper USB port on a serial host accessory.
 
 
@@ -22,7 +22,7 @@ Using the interpreter:
 The interpreter starts in an interactive mode. You can enter commands that are executed immediately after.
 
 To switch to the programming mode, write a line starting from an unsigned integer number. The line will then be added to a program, and no "ready" prompt will be displayed.
-You can then write another line of program. All lines have to be started with a number and are ordered using these line number.
+You can then write another line of program. All lines have to be started with a number and they are ordered using these line numbers.
 
 You can use more commands in one program line, separated by a colon (:). The line can not exceed 125 characters. 
 
@@ -108,7 +108,7 @@ if			with then and else controls the program flow
 list			outputs the code on the screen
 load "filename"         loads a Basic program from the file
 new			clears the program memory and all variables
-pinwrite pin, value	if value=0 set the pin output to low, else sets the pin output to high. Use to blink a led.
+pinwrite pin, value	if value=0, sets the pin output to low, else sets the pin output to high. Use to blink a led.
 plot x,y		sets a pixel color at x,y to the color determined by a previous "color" command and sets a new starting point for 'draw'
 print			outputs to the screen and moves the cursor to the new line if , or ; is not used. Use , after an argument to print the new one after a tab (8 characters), use ; to print the next argument directly after the previous. 
 run			starts the program. You can use "run" inside the program to restart it.
