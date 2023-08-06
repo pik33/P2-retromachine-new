@@ -300,6 +300,18 @@ position 2*editor_spaces,1 : print ver$
 print v.buf_ptr;" BASIC bytes free"
 position 2*editor_spaces,4 : print "Ready"
 'hubset( %1_000001__00_0001_1010__1111_1011)
+
+
+
+'test
+/'
+10 for y=0 to 576
+  for x=0 to 1024
+    v.putpixel(x,y,(x+y)  mod 256)
+  next x
+next y
+x=0: y=0 : v.cls(154,147): goto 10
+'/
 '-------------------------------------------------------------------------------------------------------- 
 '-------------------------------------- MAIN LOOP -------------------------------------------------------
 '--------------------------------------------------------------------------------------------------------
@@ -864,6 +876,7 @@ if linetype=5 then cmd=lparts(ct).token : ct+=1 ' continued after if/else
   case token_waitms    : compile_int_fun_1p()
   case token_waitvbl    : compile_nothing()
   case token_if      :   compile_if() :goto 450
+  case token_for     :   compile_for() :goto 450
 
   case token_else    :   compile_else() : goto 450
   case token_beep	: err=compile_int_fun_2p()
@@ -1124,6 +1137,48 @@ if isassign(lparts(ct+1).part$) then compile_immediate_assign(5) else compile_im
 return 0
 end function
 
+
+
+function compile_for() as ulong  
+
+/'
+dim t1 as expr_result
+dim cmd as ulong
+
+
+
+if isassign(lparts(ct+1).part$) then compile_immediate_assign(5) else compile_error(32) : printerror(32) : return 32
+'' after this we should have fun_assign_i or fun_assign_u with var# as uresult.
+t1=compiledline(lineptr-1): if t1.result_type<>fun_assign_i then compile_error(18) : printerror(18) : return 33
+varnum=t1.result.uresult
+if lparts(ct+1).part$<>"to" then compile_error(33) : printerror(33) : return 33
+ct+=1
+expr()
+if lparts(ct+1).token =token_end then t1.  
+
+
+'print "In compile_if"
+' 1 after for is eq assign, so check for a var, then =, then expr. It has to be int var in this ver.
+' compile assign, get a vartable ptr
+'find "to"
+
+' varname, varvalue, assign, varnum, endvalue, step, do_for 
+' at runtime it assigns, then adds a entry 
+' do_next will add step to var and complar eith endval
+
+
+compile_int_fun_1p()
+cmd=lparts(ct).token : ct+=1
+'print cmd ' : if cmd<> token_then then print "Expected then" else print "Found then"
+t1.result_type=token_if : compiledline(lineptr)=t1:  lineptr+=1
+if isassign(lparts(ct+1).part$) then compile_immediate_assign(5) else compile_immediate(5)
+
+'/
+return 0
+end function
+
+
+
 function compile_goto( ) as ulong
 
 dim gotoline, gotoptr,oldgotoptr as integer
@@ -1181,15 +1236,15 @@ function expr() as integer
 
 dim t3 as expr_result
 dim op as integer
-
+dim rt as integer
 
 op=lparts(ct).token : if op=token_end then t3.result.uresult=29 : t3.result_type=result_error : compiledline(lineptr)=t3 : lineptr+=1: return 29
 t3.result.uresult=0
-addsub()             			' call higher priority operator check. It will itself call getval/getvar if no multiplies or divides
+rt=addsub()             			' call higher priority operator check. It will itself call getval/getvar if no multiplies or divides
 op = lparts(ct).token				' that idea is from github adamdunkels/ubasic
 do while (op = token_eq orelse op = token_gt orelse op = token_lt orelse op=token_ge orelse op=token_le)
   ct+=1
-  addsub() 
+  rt=addsub() 
   t3.result_type=op: compiledline(lineptr)=t3: lineptr+=1
   op = lparts(ct).token
   loop
@@ -1197,9 +1252,9 @@ return 0
 end function
 
 
+'' todo: use propre ops. At getvar and getconst level we know the rt. If both are ints, do int op. If one are float, compile converttofloat, do float op. If both strings, call string op. If string ant int combined, compile err
 
-
-sub addsub() 
+function addsub() as integer 
 
 ' On input: ct = current token position
 ' On output: expression result value and a new ct
@@ -1215,7 +1270,8 @@ do while (op = token_plus orelse op = token_minus orelse op = token_and orelse o
   t3.result_type=op: compiledline(lineptr)=t3: lineptr+=1
   op = lparts(ct).token
   loop
-end sub
+  return 0
+end function
 
 sub muldiv()
 
@@ -1369,8 +1425,11 @@ dim cmd as asub
 
 for lineptr_e=0 to lineptr-1
 'print lineptr_e,compiledline(lineptr_e).result_type
-cmd=commands(compiledline(lineptr_e).result_type)
+'if compiledline(lineptr_e).result_type>255 then printerror(31): return ' this should never happen and it is an interpreter error. Added to debug
+''let tt=getct()
+cmd=commands(compiledline(lineptr_e).result_type and 255)
 cmd
+''let tt=getct()-tt: print compiledline(lineptr_e).result_type, tt
 next lineptr_e
 end sub
 
@@ -1577,17 +1636,15 @@ if inrun>0 then
   return
 endif
 inrun=1
+psram.read1(varptr(runheader),runptr,24) : if runheader(0)=$FFFFFFFF then inrun=0: return 
 do 
-  psram.read1(varptr(runheader),runptr,24)  
-  if runheader(0)<>$FFFFFFFF then
-    psram.read1(varptr(compiledline(0)),runptr+2*compiledslot,runheader(2)-runptr)
-    lineptr=((runheader(2)-runptr)/compiledslot)-3
-    runptr=runheader(5)
-    execute_line
-    let key22=kbm.get_key()
-    endif
-  loop until runheader(5)=$7FFF_FFFF orelse runheader(0)=-1 orelse key22=69 orelse key22=$106
-  if key22=69 orelse key22=$106 then paula.play(7,@atari_spl,44100,16384,1684) : print "Stopped at line ";runheader(0)
+ /' let tt=getct() : '/  	psram.read1(varptr(runheader),runptr,24) 					        ' : let tt=getct() - tt : print "loaded header, time=", tt
+ /' let tt=getct() : '/ 	psram.read1(varptr(compiledline(0)),runptr+2*compiledslot,runheader(2)-runptr)    	' : let tt=getct()-tt : : print "loaded compiledline, time=", tt' todo: avoid 2 psram reads. Make a buf for he line or something
+ /' let tt=getct() : '/		lineptr=((runheader(2)-runptr)/compiledslot)-3  					' : let tt=getct()-tt :: print "computed lineptr, time="; tt ' todo: keep the line ptr
+ /' let tt=getct() : '/		runptr=runheader(5)		 							' : let tt=getct()-tt :  print "got a new header, time="; tt
+ /' let tt=getct() : '/ 	execute_line										' :  let tt=getct()-tt : :print "excuted a line "; runheader(0), "time="; tt
+loop until runheader(5)=$7FFF_FFFF orelse kbm.get_key()=$106 
+if runheader(5)<>$7FFF_FFFF then paula.play(7,@atari_spl,44100,16384,1684) : print "Stopped at line ";runheader(0)
 inrun=0
 end sub
 
@@ -1865,6 +1922,7 @@ t1.result.uresult=11 : t1.result_type=result_error
 1100 push t1
 end sub
 
+
 sub do_mod 
 
 dim t1,t2 as expr_result  
@@ -2081,11 +2139,11 @@ end sub
 
 sub do_plot
 dim t1,t2 as expr_result 
-t2=pop()
-t1=pop()
-plot_x=t1.result.iresult
-plot_y=t2.result.iresult
-v.putpixel(plot_x,plot_y,plot_color) 
+t2=pop() 					 
+t1=pop()						 
+plot_x=t1.result.iresult			 
+plot_y=t2.result.iresult			 
+v.putpixel(plot_x,plot_y,plot_color) 		 
 end sub
 
 ' --------------------------- Draw a line to point set by plot or previous draw, set a new starting point
@@ -2277,6 +2335,9 @@ do_waitms
 paula.stop(7)
 end sub
 
+sub do_no_command
+printerror(23)
+end sub
 
 '--------------------------- THE END OF THE MAIN PROGRAM ------------------------------------------------------
 
@@ -2288,6 +2349,7 @@ end sub
 
 sub init_commands
 
+for i=0 to 255 : commands(i)=@do_no_command : next i
 commands(token_plus)=@do_plus 
 commands(token_minus)=@do_minus 
 commands(token_or)=@do_or 
@@ -2391,6 +2453,9 @@ errors$(27)="The program is empty."
 errors$(28)="If after if."
 errors$(29)="Empty expression."
 errors$(30)="String expected."
+errors$(31)="Interpreter innternal error."
+errors$(32)="Expected assign."
+
 end sub
         
 sub printerror(err as integer)
