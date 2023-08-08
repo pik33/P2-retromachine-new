@@ -508,7 +508,7 @@ if isstring(lparts(i).part$) then lparts(i).token=token_string : lparts(i).part$
 if isname(lparts(i).part$) then lparts(i).token=token_name : goto 102						' name
 lparts(i).token=-1
 102 next i 
-lparts(k).token=token_end : tokennum=k
+lparts(k).token=token_end : lparts(k).part$="": tokennum=k
 
 
 ''for i=0 to k:print lparts(i).part$,lparts(i).token:next i
@@ -650,6 +650,8 @@ select case s
   case "then"	     : return token_then
   case "beep"	     : return token_beep
   case "dir"	     : return token_dir
+  case "for"	     : return token_for
+  case "next"	     : return token_next
   case else          : return 0  
 end select
 end function
@@ -856,7 +858,7 @@ if linetype=2 orelse linetype=3 then cmd=lparts(0).token : ct=1 ' don't set line
 if linetype=4 orelse linetype=1 then cmd=lparts(1).token : ct=2 : lineptr=2
 if linetype=5 then cmd=lparts(ct).token : ct+=1 ' continued after if/else
 
-'print lineptr
+print cmd
 451 select case cmd
   case token_cls      : compile_nothing()   'no params, do nothing, only add a command to the line, but case needs something to do after 
   case token_new      : compile_nothing()   
@@ -888,7 +890,7 @@ end select
 t3.result_type=cmd : compiledline(lineptr)=t3:  lineptr+=1
 450 if linetype=0 orelse linetype=3 orelse linetype=4 then compiledline(lineptr).result_type=token_end ' end token if the last part or imm
 
-' for i=0 to lineptr: print compiledline(i).result_type;" ";compiledline(i).result.uresult : next i
+ for i=0 to lineptr: print compiledline(i).result_type;" ";compiledline(i).result.uresult : next i
 return err
 end function
 
@@ -1141,42 +1143,37 @@ end function
 
 function compile_for() as ulong  
 
-/'
+ 
 dim t1 as expr_result
-dim cmd as ulong
+dim cmd,varnum as ulong
 
 
 
 if isassign(lparts(ct+1).part$) then compile_immediate_assign(5) else compile_error(32) : printerror(32) : return 32
 '' after this we should have fun_assign_i or fun_assign_u with var# as uresult.
-t1=compiledline(lineptr-1): if t1.result_type<>fun_assign_i then compile_error(18) : printerror(18) : return 33
+t1=compiledline(lineptr-1): if t1.result_type<>fun_assign_i then compile_error(18) : printerror(18) : return 18
 varnum=t1.result.uresult
-if lparts(ct+1).part$<>"to" then compile_error(33) : printerror(33) : return 33
+if lparts(ct).part$<>"to" then print lparts(ct).part$: compile_error(33) : printerror(33) : return 33
+ct+=1
+expr()  ' there is "to" value pushed on the stack
+if lparts(ct).part$="step" then 
+print "step detected"
 ct+=1
 expr()
-if lparts(ct+1).token =token_end then t1.  
+else
+print "step not detected, 1 assumed"
+compiledline(lineptr).result_type=result_int : compiledline(lineptr).result.iresult=1 : lineptr+=1
+endif
+compiledline(lineptr).result_type=result_int : compiledline(lineptr).result.iresult=varnum :lineptr+=1
+compiledline(lineptr).result_type=token_for : compiledline(lineptr).result.iresult=0 :lineptr+=1
 
 
-'print "In compile_if"
-' 1 after for is eq assign, so check for a var, then =, then expr. It has to be int var in this ver.
-' compile assign, get a vartable ptr
-'find "to"
-
-' varname, varvalue, assign, varnum, endvalue, step, do_for 
-' at runtime it assigns, then adds a entry 
-' do_next will add step to var and complar eith endval
-
-
-compile_int_fun_1p()
-cmd=lparts(ct).token : ct+=1
-'print cmd ' : if cmd<> token_then then print "Expected then" else print "Found then"
-t1.result_type=token_if : compiledline(lineptr)=t1:  lineptr+=1
-if isassign(lparts(ct+1).part$) then compile_immediate_assign(5) else compile_immediate(5)
-
-'/
 return 0
 end function
 
+' next: we  have to find the variable in the table, complir pushvar, then next
+' do_for: push its own pointer, varnum, step, end on the for stack. var init is already compiled before
+' do_next: find the entry with the varnum. Add step to varnum. Compare to the end. If step>0, check >, else check <. If not end, goto forptr (how?) 
 
 
 function compile_goto( ) as ulong
@@ -1687,8 +1684,9 @@ end sub
 sub do_fast_goto
 
 runptr=compiledline(lineptr_e).result.uresult
+lineptr_e=lineptr-1
 runheader(5)=0
-end sub
+end sub 
 
 sub do_find_goto
 end sub
@@ -2455,6 +2453,7 @@ errors$(29)="Empty expression."
 errors$(30)="String expected."
 errors$(31)="Interpreter innternal error."
 errors$(32)="Expected assign."
+errors$(33)="Expected 'to'."
 
 end sub
         
