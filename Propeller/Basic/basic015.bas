@@ -275,9 +275,10 @@ dim fortable(maxfor) as for_entry
 dim sample(255) as ubyte ' for csave
 dim block(1023) as ubyte ' for csave
 dim blockptr as ulong
-dim runptr,oldrunptr as ulong
+dim runptr,runptr2,oldrunptr as ulong
 dim inrun as ulong
 dim runheader as ulong(5)
+dim fortop as integer
 
 'dim varname$ as string ' for compile_assign
 '----------------------------------------------------------------------------
@@ -420,7 +421,7 @@ if cont=4 andalso rest$<>"" then cont=1
 if cont=4 andalso rest$="" then cont=2
 if cont=0 andalso rest$="" then cont=3 
 
-''print "in interpret: line$= ";line$," rest$= ";rest$; " cont= "; cont
+'print "in interpret: line$= ";line$," rest$= ";rest$; " cont= "; cont
 
 ' cont: 0: this is the first part of the line that will continue
 ' 1 - this is the continuation of the line
@@ -442,7 +443,6 @@ for i=0 to j-1
   if p1>0 then let p$=mid$(line$,p1,1):  if   p$<>"" then lparts(k).part$=p$ : k+=1 
   let p$=mid$(line$,p1+1,p2-p1-1)  : if   p$<>"" then lparts(k).part$=p$ : k+=1 
 next i
-
 
 ' 1d : find strings
 
@@ -484,11 +484,10 @@ for i=0 to k-1: lparts(i).part$=trim$(lparts(i).part$): next i
 i=0
 do 
   if len(lparts(i).part$)=0 then 
-    if i=k-1 then k-=1 : exit
+    if i=k-1 then k-=1 ': exit
     if i<k-1 then for j=i to k-2 : lparts(j)=lparts(j+1): next j: k-=1 :  if i>0 then i-=1 
   endif
  i+=1: loop until i>=k-1
-
 
 
 ' 1g: lowercase all that is not a string
@@ -517,12 +516,12 @@ if b1 andalso b2 andalso (not b3) then lparts(i).token=token_integer : goto 102 
 if b1 andalso (not b2) andalso (not b3) then lparts(i).token=token_float :goto 102 				' float
 if isstring(lparts(i).part$) then lparts(i).token=token_string : lparts(i).part$=mid$(lparts(i).part$,2,len(lparts(i).part$)-2) :goto 102	' string, get id of ""!
 if isname(lparts(i).part$) then lparts(i).token=token_name : goto 102						' name
-lparts(i).token=-1
+'print i,k,lparts(i).token, lparts(i).part$: lparts(i).token=-1
 102 next i 
 lparts(k).token=token_end : lparts(k).part$="": tokennum=k
 
 
-''for i=0 to k:print lparts(i).part$,lparts(i).token:next i
+
 
 '2b determine a type of the line
 if isdec(lparts(0).part$) then linenum=val%(lparts(0).part$)
@@ -869,7 +868,7 @@ if linetype=2 orelse linetype=3 then cmd=lparts(0).token : ct=1 ' don't set line
 if linetype=4 orelse linetype=1 then cmd=lparts(1).token : ct=2 : lineptr=2
 if linetype=5 then cmd=lparts(ct).token : ct+=1 ' continued after if/else
 
-print cmd
+'print cmd
 451 select case cmd
   case token_cls      : compile_nothing()   'no params, do nothing, only add a command to the line, but case needs something to do after 
   case token_new      : compile_nothing()   
@@ -902,7 +901,7 @@ end select
 t3.result_type=cmd : compiledline(lineptr)=t3:  lineptr+=1
 450 if linetype=0 orelse linetype=3 orelse linetype=4 then compiledline(lineptr).result_type=token_end ' end token if the last part or imm
 
- for i=0 to lineptr: print compiledline(i).result_type;" ";compiledline(i).result.uresult : next i
+' for i=0 to lineptr: print compiledline(i).result_type;" ";compiledline(i).result.uresult : next i
 return err
 end function
 
@@ -1165,7 +1164,7 @@ if isassign(lparts(ct+1).part$) then compile_immediate_assign(5) else compile_er
 '' after this we should have fun_assign_i or fun_assign_u with var# as uresult.
 t1=compiledline(lineptr-1): if t1.result_type<>fun_assign_i then compile_error(34) : return 34
 varnum=t1.result.uresult
-if lparts(ct).part$<>"to" then print lparts(ct).part$: compile_error(33) : return 33
+if lparts(ct).part$<>"to" then  compile_error(33) : return 33
 ct+=1
 expr()  ' there is "to" value pushed on the stack
 if lparts(ct).part$="step" then 
@@ -1186,23 +1185,46 @@ sub do_for()
 ' on the stack: varnum, step, endval
 
 dim t1 as expr_result
-
-i=-1: do: i+=1 : loop until fortable(i).varnum= -1 orelse i>= maxfor
-if i> maxfor then printerror(36) : return
-t1=pop() : fortable(i).varnum=t1.result.iresult
-t1=pop() : fortable(i).stepval=t1.result.iresult
-t1=pop() : fortable(i).endval=t1.result.iresult
+dim i as integer
+fortop+=1
+'i=-1: do: i+=1 : loop until fortable(i).varnum= -1 orelse i>= maxfor
+'if i> maxfor then printerror(36) : return
+t1=pop() : fortable(fortop).varnum=t1.result.iresult
+t1=pop() : fortable(fortop).stepval=t1.result.iresult
+t1=pop() : fortable(fortop).endval=t1.result.iresult
 if compiledline(lineptr_e).result_type=token_end then
 ' end of line after for, set the pointer to the start of the next line
-fortable(i).lineptr=runptr
-fortable(i).cmdptr=0
+fortable(fortop).lineptr=runptr
+fortable(fortop).cmdptr=0
 else
-fortable(i).lineptr=oldrunptr
-fortable(i).cmdptr=lineptr_e+1
+fortable(fortop).lineptr=oldrunptr
+fortable(fortop).cmdptr=lineptr_e+1
+'fortop=i ' to speedup next
 endif
 end sub
 
 ' now do_next todo
+
+sub do_next()
+
+dim t1 as expr_result
+dim varnum as integer
+
+t1=pop() :varnum=t1.result.uresult
+if fortable(fortop).varnum<>t1.result.uresult then printerror(37) : return
+ivariables(varnum).value+=fortable(fortop).stepval 
+if fortable(fortop).stepval>0 then
+  if ivariables(varnum).value>fortable(fortop).endval then fortop-=1 : return ' do nothing 
+else
+  if ivariables(varnum).value<fortable(fortop).endval then fortop -=1 : return ' do nothing 
+endif
+' if not returned, goto pointer
+runptr=fortable(fortop).lineptr
+runptr2=fortable(fortop).cmdptr
+lineptr_e=lineptr-1
+'runheader(5)=0
+' todo: detect for at the same line and don't reload
+end sub
 
 
 function compile_next() as ulong
@@ -1212,7 +1234,7 @@ dim cmd,varnum,i,j as ulong
 dim varname$ as string
 dim suffix$ as string
 
-varname$=lparts(ct).part$ : print varname$
+varname$=lparts(ct).part$ 
 suffix$=right$(varname$,1)
 if varname$="" orelse suffix$="$" orelse suffix$="!" orelse suffix$="#" then  compile_error(34) : printerror(34) : return 34
 if ivarnum=0 then compile_error(35)  : return 35
@@ -1470,13 +1492,13 @@ end sub
 '--------------------------------------------- Runtime functions ------------------------------------------------------------------------ 
 '----------------------------------------------------------------------------------------------------------------------------------------
 
-sub execute_line 
+function execute_line (astart=0 as integer) as integer
 
 '' This executes a line either in immediate mode or loaded from PSRAM in the program executing mode
 
 dim cmd as asub
-
-for lineptr_e=0 to lineptr-1
+runptr2=0
+for lineptr_e=astart to lineptr-1
 'print lineptr_e,compiledline(lineptr_e).result_type
 'if compiledline(lineptr_e).result_type>255 then printerror(31): return ' this should never happen and it is an interpreter error. Added to debug
 ''let tt=getct()
@@ -1484,7 +1506,8 @@ cmd=commands(compiledline(lineptr_e).result_type and 255)
 cmd
 ''let tt=getct()-tt: print compiledline(lineptr_e).result_type, tt
 next lineptr_e
-end sub
+return runptr2
+end function
 
 
 ' ------------------- pop and push functions called by do_xxx functions to pop arguments and push results
@@ -1683,21 +1706,30 @@ sub do_run
 
 
 dim key22 : key22=0
-let runptr=programstart  
+let runptr=programstart  : runptr2=0 : oldrunptr=-1
 if inrun>0 then 
   psram.read1(varptr(runheader),runptr,24)  
   return
 endif
 inrun=1
-psram.read1(varptr(runheader),runptr,24) : if runheader(0)=$FFFFFFFF then inrun=0: return 
+psram.read1(varptr(runheader),runptr,24) 
+if runheader(0)=$FFFFFFFF then inrun=0: return 
 do 
- /' let tt=getct() : '/  	psram.read1(varptr(runheader),runptr,24) 					        ' : let tt=getct() - tt : print "loaded header, time=", tt
- /' let tt=getct() : '/ 	psram.read1(varptr(compiledline(0)),runptr+2*compiledslot,runheader(2)-runptr)    	' : let tt=getct()-tt : : print "loaded compiledline, time=", tt' todo: avoid 2 psram reads. Make a buf for he line or something
+if runptr<>oldrunptr then
+        psram.read1(varptr(runheader),runptr,24) 					        ' : let tt=getct() - tt : print "loaded header, time=", tt
+        psram.read1(varptr(compiledline(0)),runptr+2*compiledslot,runheader(2)-runptr)    	' : let tt=getct()-tt : : print "loaded compiledline, time=", tt' todo: avoid 2 psram reads. Make a buf for he line or something
+
+'for i=0 to lineptr : print compiledline(i).result_type, : next i
+ 
  /' let tt=getct() : '/		lineptr=((runheader(2)-runptr)/compiledslot)-3  					' : let tt=getct()-tt :: print "computed lineptr, time="; tt ' todo: keep the line ptr
- /' let tt=getct() : '/		oldrunptr=runptr		 							' : let tt=getct()-tt :  print "got a new header, time="; tt
- /' let tt=getct() : '/		runptr=runheader(5)		 							' : let tt=getct()-tt :  print "got a new header, time="; tt
- /' let tt=getct() : '/ 	execute_line										' :  let tt=getct()-tt : :print "excuted a line "; runheader(0), "time="; tt
-loop until runheader(5)=$7FFF_FFFF orelse kbm.get_key()=$106 
+ 
+ /' let tt=getct() : '/		oldrunptr=runptr	 	 							' : let tt=getct()-tt :  print "got a new header, time="; tt
+endif
+ /' let tt=getct() : '/		runptr=runheader(5)	  							' : let tt=getct()-tt :  print "got a new header, time="; tt
+
+ /' let tt=getct() : '/ 	runptr2=execute_line(runptr2)										' :  let tt=getct()-tt : :print "excuted a line "; runheader(0), "time="; tt
+                                
+loop until runptr=$7FFF_FFFF orelse kbm.get_key()=$106 
 if runheader(5)<>$7FFF_FFFF then paula.play(7,@atari_spl,44100,16384,1684) : print "Stopped at line ";runheader(0)
 inrun=0
 end sub
@@ -1730,11 +1762,11 @@ sub do_new
 
 pslpoke(0,$FFFFFFFF)
 ivarnum=0 : uvarnum=0 : fvarnum=0 : svarnum=0
-programstart=0
+programstart=0 :runptr=0 : runptr2=0
 stackpointer=0
 lineptr=0 
 programptr=0 ':gotoptr=0
-lastline=0 : lastlineptr=-1
+lastline=0 : lastlineptr=-1 :fortop=0
 for i=0 to maxfor: fortable(i).varnum=-1 : next i
 end sub
 
@@ -2445,8 +2477,8 @@ commands(token_fcircle)=@do_fcircle
 'commands(token_box)=@do_box
 'commands(token_frame)=@do_frame
 commands(token_color)=@do_color
-'commands(token_for)=@do_for
-'commands(token_next)=@do_next
+commands(token_for)=@do_for
+commands(token_next)=@do_next
 commands(token_list)=@do_list
 commands(token_run)=@do_run
 commands(token_error)=@do_error
@@ -2515,6 +2547,7 @@ errors$(33)="Expected 'to'."
 errors$(34)="Expected integer variable."
 errors$(35)="Uninitialized variable in 'next', use 'for' before."
 errors$(36)="No more slots for 'for'."
+errors$(37)="'Next' doesn't match 'for'."
 
 end sub
         
