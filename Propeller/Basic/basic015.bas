@@ -157,8 +157,9 @@ const result_error=token_error
 
 ' -----------------------------max number of variables and stack depth
 const maxvars=1023       
-const maxgoto=1023       
-const maxstack=128
+' const maxgoto=1023       
+const maxstack=512
+const maxfor=128
 
 ''-----------------------------------------------------------------------------------------
 ''---------------------------------- Classes and types ------------------------------------
@@ -206,6 +207,14 @@ class goto_entry
   dim source as ulong
   dim dest as ulong
 end class
+
+class for_entry
+  dim lineptr as ulong ' line that will be executed after next
+  dim cmdptr as ulong  ' command# in this line
+  dim varnum as integer  ' variable to modify and check
+  dim stepval as integer
+  dim endval as integer
+end class  
 
 type parts as part(125)         ' parts to split the line into, line has 125 chars max
 type asub as sub()		' sub type to make a sub table
@@ -257,14 +266,16 @@ dim lineptr_e as integer
 dim programstart as ulong
 dim lastline as ulong
 dim lastlineptr as ulong
-dim gototable(maxgoto) as goto_entry
-dim gotoptr as integer
+'dim gototable(maxgoto) as goto_entry
+'dim gotoptr as integer
 dim currentdir$ as string
+dim fortable(maxfor) as for_entry
+
 
 dim sample(255) as ubyte ' for csave
 dim block(1023) as ubyte ' for csave
 dim blockptr as ulong
-dim runptr as ulong
+dim runptr,oldrunptr as ulong
 dim inrun as ulong
 dim runheader as ulong(5)
 
@@ -879,6 +890,7 @@ print cmd
   case token_waitvbl    : compile_nothing()
   case token_if      :   compile_if() :goto 450
   case token_for     :   compile_for() :goto 450
+  case token_next     :   compile_next() :goto 450
 
   case token_else    :   compile_else() : goto 450
   case token_beep	: err=compile_int_fun_2p()
@@ -1149,19 +1161,17 @@ dim cmd,varnum as ulong
 
 
 
-if isassign(lparts(ct+1).part$) then compile_immediate_assign(5) else compile_error(32) : printerror(32) : return 32
+if isassign(lparts(ct+1).part$) then compile_immediate_assign(5) else compile_error(32) : return 32
 '' after this we should have fun_assign_i or fun_assign_u with var# as uresult.
-t1=compiledline(lineptr-1): if t1.result_type<>fun_assign_i then compile_error(18) : printerror(18) : return 18
+t1=compiledline(lineptr-1): if t1.result_type<>fun_assign_i then compile_error(34) : return 34
 varnum=t1.result.uresult
-if lparts(ct).part$<>"to" then print lparts(ct).part$: compile_error(33) : printerror(33) : return 33
+if lparts(ct).part$<>"to" then print lparts(ct).part$: compile_error(33) : return 33
 ct+=1
 expr()  ' there is "to" value pushed on the stack
 if lparts(ct).part$="step" then 
-print "step detected"
 ct+=1
 expr()
 else
-print "step not detected, 1 assumed"
 compiledline(lineptr).result_type=result_int : compiledline(lineptr).result.iresult=1 : lineptr+=1
 endif
 compiledline(lineptr).result_type=result_int : compiledline(lineptr).result.iresult=varnum :lineptr+=1
@@ -1171,7 +1181,53 @@ compiledline(lineptr).result_type=token_for : compiledline(lineptr).result.iresu
 return 0
 end function
 
-' next: we  have to find the variable in the table, complir pushvar, then next
+
+sub do_for()
+' on the stack: varnum, step, endval
+
+dim t1 as expr_result
+
+i=-1: do: i+=1 : loop until fortable(i).varnum= -1 orelse i>= maxfor
+if i> maxfor then printerror(36) : return
+t1=pop() : fortable(i).varnum=t1.result.iresult
+t1=pop() : fortable(i).stepval=t1.result.iresult
+t1=pop() : fortable(i).endval=t1.result.iresult
+if compiledline(lineptr_e).result_type=token_end then
+' end of line after for, set the pointer to the start of the next line
+fortable(i).lineptr=runptr
+fortable(i).cmdptr=0
+else
+fortable(i).lineptr=oldrunptr
+fortable(i).cmdptr=lineptr_e+1
+endif
+end sub
+
+' now do_next todo
+
+
+function compile_next() as ulong
+
+dim t1 as expr_result
+dim cmd,varnum,i,j as ulong
+dim varname$ as string
+dim suffix$ as string
+
+varname$=lparts(ct).part$ : print varname$
+suffix$=right$(varname$,1)
+if varname$="" orelse suffix$="$" orelse suffix$="!" orelse suffix$="#" then  compile_error(34) : printerror(34) : return 34
+if ivarnum=0 then compile_error(35)  : return 35
+j=-1
+for i=0 to ivarnum-1
+  if ivariables(i).name=varname$ then j=i : exit
+next i
+if j=-1 then compile_error(35) : return 35
+compiledline(lineptr).result_type=result_int : compiledline(lineptr).result.iresult=j :lineptr+=1
+compiledline(lineptr).result_type=token_next : compiledline(lineptr).result.iresult=0 :lineptr+=1
+return 0
+end function
+
+
+' next: we  have to find the variable in the table, compile pushvar, then next
 ' do_for: push its own pointer, varnum, step, end on the for stack. var init is already compiled before
 ' do_next: find the entry with the varnum. Add step to varnum. Compare to the end. If step>0, check >, else check <. If not end, goto forptr (how?) 
 
@@ -1638,6 +1694,7 @@ do
  /' let tt=getct() : '/  	psram.read1(varptr(runheader),runptr,24) 					        ' : let tt=getct() - tt : print "loaded header, time=", tt
  /' let tt=getct() : '/ 	psram.read1(varptr(compiledline(0)),runptr+2*compiledslot,runheader(2)-runptr)    	' : let tt=getct()-tt : : print "loaded compiledline, time=", tt' todo: avoid 2 psram reads. Make a buf for he line or something
  /' let tt=getct() : '/		lineptr=((runheader(2)-runptr)/compiledslot)-3  					' : let tt=getct()-tt :: print "computed lineptr, time="; tt ' todo: keep the line ptr
+ /' let tt=getct() : '/		oldrunptr=runptr		 							' : let tt=getct()-tt :  print "got a new header, time="; tt
  /' let tt=getct() : '/		runptr=runheader(5)		 							' : let tt=getct()-tt :  print "got a new header, time="; tt
  /' let tt=getct() : '/ 	execute_line										' :  let tt=getct()-tt : :print "excuted a line "; runheader(0), "time="; tt
 loop until runheader(5)=$7FFF_FFFF orelse kbm.get_key()=$106 
@@ -1676,8 +1733,9 @@ ivarnum=0 : uvarnum=0 : fvarnum=0 : svarnum=0
 programstart=0
 stackpointer=0
 lineptr=0 
-programptr=0 :gotoptr=0
+programptr=0 ':gotoptr=0
 lastline=0 : lastlineptr=-1
+for i=0 to maxfor: fortable(i).varnum=-1 : next i
 end sub
 
 '----------------------- goto
@@ -2454,6 +2512,9 @@ errors$(30)="String expected."
 errors$(31)="Interpreter innternal error."
 errors$(32)="Expected assign."
 errors$(33)="Expected 'to'."
+errors$(34)="Expected integer variable."
+errors$(35)="Uninitialized variable in 'next', use 'for' before."
+errors$(36)="No more slots for 'for'."
 
 end sub
         
