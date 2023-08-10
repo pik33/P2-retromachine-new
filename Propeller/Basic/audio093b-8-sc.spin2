@@ -210,7 +210,13 @@ p401        mov     channeladd,cn             ' compute the pointer to channel p
 
             setq    #7                        ' read parameters
             rdlong  pointer0,ptra
-            testb   command0,#31 wz	      ' bit #31 command - set the DAC sample rate
+'            testb   command0,#29 wz
+'    if_nz   jmp     #p408
+'    	    getword envptr,command0,#0
+'    	    getbyte envspeed,command0,#2
+'    	    jmp     #p404                     'if envelope then no sample rate
+    	    
+p408        testb   command0,#31 wz	      ' bit #31 command - set the DAC sample rate
     if_nz   jmp     #p404                     ' if not set, proceed
             getword qq,command0,#0            ' get the new rate
             wxpin   qq,#left addpins 1        ' and program the pins

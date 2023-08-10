@@ -1,13 +1,13 @@
 The P2 Retromachine Basic
 
-Version 0.15 - pre-Alpha
+Version 0.16 - pre-Alpha
 -------------------------
 
 The P2 Retromachine Basic is a Basic interpreter for a Propeller2 platform with an external RAM. Currently tested/developed versions work on P2-EC32 or on an Eval board with 4-bit PSRAM attached.
 
 The goal is to make the Propeller2 platform a fully independent computer that can be programmed and used without any external PC.
 
-Version 0.15 is a pre-alpha stage. It has very limited set of functions, there is a lot of bugs in it, and is in a rapid development process that means all can change in the future versions.
+Version 0.16 is a pre-alpha stage. It has very limited set of functions, there is a lot of bugs in it, and is in a rapid development process that means all can change in the future versions.
 
 The current version of the interpreter needs a digital video accessory board at P0, AV accessory board at P8 and a serial host accessory board at P16.
 
@@ -38,6 +38,10 @@ To delete the program from memory and start a new one, use 'new'.
 
 Any compiled P2 binary file saved on an SD card can be executed from within the interpreter using 'brun'. That allows to have a collection of P2 binary programs on the SD card and call them when needed.
 
+There is a bug in the interpreter that make it crash (but not always) when trying to run the program if a line was replaced by a new one. Also, there is undefined behavior if the line that is a target of GOTO was replaced.
+Saving the program and loading it again will clean this mess.
+
+GOTO forward will not work in this version if the interpreter if the program was saved and then loadad, as the precompiler has to know the target line when interpreting goto.
 
 Variables:
 ----------
@@ -72,23 +76,66 @@ There are 2 divide operators: / is a float divide and the result is always float
 Program control:
 ----------------
 
-Version 0.15 implements 'goto' and 'if-then-else' to control the program execution
+Version 0.16 implements 'goto', 'if-then-else' and 'for-next' to control the program execution
 
-'goto' jumps to the line with the given number. In 0.15 that number has to be a constant unsigned integer, not a variable, and the line to which the goto is executed has to exist in the program.
+'goto' jumps to the line with the given number. In 0.16 that number has to be a constant unsigned integer, not a variable, and the line to which the goto is executed has to exist in the program.
 
 This means you have to write in the reverse order:
 
 60 print i
 20 if i>0 then goto 60
 
+Such program can not be loadad after saving, as saving/loading reorders the lines 
 Also, the line that is a target for goto cannot be replaced. If replaced, the old line will be executed instead. 
-These are temporary limits to be removed in 0.16.
+These are temporary limits to be removed in next versions
 
 'if-then-else' construction has a syntax like this
 
-20 if a=0 then b=1: else c=2
+20 if a=0 then b=1 : else c=2
 
-There can be more than one if, but only one else. Every if in the line that fails will jump to the else section.
+The syntax is different than FlexBasic: there has to be colon before else. Also, there can be more than one if, but only one else. Every if in the line that fails will jump to the 'else' section.
+
+'for-next' syntax is:
+
+10 for intvar=startvalue to endvalue step stepvalue
+(commands)
+90 next intvar
+
+When 'for' is executed, it assigns a start value to the variable. When 'next' is encountered, the step value is added to the variable.
+Then the variable is compared to the end value. If it is greater than the end value (or less then, if negative step), the program will continue
+If not, it will jump to the instruction, that is placed immediately after 'for.
+
+Start, end and step values can be expressions, They are evaluated only by 'for' line and then saved, so this program:
+
+10 a=1 : b=2 : c=10
+20 for i=a to c step b : c=c+5 : b=b*2 : print i,b,c : next i
+
+will print
+
+1	4	15
+3	8	20
+5	16	25
+7	32	30
+9	64	35
+
+Step value can be negative. Also, if there is no 'step', 1 will be assumed.
+
+The loop can be done in one line:
+
+10 for i=1 to 10 : print i: next i
+
+One line 'for' loops are much faster, as the line resides in the HUB RAM cache while running
+
+For loops can be nested:
+
+10 for i=1 to 10 : for j=1 to 10 : print i,j : next j : next i
+
+but not interleaved. This line will generate errors while executing
+
+10 for i=1 to 10 : for j=1 to 10 : print i,j : next i : next j
+
+In the 0.16 version only signed integer variables (without suffixes) are allowed as control variables for 'for' loops
+
 
 Commands:
 ----------
@@ -102,12 +149,14 @@ color 			sets a color for graphic operations. There are 256 colors, 16 hues (hig
 csave			tries to save a program to an audio cassette. Experimental and there is no cload yet.
 dir			lists the main directory of an SD card
 draw end_x, end_y	draws the line to point end_x, end_y. This will be the starting point for the new draw. The first starting point can be set with 'plot'
+for 			starts a loop (see program control)
 fcircle x,y,r		draws the filled circle with the center at x,y and radius r
 goto line		jumps to the line
 if			with then and else controls the program flow
 list			outputs the code on the screen
 load "filename"         loads a Basic program from the file
 new			clears the program memory and all variables
+next			closes a 'for' loop
 pinwrite pin, value	if value=0, sets the pin output to low, else sets the pin output to high. Use to blink a led.
 plot x,y		sets a pixel color at x,y to the color determined by a previous "color" command and sets a new starting point for 'draw'
 print			outputs to the screen and moves the cursor to the new line if , or ; is not used. Use , after an argument to print the new one after a tab (8 characters), use ; to print the next argument directly after the previous. 
@@ -117,4 +166,7 @@ waitms time		waits "time" miliseconds. Doesn't have any upper limits as it creat
 waitvbl			waits for the screen vertical blank. Use to synchronize the program with the screen refresh
 
 
+Changelog:
+------------
 
+0.16: for-next loop added

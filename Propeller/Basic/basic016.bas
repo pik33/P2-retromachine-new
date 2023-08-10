@@ -23,8 +23,8 @@ dim paula as class using "audio093b-8-sc.spin2"
 ''---------------------------------- Constants --------------------------------------------
 ''-----------------------------------------------------------------------------------------
 
-const ver$="P2 Retromachine BASIC version 0.15"
-const ver=15
+const ver$="P2 Retromachine BASIC version 0.16"
+const ver=16
 '' ------------------------------- Keyboard constants
 
 const   key_enter=141    
@@ -403,7 +403,7 @@ dim linenum as ulong
 dim err as integer
 
 ' ---------------------------------------------------  Pass 1: Split the line to parts, detect and concatenate strings
-fullline$=line$: cont=0  : linenum=0 : lineptr=0 : err=0
+fullline$=line$: cont=-1  : linenum=0 : lineptr=0 : err=0
 
 108 for i=0 to 125: separators(i)=0 :next i
 for i=0 to 125: lparts(i).part$="": next i
@@ -414,11 +414,15 @@ for i=0 to 125: lparts(i).part$="": next i
 
 line$=trim$(line$):let d$="" : let l=len(line$) 
 if l=0 then goto 101
-let d=instr(1,line$,":"): if d>0 andalso d<len(line$)  then let rest$=right$(line$,len(line$)-d):line$=left$(line$,d-1) else rest$="" 
-if cont=0 andalso rest$<>"" then cont=0
-if cont=4 andalso rest$<>"" then cont=1
-if cont=4 andalso rest$="" then cont=2
-if cont=0 andalso rest$="" then cont=3 
+let d=instr(1,line$,":"): if d>0 andalso d<len(line$)  then let rest$=trim$(right$(line$,len(line$)-d)):line$=trim$(left$(line$,d-1)) else rest$="" 
+
+						'print "before cont=",cont, "rest=";rest$, len(rest$), asc(rest$)
+
+if cont=-1 andalso rest$<>"" then cont=0 : goto 107       ' this is the first and not last part
+if cont=-1 andalso rest$="" then cont=3 : goto 107
+if cont=4 andalso rest$<>"" then cont=1 : goto 107
+if cont=4 andalso rest$="" then cont=2 :goto 107
+
 
 'print "in interpret: line$= ";line$," rest$= ";rest$; " cont= "; cont
 
@@ -429,6 +433,8 @@ if cont=0 andalso rest$="" then cont=3
 
 ' 1b: find separators
 
+						'print "after cont=",cont, "rest=";rest$, len(rest$), asc(rest$)
+107
 separators(0)=0
 i=0: j=1 : do: i+=1 : let c$=mid$(line$,i,1) 
 if isseparator(c$) then separators(j)=i: j+=1 
@@ -498,7 +504,7 @@ for j=0 to k-1
   if left$(lparts(j).part$,1)<>"""" orelse right$(lparts(j).part$,1)<>"""" then lparts(j).part$=lcase$(lparts(j).part$) 
 next j
 
-''for i=0 to k-1 : print lparts(i).part$,: next i
+'                                                         for i=0 to k-1 : print lparts(i).part$,: next i : print
 
 for i=0 to k: lparts(i).token=-1: next i
 '-------------------------------------------------------- Pass 2: Tokenize the line
@@ -527,33 +533,33 @@ if isname(lparts(i).part$) then lparts(i).token=token_name : goto 102						' nam
 'do while lparts(k).token<1 : k=k-1: loop : k=k+1
 lparts(k).token=token_end : lparts(k).part$="": tokennum=k
 
-
-
+                                       					'	for i=0 to k: print lparts(i).token,lparts(i).part$ : next i
+									
 
 '2b determine a type of the line
 if isdec(lparts(0).part$) then linenum=val%(lparts(0).part$)
 
-if linenum>0 andalso k=1 then deleteline(linenum) : goto 104
+if linenum>0 andalso k=1 andalso cont=3 then deleteline(linenum) : goto 104
 
 if linenum>0  andalso (cont=0 orelse cont=3) andalso lparts(2).token<>token_eq  then  
-  err= compile(linenum,0,cont)
+  err= compile(linenum,0,cont) ': print "called compile with cont=";cont, "line$=";line$
   if err<>0 then printerror(err): goto 104
   if rest$<>"" then  line$=rest$ : cont=4 : goto 108 else goto 104
 endif
       							
 if linenum>0 andalso (cont=1 orelse cont=2) andalso lparts(1).token<>token_eq  then 
-  err= compile(linenum,0,cont) :
+  err= compile(linenum,0,cont) ': print "called compile with cont=";cont, "line$=";line$
   if err<>0 then printerror(err): goto 104
   if rest$<>"" then line$=rest$: cont=4 : goto 108 else goto 104  	
 endif
 							 
 if linenum>0 andalso (cont=0 orelse cont=3) andalso lparts(2).token=token_eq then  
-  compile_assign(linenum,0,cont)
+  compile_assign(linenum,0,cont)': print "called compile_assign with cont=";cont, "line$=";line$
   if rest$<>"" then line$=rest$: cont=4 : goto 108 else goto 104
 endif
     							 
 if linenum>0 andalso (cont=1 orelse cont=2) andalso lparts(1).token=token_eq then 
-  compile_assign(linenum,0,cont) 
+  compile_assign(linenum,0,cont) ': print "called compile_assign with cont=";cont, "line$=";line$
   if rest$<>"" then line$=rest$: cont=4 : goto 108 else goto 104  								'<-- TODO: add a line to a program
 endif
 
