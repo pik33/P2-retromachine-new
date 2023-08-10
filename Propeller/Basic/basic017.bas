@@ -23,8 +23,8 @@ dim paula as class using "audio093b-8-sc.spin2"
 ''---------------------------------- Constants --------------------------------------------
 ''-----------------------------------------------------------------------------------------
 
-const ver$="P2 Retromachine BASIC version 0.16"
-const ver=16
+const ver$="P2 Retromachine BASIC version 0.17"
+const ver=17
 '' ------------------------------- Keyboard constants
 
 const   key_enter=141    
@@ -292,7 +292,8 @@ startpsram
 startvideo
 
 editor_spaces=2
-paper=0: ink=15 : font=0
+'paper=0: ink=15 : font=0
+paper=147: ink=154 : font=4
 plot_color=ink : plot_x=0: plot_y=0
 'paper=24: ink=0 : font=0
 

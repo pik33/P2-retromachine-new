@@ -368,28 +368,10 @@ vblank_ptr:=@vblank						' set pointers before starting the driver
 cursor_ptr:=@cursor_x						
 fontnum:=0  							' start with a PC type font 
 bytemove(@colors,@vgacolors,16)					' prepare standard DOS VGA colors
-
+leading_spaces:=0
 '---------------------------- initialize a cursor (MSDOS type)
 
-cursor_x:=0							' place the cursor at 0:0
-cursor_y:=0
-repeat i from 0 to 111
-  cursor[i]:=0
-repeat i from 112 to 127
-  cursor[i]:=154   
-'repeat i from 0 to 127
-'  if ((i/8)//2)
-'    cursor[i]:=15
-'  else
-'    cursor[i]:=0
-'  if i>=120    
-'    cursor[i]:=40
-spr17ptr:=@cursor
-spr17x:=0
-spr17y:=0
-spr17w:=8
-spr17h:=16
-leading_spaces:=0
+initcursor(154)
 
 '---------------------------- start the cog
 
@@ -404,6 +386,37 @@ return cog							' return the driver's cog #
 '  Mode number - see start() above or bits below								*
 '                                                                                                             	*
 '****************************************************************************************************************
+
+'---------------------------- initialize a cursor (MSDOS type)
+pub initcursor(color) |i
+
+cursor_x:=0							' place the cursor at 0:0
+cursor_y:=0
+repeat i from 0 to 111
+  cursor[i]:=0
+repeat i from 112 to 127
+  cursor[i]:=color  
+'repeat i from 0 to 127
+'  if ((i/8)//2)
+'    cursor[i]:=15
+'  else
+'    cursor[i]:=0
+'  if i>=120    
+'    cursor[i]:=40
+spr17ptr:=@cursor
+spr17x:=0
+spr17y:=0
+spr17w:=8
+spr17h:=16
+ 
+pub setcursorcolor(color) |i
+
+
+repeat i from 0 to 111
+  cursor[i]:=0
+repeat i from 112 to 127
+  cursor[i]:=color  
+ 
 
 pub setmode() | i', 'xzoom, yzoom, azoom
 
@@ -911,6 +924,7 @@ cursor_x:=0
 cursor_y:=0
 spr17x:=4*cursor_x
 spr17y:=16*cursor_y   
+setcursorcolor(fc)
 
 ''---------- Output a char at the cursor position, move the cursor 
 
