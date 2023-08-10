@@ -1815,8 +1815,16 @@ dim t1 as expr_result
 dim varnum as ulong
 
 varnum=compiledline(lineptr_e).result.uresult
-t1=pop()
-if varnum >=0 then ivariables(varnum).value=t1.result.iresult
+t1=pop() 
+if t1.result_type=result_int orelse t1.result_type=result_uint then 
+  ivariables(varnum).value=t1.result.iresult 
+else if t1.result_type=result_float then 
+  ivariables(varnum).value=round(t1.result.fresult) 
+else if t1.result_type=result_string then 
+  ivariables(varnum).value=val(t1.result.sresult) 
+else 
+  return ' make function, return error
+endif
 end sub
 
 sub do_assign_u
@@ -1826,7 +1834,15 @@ dim varnum as ulong
 
 varnum=compiledline(lineptr_e).result.uresult
 t1=pop()
-if varnum >=0 then uvariables(varnum).value=t1.result.uresult
+if t1.result_type=result_uint orelse t1.result_type=result_int then 
+  uvariables(varnum).value=t1.result.iresult 
+else if t1.result_type=result_float then 
+  uvariables(varnum).value=round(t1.result.fresult) 
+else if t1.result_type=result_string then 
+  uvariables(varnum).value=val(t1.result.sresult) 
+else 
+  return ' make function, return error
+endif
 end sub
 
 sub do_assign_f
@@ -1836,7 +1852,17 @@ dim varnum as ulong
 
 varnum=compiledline(lineptr_e).result.uresult
 t1=pop()
-if varnum >=0 then fvariables(varnum).value=t1.result.fresult
+if t1.result_type=result_float then 
+  fvariables(varnum).value=t1.result.fresult 
+else if t1.result_type=result_int then 
+  fvariables(varnum).value=t1.result.iresult 
+else if t1.result_type=result_uint then 
+  fvariables(varnum).value=t1.result.uresult 
+else if t1.result_type=result_string then 
+  fvariables(varnum).value=val(t1.result.sresult) 
+else 
+  return ' make function, return error
+endif
 end sub
 
 sub do_assign_s
@@ -1846,7 +1872,17 @@ dim varnum as ulong
 
 varnum=compiledline(lineptr_e).result.uresult
 t1=pop()
-if varnum >=0 then svariables(varnum).value=t1.result.sresult
+if t1.result_type=result_string then 
+  svariables(varnum).value=t1.result.sresult 
+else if t1.result_type=result_int then 
+  svariables(varnum).value=strint$(t1.result.iresult) 
+else if t1.result_type=result_uint then 
+  svariables(varnum).value=decuns$(t1.result.uresult) 
+else if t1.result_type=result_float then 
+  svariables(varnum).value=str$(t1.result.fresult) : print "assigned float to string"
+else
+  return
+endif    
 end sub
 
 ' --------------------- Read a variable and push to the stack
