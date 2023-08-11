@@ -137,6 +137,7 @@ const token_dir=93
 const token_paper=94
 const token_ink=95
 const token_font=96
+const token_mode=97
 
 
 
@@ -282,7 +283,7 @@ dim runptr,runptr2,oldrunptr as ulong
 dim inrun as ulong
 dim runheader as ulong(5)
 dim fortop as integer
-
+dim free$ as string
 'dim varname$ as string ' for compile_assign
 '----------------------------------------------------------------------------
 '-----------------------------Program start ---------------------------------
@@ -317,7 +318,7 @@ chdir "/sd"
 currentdir$="/sd/"
 
 position 2*editor_spaces,1 : print ver$
-print v.buf_ptr;" BASIC bytes free"
+free$=decuns$(v.buf_ptr)+" BASIC bytes free" : print free$
 position 2*editor_spaces,4 : print "Ready"
 'hubset( %1_000001__00_0001_1010__1111_1011)
 
@@ -541,7 +542,11 @@ if isname(lparts(i).part$) then lparts(i).token=token_name : goto 102						' nam
 'do while lparts(k).token<1 : k=k-1: loop : k=k+1
 lparts(k).token=token_end : lparts(k).part$="": tokennum=k
 
-                                       					'	for i=0 to k: print lparts(i).token,lparts(i).part$ : next i
+ '                                      					 	for i=0 to k: print lparts(i).token,lparts(i).part$ : next i
+
+' process the case when simple load or save is called without ""
+
+if (lparts(0).part$="load" orelse lparts(0).part$="save" orelse lparts(0).part$="brun") andalso lparts(1).token=token_name andalso lparts(2).token=token_end then lparts(1).token=token_string
 									
 
 '2b determine a type of the line
@@ -686,6 +691,7 @@ select case s
   case "paper"	     : return token_paper
   case "ink"	     : return token_ink
   case "font"	     : return token_font
+  case "mode"	     : return token_mode
   case else          : return 0  
 end select
 end function
@@ -921,6 +927,7 @@ if linetype=5 then cmd=lparts(ct).token : ct+=1 ' continued after if/else
   case token_paper	:compile_fun_1p
   case token_ink	:compile_fun_1p
   case token_font	:compile_fun_1p
+  case token_mode	:compile_fun_1p
   case else	      : compile_unknown() : goto 450
 
 end select
@@ -1107,7 +1114,11 @@ else
 endif      
 end function
 
+
+
+
 function compile_fun_1p() as ulong
+
 
 expr()
 return 0
@@ -2392,6 +2403,22 @@ if t1.result_type=result_string then t1.result.iresult=val(t1.result.sresult)
 font=t1.result.iresult : v.setfontfamily(font*4)
 end sub
 
+sub do_mode
+dim t1 as expr_result
+t1=pop() 
+if t1.result_type=result_float then t1.result.iresult=t1.result.fresult
+if t1.result_type=result_string then t1.result.iresult=val(t1.result.sresult)
+select case t1.result.iresult
+   case 0: font=1 :ink=154 : paper=147 : v.setfontfamily(4) : v.setwritecolors(ink,paper)
+   case 1: font=0 :ink=23 :  paper=0 : v.setfontfamily(0) : v.setwritecolors(ink,paper)
+   case 2: font=0 :ink=181 : paper=0 : v.setfontfamily(0) : v.setwritecolors(ink,paper)
+   case 3: font=0 :ink=15 :  paper=0 : v.setfontfamily(0) : v.setwritecolors(ink,paper)
+end select
+v.cls(ink,paper) : v.writeln("") : v.writeln(ver$) : v.writeln(free$) ' todo free has to be computed in the real time
+end sub
+
+
+
 sub do_pinwrite
 dim t1,t2 as expr_result
 t1=pop() 'value
@@ -2605,6 +2632,7 @@ commands(token_dir)=@do_dir
 commands(token_paper)=@do_paper
 commands(token_ink)=@do_ink
 commands(token_font)=@do_font
+commands(token_mode)=@do_mode
 end sub
 
 ''--------------------------------Error strings -------------------------------------

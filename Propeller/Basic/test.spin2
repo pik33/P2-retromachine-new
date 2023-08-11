@@ -1,0 +1,11 @@
+
+
+pub test() | i,j,a
+
+debug("start") 
+i:=getct()
+a:=0
+repeat j from 0 to 1000000
+  a:=a+1
+i:=getct()-i
+debug(udec(a),udec(i))
