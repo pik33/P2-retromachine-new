@@ -180,6 +180,7 @@ union aresult			' one long for all result types (until I implement double and in
   dim sresult as string
   dim fresult as double
   dim ulresult as ulongint  ' make an 8 byte placeholder for in64 and double
+  dim twowords(1) as ulong
 end union
   
 class expr_result		' general variable, not only expression result :) 
@@ -780,10 +781,12 @@ end function
 
 function deleteline(aline as ulong) as integer
 
-dim lineptr2,searchptr as ulong
+dim lineptr2,oldsearchptr,searchptr as ulong
+dim header as ulong(5) 
+
 
 searchptr=programstart
-dim header as ulong(5) 
+
 do
   psram.read1(varptr(header),searchptr,24)
   lineptr2=searchptr
@@ -792,6 +795,8 @@ loop until header(0)>=aline orelse header(5)=$7FFF_FFFF  ' we have a line that n
 
 
 if header(0)<>aline then return -1
+
+pslpoke(lineptr2,$FFFF_FFFF) ' flag the deleted line
 
 if header(5)=$7FFF_FFFF andalso header(4)=$FFFF_FFFF then ' this is one and only line in the program
   programstart=0 : programptr=0 : lastline=0 : lastlineptr=-1  : lineptr=0 
@@ -817,7 +822,22 @@ if header(5)<>$7FFF_FFFF andalso header(4)<>$FFFF_FFFF then ' the line is not fi
    pslpoke(header(4)+20, header(5))
    return 0
 endif   
-   
+
+
+
+' now find if the deleted line was a target for goto and replace fast_goto with find_goto
+
+lineptr2=searchptr
+searchptr=programstart
+
+do
+  psram.read1(varptr(header),searchptr,24)
+  lineptr2=searchptr
+  searchptr=header(5)
+loop until header(0)>=aline orelse header(5)=$7FFF_FFFF  ' we have a line that number is >= new line
+
+
+
 end function
 
 sub save_line
@@ -1318,16 +1338,19 @@ if lparts(ct).token=token_decimal andalso lparts(ct+1).token=token_end then
 ' now find a pointer to goto
   gotoptr=programstart
   do
-    psram.read1(varptr(gotoheader),gotoptr,24)  
+    psram.read1(varptr(gotoheader),gotoptr,24)  : 
     if gotoheader(0)<>$FFFFFFFF then
       oldgotoptr=gotoptr
       gotoptr=gotoheader(5)
     endif
-  loop until runheader(5)=$7FFF_FFFF orelse gotoheader(0)=-1 orelse gotoheader(0)=gotoline
+  loop until gotoheader(5)=$7FFF_FFFF orelse gotoheader(0)=-1 orelse gotoheader(0)=gotoline
   if gotoheader(0)=gotoline then
-    compiledline(lineptr).result.uresult=oldgotoptr ' we got the pointer
+    compiledline(lineptr).result.twowords(0)=oldgotoptr ' we got the pointer
+    compiledline(lineptr).result.twowords(1)=gotoline
   else
-   compiledline(lineptr).result.uresult=$80000000+gotoline
+    compiledline(lineptr).result.twowords(0)=$80000000
+    compiledline(lineptr).result.twowords(1)=gotoline
+    compiledline(lineptr).result_type=token_find_goto
   endif  
   lineptr+=1
 else
@@ -1821,12 +1844,46 @@ end sub
 '----------------------- goto
 sub do_fast_goto
 
-runptr=compiledline(lineptr_e).result.uresult
-lineptr_e=lineptr-1
-runheader(5)=0
+dim testptr,flag as ulong
+
+testptr=compiledline(lineptr_e).result.uresult
+flag=pslpeek(testptr) 
+if flag=compiledline(lineptr_e).result.twowords(1) then
+  runptr=testptr
+  lineptr_e=lineptr-1
+  runheader(5)=0
+else
+  do_find_goto  
+endif  
 end sub 
 
+
+
+
 sub do_find_goto
+
+dim gotoline,gotoptr,oldgotoptr as integer
+dim gotoheader(5) as ulong
+
+gotoline=compiledline(lineptr_e).result.twowords(1)
+print gotoline 
+gotoptr=programstart
+do
+  psram.read1(varptr(gotoheader),gotoptr,24)  : 
+  if gotoheader(0)<>$FFFFFFFF then
+    oldgotoptr=gotoptr
+    gotoptr=gotoheader(5)
+  endif
+  loop until gotoheader(5)=$7FFF_FFFF orelse gotoheader(0)=-1 orelse gotoheader(0)=gotoline
+
+if gotoheader(0)=gotoline then
+    compiledline(lineptr_e).result.uresult=oldgotoptr ' we got the pointer
+    compiledline(lineptr_e).result_type=token_fast_goto
+    psram.write(varptr(compiledline(lineptr_e)),oldrunptr+(2+lineptr_e)*compiledslot,compiledslot)   
+    do_fast_goto
+  else
+     printerror(38)
+  endif  
 end sub
 
 sub do_slow_goto
@@ -2633,6 +2690,7 @@ commands(token_paper)=@do_paper
 commands(token_ink)=@do_ink
 commands(token_font)=@do_font
 commands(token_mode)=@do_mode
+commands(token_find_goto)=@do_find_goto
 end sub
 
 ''--------------------------------Error strings -------------------------------------
@@ -2677,6 +2735,7 @@ errors$(34)="Expected integer variable."
 errors$(35)="Uninitialized variable in 'next', use 'for' before."
 errors$(36)="No more slots for 'for'."
 errors$(37)="'Next' doesn't match 'for'."
+errors$(38)="'Goto' target line not found."
 
 end sub
         
