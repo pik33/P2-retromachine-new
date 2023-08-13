@@ -1,15 +1,15 @@
-const HEAPSIZE=32768
+const HEAPSIZE=65536
 '#define PSRAM4
 #define PSRAM16
 
 #ifdef PSRAM16
-const _clkfreq = 336956522
-dim v as class using "hg009.spin2"
+const _clkfreq = 337000000
+dim v as class using "hg010b.spin2"
 dim psram as class using "psram.spin2"
 #endif
 
 #ifdef PSRAM4
-const _clkfreq = 330000000
+const _clkfreq = 337000000
 dim v as class using "hg009-4.spin2"
 dim psram as class using "psram4.spin2"
 #endif
@@ -23,8 +23,8 @@ dim paula as class using "audio093b-8-sc.spin2"
 ''---------------------------------- Constants --------------------------------------------
 ''-----------------------------------------------------------------------------------------
 
-const ver$="P2 Retromachine BASIC version 0.17"
-const ver=17
+const ver$="P2 Retromachine BASIC version 0.18"
+const ver=18
 '' ------------------------------- Keyboard constants
 
 const   key_enter=141    
@@ -73,7 +73,6 @@ const token_rpar=20
 const token_lpar=21
 const token_colon=22
 
-
 const fun_getivar=17  ' at runtime, reuse non-function tokens with functions that have no compile time tokens
 const fun_getuvar=18
 const fun_getfvar=19
@@ -102,7 +101,6 @@ const token_le=38
 const token_ge=39
 const token_inc=40
 const token_dec=41
-
 
 const token_cls=64
 const token_new=65
@@ -138,8 +136,15 @@ const token_paper=94
 const token_ink=95
 const token_font=96
 const token_mode=97
-
-
+const token_gettime=98
+const token_mouse=99
+const token_mousex=100
+const token_mousey=101
+const token_mousek=102
+const token_mousew=103
+const token_cursor=104
+const token_click=105
+const token_stick=106
 
 const token_error=255
 const token_end=510
@@ -150,7 +155,6 @@ const token_float=514
 const token_string=515
 const token_name=516
  
-
 ' ----------------------------- Expression results/variable types 
 
 const result_int=fun_pushi      ' variable type encodes its own push function in the compiled line
@@ -161,7 +165,6 @@ const result_error=token_error
 
 ' -----------------------------max number of variables and stack depth
 const maxvars=1023       
-       
 const maxstack=512
 const maxfor=128
 
@@ -179,8 +182,8 @@ union aresult			' one long for all result types (until I implement double and in
   dim uresult as ulong
   dim sresult as string
   dim fresult as double
-  dim ulresult as ulongint  ' make an 8 byte placeholder for in64 and double
-  dim twowords(1) as ulong
+  dim ulresult as ulongint       ' make an 8 byte placeholder for in64 and double
+  dim twowords(1) as ulong	 ' and allow single word access to it
 end union
   
 class expr_result		' general variable, not only expression result :) 
@@ -271,12 +274,11 @@ dim lineptr_e as integer
 dim programstart as ulong
 dim lastline as ulong
 dim lastlineptr as ulong
-'dim gototable(maxgoto) as goto_entry
-
-dim currentdir$ as string
-dim fortable(maxfor) as for_entry
 dim stringtable(maxvars) as string
 dim stringptr as integer
+dim currentdir$ as string
+dim fortable(maxfor) as for_entry
+
 dim sample(255) as ubyte ' for csave
 dim block(1023) as ubyte ' for csave
 dim blockptr as ulong
@@ -285,37 +287,44 @@ dim inrun as ulong
 dim runheader as ulong(5)
 dim fortop as integer
 dim free$ as string
-'dim varname$ as string ' for compile_assign
+dim keyclick as integer
+
+
 '----------------------------------------------------------------------------
 '-----------------------------Program start ---------------------------------
 '----------------------------------------------------------------------------
 
 startpsram
 startvideo
-
+audiocog,base=paula.start(0,0,0)
+waitms(50)
+dpoke base+20,16384
+usbcog=kbm.start()
+kbm.mouse_set_limits(1023,575)
+kbm.mouse_set_outptr(varptr(v.spr17x))
+v.spr17ptr=@mouse 
+v.spr17h=32
+v.spr17w=32
+kbm.mouse_move(512,288)
 editor_spaces=2
-'paper=0: ink=15 : font=0
 paper=147: ink=154 : font=4
 plot_color=ink : plot_x=0: plot_y=0
-'paper=24: ink=0 : font=0
-
+keyclick=1
 compiledslot=sizeof(test)
 
 init_commands
 init_error_strings
 do_new
 
-audiocog,base=paula.start(0,0,0)
-waitms(50)
-dpoke base+20,16384
-usbcog=kbm.start()
-kbm.mouse_set_limits(1023,575)
+
 cls(ink, paper)
 'v.setfontfamily(4) 				' use ST Mono font
 v.setfontfamily(font) 				' use ST Mono font
 v.setleadingspaces(2)
+v.spr16ptr=@mouse
 mount "/sd", _vfs_open_sdcard()
 chdir "/sd"
+
 currentdir$="/sd/"
 
 position 2*editor_spaces,1 : print ver$
@@ -323,7 +332,7 @@ free$=decuns$(v.buf_ptr)+" BASIC bytes free" : print free$
 position 2*editor_spaces,4 : print "Ready"
 'hubset( %1_000001__00_0001_1010__1111_1011)
 
-
+do: for i=0 to 7: print kbm.hidpad_id(i), : next i : print : loop 
 'test
 /'
 10 for y=0 to 576
@@ -344,7 +353,7 @@ waitvbl
 
 let key=kbm.get_key() 
 let leds=kbm.ledstates() 'numlock 1 capslock 2 scrollock 4
-if key>0 andalso key<4 then paula.play(7,@atari2_spl,44100,16384,0,1758): waitms(10): paula.stop(7)
+if key>0 andalso key<4 andalso keyclick=1 then paula.play(7,@atari2_spl,44100,16384,0,1758): waitms(10): paula.stop(7)
 if key>3 andalso key<$80000000 andalso (key and 255) <$E0 then let key2=key : let rpt=1 : let key3=key2
 if key>$80000000 then let rptcnt=0 : let rpt=0
 if key=0 andalso rpt=1 then rptcnt+=1
@@ -352,7 +361,7 @@ if key<$80000000 then if rptcnt=25 then key3=key2 : rptcnt=21
 
 
 if key3<>0 then
-  paula.play(7,@atari_spl,44100,16384,1684) 
+  if keyclick=1 then paula.play(7,@atari_spl,44100,16384,1684) 
   let key4=scantochar(key3) 
   if leds and 2 = 2 then 
     if key4>96 andalso key4<123 then
@@ -367,10 +376,10 @@ if key3<>0 then
   endif
  
   if key4>0 andalso key4<127 andalso v.cursor_x<254 then line$+=chr$(key4): v.putchar(key4)
-  if key4>0 andalso key4<127 andalso v.cursor_x=254 then paula.play(0,@atari2_spl,44100,16384,0,1758): waitms(300): paula.stop(0) 'end of line reached
+  if key4>0 andalso key4<127 andalso v.cursor_x=254 andalso keyclick=1 then paula.play(7,@atari2_spl,44100,16384,0,1758): waitms(300): paula.stop(0) 'end of line reached
  
   'tab
-  if (key3 and 255) = 43 andalso v.cursor_x>=240 then paula.play(0,@atari2_spl,44100,16384,0,1758): waitms(300): paula.stop(0)
+  if (key3 and 255) = 43 andalso v.cursor_x>=240 andalso keyclick=1 then paula.play(0,@atari2_spl,44100,16384,0,1758): waitms(300): paula.stop(0)
   if (key3 and 255) = 43 andalso v.cursor_x<240 then let x=(v.cursor_x mod 16)/2: for i=x to 7: line$+=" " :  v.write (" ") : next i  
  
   'backspace
@@ -534,9 +543,10 @@ let b1=isnum(lparts(i).part$):let b2=isint(lparts(i).part$):let b3=isdec(lparts(
 if b1 andalso b2 andalso b3 then lparts(i).token=token_decimal : goto 102 					' pure decimal for line num
 if b1 andalso b2 andalso (not b3) then lparts(i).token=token_integer : goto 102 				' integer
 if b1 andalso (not b2) andalso (not b3) then lparts(i).token=token_float :goto 102 				' float
+
 if isstring(lparts(i).part$) then 
-    lparts(i).token=token_string : lparts(i).part$=mid$(lparts(i).part$,2,len(lparts(i).part$)-2) :goto 102	' string, get id of ""!
-    stringtable(stringptr)=lparts(i).part$ : stringptr+=1
+    lparts(i).token=token_string : lparts(i).part$=mid$(lparts(i).part$,2,len(lparts(i).part$)-2) :goto 102	' string, get rid of ""!
+    stringtable(stringptr)=lparts(i).part$ : stringptr+=1							' and protect it from disappearing
 endif
 if isname(lparts(i).part$) then lparts(i).token=token_name : goto 102						' name
 'print i,k,lparts(i).token, lparts(i).part$: lparts(i).token=-1
@@ -551,7 +561,10 @@ lparts(k).token=token_end : lparts(k).part$="": tokennum=k
 ' process the case when simple load or save is called without ""
 
 if (lparts(0).part$="load" orelse lparts(0).part$="save" orelse lparts(0).part$="brun") andalso lparts(1).token=token_name andalso lparts(2).token=token_end then lparts(1).token=token_string
-									
+if (lparts(0).part$="mouse" orelse lparts(0).part$="cursor" orelse lparts(0).part$="click") andalso lparts(1).token=token_name andalso lparts(2).token=token_end then 
+  if lparts(1).part$="on" then lparts(1).part$="1" :lparts(1).token=token_decimal
+  if lparts(1).part$="off" then lparts(1).part$="0" :lparts(1).token=token_decimal
+endif									
 
 '2b determine a type of the line
 if isdec(lparts(0).part$) then linenum=val%(lparts(0).part$)
@@ -696,6 +709,9 @@ select case s
   case "ink"	     : return token_ink
   case "font"	     : return token_font
   case "mode"	     : return token_mode
+  case "mouse"	     : return token_mouse
+  case "cursor"	     : return token_cursor
+  case "click"	     : return token_click
   case else          : return 0  
 end select
 end function
@@ -704,6 +720,11 @@ function isfunction(s as string) as ubyte
 
 select case s
   case "rnd"           	: return token_rnd
+  case "mousex"        	: return token_mousex
+  case "mousey"        	: return token_mousey
+  case "mousek"        	: return token_mousek
+  case "mousew"        	: return token_mousew
+  case "gettime"       	: return token_gettime
   case else		: return 0
 end select
 end function  
@@ -929,7 +950,10 @@ if linetype=5 then cmd=lparts(ct).token : ct+=1 ' continued after if/else
   case token_run      : compile_nothing()   
   case token_plot     : err=compile_fun_2p()   
   case token_draw     : err=compile_fun_2p()   
-  case token_fcircle  : err=compile_int_fun_3p()  
+  case token_circle   : err=compile_fun_3p()  
+  case token_fcircle  : err=compile_fun_3p()  
+  case token_box      : err=compile_fun_4p()  
+  case token_frame     : err=compile_fun_4p()  
   case token_color    : err=compile_fun_1p()  
   case token_print    : err=compile_print()  : goto 450
   case token_fast_goto     : if linetype>0 then compile_goto()  : goto 450 else printerror(25) : goto 450
@@ -945,12 +969,15 @@ if linetype=5 then cmd=lparts(ct).token : ct+=1 ' continued after if/else
   case token_next     :   compile_next() :goto 450
 
   case token_else    :   compile_else() : goto 450
-  case token_beep	: err=compile_int_fun_2p()
+  case token_beep	: err=compile_fun_2p()
   case token_dir	:compile_nothing
   case token_paper	:compile_fun_1p
   case token_ink	:compile_fun_1p
   case token_font	:compile_fun_1p
   case token_mode	:compile_fun_1p
+  case token_mouse	:compile_fun_1p
+  case token_cursor	:compile_fun_1p
+  case token_click	:compile_fun_1p
   case else	      : compile_unknown() : goto 450
 
 end select
@@ -1162,6 +1189,42 @@ if lparts(ct).token<> token_comma then return 21 else ct+=1 ' todo error
 expr()
 end function
 
+function compile_fun_3p() as ulong
+
+expr()
+if lparts(ct).token<> token_comma then return 21 else ct+=1 ' todo error
+expr()
+if lparts(ct).token<> token_comma then return 21 else ct+=1 ' todo error
+expr()
+
+end function
+
+function compile_fun_4p() as ulong
+
+expr()
+if lparts(ct).token<> token_comma then return 21 else ct+=1 ' todo error
+expr()
+if lparts(ct).token<> token_comma then return 21 else ct+=1 ' todo error
+expr()
+if lparts(ct).token<> token_comma then return 21 else ct+=1 ' todo error
+expr()
+
+end function
+
+function compile_fun_varp() as ulong ' parameter # on top of the stack
+
+dim t1 as expr_result
+dim i as integer
+i=0
+do
+expr()
+ i+=1
+ if lparts(ct).token<> token_comma then exit loop else ct+=1
+loop 
+t1.result_type=result_uint: t1.result.uresult=i : compiledline(lineptr)=t1 : lineptr+=1
+end function
+
+
 function compile_int_fun_2p() as ulong
  
   dim err as integer
@@ -1350,10 +1413,13 @@ if lparts(ct).token=token_decimal andalso lparts(ct+1).token=token_end then
   if gotoheader(0)=gotoline then
     compiledline(lineptr).result.twowords(0)=oldgotoptr ' we got the pointer
     compiledline(lineptr).result.twowords(1)=gotoline
+'    print "compiled fast goto to line ";gotoline, " at pointer "; oldgotoptr
   else
     compiledline(lineptr).result.twowords(0)=$80000000
     compiledline(lineptr).result.twowords(1)=gotoline
     compiledline(lineptr).result_type=token_find_goto
+ '  print "compiled find goto to line ";gotoline, " at pointer "; oldgotoptr
+
   endif  
   lineptr+=1
 else
@@ -1600,7 +1666,10 @@ endif
 return t1
 end function 
 
-sub push(t1 as expr_result)
+sub push(t1 as expr_result )
+
+'print "In push: "; t1.result_type
+'print "In push: "; t1.result.uresult
 
 if stackpointer<maxstack then 
   stack(stackpointer)=t1
@@ -1679,7 +1748,7 @@ dim saveptr as ulong
 dim header(5) as ulong
 'dim fileheader,savestart, saveptr as ulong
 
-if pslpeek(0)=$FFFFFFFF then printerror(27): return
+if pslpeek(programstart)=$FFFFFFFF then printerror(27): return
 t1=pop()
 if t1.result_type<>result_string then name$="noname.bas" else name$=t1.result.sresult
 
@@ -1721,7 +1790,7 @@ dim linebuf(125) as ubyte
 fileheader=$0D616272' rba+ver'
 
 t1=pop() 
-if pslpeek(0)=$FFFFFFFF then printerror(27): return
+if pslpeek(programstart)=$FFFFFFFF then printerror(27): return
 if t1.result_type=result_string then
   if t1.result.sresult="" then t1.result.sresult="noname.bas"
   close #9: open currentdir$+t1.result.sresult for output as #9
@@ -1777,9 +1846,8 @@ end sub
 
 sub do_run
 
-
-
 dim key22 : key22=0
+
 let runptr=programstart  : runptr2=0 : oldrunptr=-1
 if inrun>0 then 
   psram.read1(varptr(runheader),runptr,24)  
@@ -1789,22 +1857,20 @@ inrun=1
 psram.read1(varptr(runheader),runptr,24) 
 if runheader(0)=$FFFFFFFF then inrun=0: return 
 do 
-if runptr<>oldrunptr then
-        psram.read1(varptr(runheader),runptr,24) 					        ' : let tt=getct() - tt : print "loaded header, time=", tt
-        psram.read1(varptr(compiledline(0)),runptr+2*compiledslot,runheader(2)-runptr)    	' : let tt=getct()-tt : : print "loaded compiledline, time=", tt' todo: avoid 2 psram reads. Make a buf for he line or something
-
-'for i=0 to lineptr : print compiledline(i).result_type, : next i
- 
- /' let tt=getct() : '/		lineptr=((runheader(2)-runptr)/compiledslot)-3  					' : let tt=getct()-tt :: print "computed lineptr, time="; tt ' todo: keep the line ptr
- 
- /' let tt=getct() : '/		oldrunptr=runptr	 	 							' : let tt=getct()-tt :  print "got a new header, time="; tt
-endif
- /' let tt=getct() : '/		runptr=runheader(5)	  							' : let tt=getct()-tt :  print "got a new header, time="; tt
-
- /' let tt=getct() : '/ 	runptr2=execute_line(runptr2)										' :  let tt=getct()-tt : :print "excuted a line "; runheader(0), "time="; tt
-                                
+  if runptr<>oldrunptr then
+    psram.read1(varptr(runheader),runptr,24) 					        ' : let tt=getct() - tt : print "loaded header, time=", tt
+    psram.read1(varptr(compiledline(0)),runptr+2*compiledslot,runheader(2)-runptr)    	' : let tt=getct()-tt : : print "loaded compiledline, time=", tt' todo: avoid 2 psram reads. Make a buf for he line or something
+      											'for i=0 to lineptr : print compiledline(i).result_type, : next i
+    lineptr=((runheader(2)-runptr)/compiledslot)-3  					' : let tt=getct()-tt :: print "computed lineptr, time="; tt ' todo: keep the line ptr
+    oldrunptr=runptr	 	 							' : let tt=getct()-tt :  print "got a new header, time="; tt
+  endif
+runptr=runheader(5)	  							' : let tt=getct()-tt :  print "got a new header, time="; tt
+runptr2=execute_line(runptr2)										' :  let tt=getct()-tt : :print "excuted a line "; runheader(0), "time="; tt
 loop until runptr=$7FFF_FFFF orelse kbm.get_key()=$106 
-if runheader(5)<>$7FFF_FFFF then paula.play(7,@atari_spl,44100,16384,1684) : print "Stopped at line ";runheader(0)
+if runheader(5)<>$7FFF_FFFF then 
+  if keyclick=1 then paula.play(7,@atari_spl,44100,16384,1684)  
+  print "Stopped at line ";runheader(0)
+endif
 inrun=0
 end sub
 
@@ -1839,8 +1905,8 @@ ivarnum=0 : uvarnum=0 : fvarnum=0 : svarnum=0
 programstart=0 :runptr=0 : runptr2=0
 stackpointer=0
 lineptr=0 
-programptr=0 ':gotoptr=0
-lastline=0 : lastlineptr=-1 :fortop=0 :stringptr=0
+programptr=0 : stringptr=0
+lastline=0 : lastlineptr=-1 :fortop=0
 for i=0 to maxfor: fortable(i).varnum=-1 : next i
 end sub
 
@@ -1850,11 +1916,11 @@ sub do_fast_goto
 dim testptr,flag as ulong
 
 testptr=compiledline(lineptr_e).result.uresult
-flag=pslpeek(testptr) 
+flag=pslpeek(testptr)' :print " In goto:",flag , testptr : waitms(1000)
 if flag=compiledline(lineptr_e).result.twowords(1) then
   runptr=testptr
   lineptr_e=lineptr-1
-  runheader(5)=0
+  if runheader(5)=$7FFF_FFFF  then runheader(5)=0
 else
   do_find_goto  
 endif  
@@ -1869,7 +1935,7 @@ dim gotoline,gotoptr,oldgotoptr as integer
 dim gotoheader(5) as ulong
 
 gotoline=compiledline(lineptr_e).result.twowords(1)
-print gotoline 
+ ' print "find goto"                                                                     'print gotoline 
 gotoptr=programstart
 do
   psram.read1(varptr(gotoheader),gotoptr,24)  : 
@@ -2342,6 +2408,16 @@ t1.result.iresult=a1 : t1.result_type=r : push t1
 
 end sub
 
+function converttoint (t1 as expr_result) as integer
+
+select case t1.result_type
+  case result_int:  return t1.result.iresult
+  case result_uint: return t1.result.uresult
+  case result_float: return round(t1.result.fresult)
+  case result_string: return val(t1.result.sresult)
+  case else: return 0
+end select
+end function
 
 sub do_rnd
 
@@ -2350,6 +2426,70 @@ t1.result_type=result_uint
 t1.result.uresult=getrnd()
 push t1
 end sub
+
+sub do_mousex
+
+dim t1 as expr_result
+dim x,y,z as ulong
+x,y,z=kbm.mouse_xyz()
+t1.result_type=result_uint
+t1.result.uresult=x
+push t1
+end sub
+
+sub do_mousey
+
+dim t1 as expr_result
+dim x,y,z as ulong
+x,y,z=kbm.mouse_xyz()
+t1.result_type=result_uint
+t1.result.uresult=y
+push t1
+end sub
+
+sub do_mousew
+
+dim t1 as expr_result
+dim x,y,z as ulong
+x,y,z=kbm.mouse_xyz()
+t1.result_type=result_int
+t1.result.iresult=z
+push t1
+end sub
+
+sub do_mousek
+
+dim t1 as expr_result
+dim k as ulong
+k=kbm.mouse_buttons()
+t1.result_type=result_uint
+t1.result.uresult=k
+push t1
+end sub
+sub do_gettime
+
+dim hi2, lo2 as ulong
+
+dim t1 as expr_result
+hi2,lo2=do_gettime2()
+t1.result_type=result_uint
+t1.result.twowords(0)=lo2
+t1.result.twowords(1)=hi2
+push t1
+end sub
+
+function do_gettime2() as ulong,ulong
+
+dim lo1, hi1 as ulong
+
+const asm 
+   getct hi1 wc
+   getct lo1
+end asm   
+
+return hi1, lo1
+end function  
+   
 
 '' ----------------------------- Graphics related runtime procedures --------------------------------------
 
@@ -2397,7 +2537,58 @@ dim t1,t2,t3 as expr_result
 t3=pop()
 t2=pop()
 t1=pop()
-v.fcircle(t1.result.iresult,t2.result.iresult,t3.result.iresult,plot_color) 
+if (t1.result_type=result_int orelse t1.result_type=result_uint) andalso (t2.result_type=result_int orelse t2.result_type=result_uint) andalso (t3.result_type=result_int orelse t3.result_type=result_uint) then
+   v.fcircle(t1.result.iresult,t2.result.iresult,t3.result.iresult,plot_color) : return
+else
+   v.fcircle(converttoint(t1), converttoint(t2), converttoint(t3),plot_color)
+endif   
+end sub
+
+' -------------------------- Draw an empty circle at x,y and radius r
+
+sub do_circle
+dim t1,t2,t3 as expr_result 
+
+t3=pop()
+t2=pop()
+t1=pop()
+if (t1.result_type=result_int orelse t1.result_type=result_uint) andalso (t2.result_type=result_int orelse t2.result_type=result_uint) andalso (t3.result_type=result_int orelse t3.result_type=result_uint) then
+   v.circle(t1.result.iresult,t2.result.iresult,t3.result.iresult,plot_color) : return
+else
+   v.circle(converttoint(t1), converttoint(t2), converttoint(t3),plot_color)
+endif   
+end sub
+
+' -------------------------- Draw a rectangle
+
+sub do_box
+dim t1,t2,t3,t4 as expr_result 
+
+t4=pop()
+t3=pop()
+t2=pop()
+t1=pop()
+if (t1.result_type=result_int orelse t1.result_type=result_uint) andalso (t2.result_type=result_int orelse t2.result_type=result_uint) andalso (t3.result_type=result_int orelse t3.result_type=result_uint) andalso (t4.result_type=result_int orelse t4.result_type=result_uint) then
+   v.box(t1.result.iresult,t2.result.iresult,t3.result.iresult,t4.result.iresult,plot_color) : return
+else
+   v.box(converttoint(t1), converttoint(t2), converttoint(t3), converttoint(t4),plot_color)
+endif   
+end sub
+
+' -------------------------- Draw a frane
+
+sub do_frame
+dim t1,t2,t3,t4 as expr_result 
+
+t4=pop()
+t3=pop()
+t2=pop()
+t1=pop()
+if (t1.result_type=result_int orelse t1.result_type=result_uint) andalso (t2.result_type=result_int orelse t2.result_type=result_uint) andalso (t3.result_type=result_int orelse t3.result_type=result_uint) andalso (t4.result_type=result_int orelse t4.result_type=result_uint) then
+   v.frame(t1.result.iresult,t2.result.iresult,t3.result.iresult,t4.result.iresult,plot_color) : return
+else
+   v.frame(converttoint(t1), converttoint(t2), converttoint(t3), converttoint(t4),plot_color)
+endif   
 end sub
 
 '' ----------------------------- Text related runtime procedures --------------------------------------
@@ -2488,14 +2679,19 @@ end sub
 
 sub do_waitms
 dim t1 as expr_result
+dim t as integer
+
 t1=pop() 'value
-if t1.result.uresult < 5000 then 
-  waitms(t1.result.uresult)
+
+if (t1.result_type=result_int orelse t1.result_type=result_uint) then t=t1.result.iresult else t=converttoint(t1)
+if t<0 then return
+if t < 5000 then 
+  waitms(t)
 else
-  for i=1 to t1.result.uresult/5000
-    waitms(5000)
+  for i=1 to t/5000
+    waitms(t)
   next i
-  waitms(t1.result.uresult mod 5000)
+  waitms(t mod 5000)
 endif
 end sub
 
@@ -2526,7 +2722,7 @@ do while filename <> "" and filename <> nil
     loop while kbm.get_key()<>0
     do
     loop while kbm.get_key()=0
-      paula.play(7,@atari_spl,44100,16384,1684) 
+      if keyclick=1 then paula.play(7,@atari_spl,44100,16384,1684) 
     position 0,35: print "                             ";: position 4,35  
   endif  
 loop
@@ -2593,14 +2789,57 @@ if t1.result_type=result_string then
 end sub
 
 
+sub do_mouse
+
+dim t1 as expr_result
+
+t1=pop()
+
+if t1.result.uresult=0 then v.spr17w=0 else v.spr17w=32
+end sub
+
+sub do_cursor
+
+dim t1 as expr_result
+
+t1=pop()
+
+if t1.result.uresult=0 then v.spr18w=0 else v.spr18w=8
+end sub
+
+
+sub do_click
+
+dim t1 as expr_result
+
+t1=pop()
+
+if t1.result.uresult=0 then keyclick=0 else keyclick=1
+end sub
+
+sub do_cursor
+
+dim t1 as expr_result
+
+t1=pop()
+
+if t1.result.uresult=0 then v.spr18w=0 else v.spr18w=8
+end sub
+
+
 sub do_beep
 
 dim t1,t2 as expr_result
 dim freq as ulong
 dim sample(1) as ubyte
+
+
+
 t2=pop()
 t1=pop()
-freq=t1.result.iresult
+
+
+if (t1.result_type=result_int orelse t1.result_type=result_uint) then freq=t1.result.iresult else freq=converttoint(t1)
 sample(0)=127: sample(1)=128
 paula.play8(7,varptr(sample),freq*2,16384,2,0)
 push t2
@@ -2657,10 +2896,10 @@ commands(token_new)=@do_new
 commands(token_plot)=@do_plot
 commands(token_draw)=@do_draw
 commands(token_print)=@do_print
-'commands(token_circle)=@do_circle
+commands(token_circle)=@do_circle
 commands(token_fcircle)=@do_fcircle
-'commands(token_box)=@do_box
-'commands(token_frame)=@do_frame
+commands(token_box)=@do_box
+commands(token_frame)=@do_frame
 commands(token_color)=@do_color
 commands(token_for)=@do_for
 commands(token_next)=@do_next
@@ -2694,6 +2933,14 @@ commands(token_ink)=@do_ink
 commands(token_font)=@do_font
 commands(token_mode)=@do_mode
 commands(token_find_goto)=@do_find_goto
+commands(token_mouse)=@do_mouse
+commands(token_gettime)=@do_gettime
+commands(token_cursor)=@do_cursor
+commands(token_click)=@do_click
+commands(token_mousex)=@do_mousex
+commands(token_mousey)=@do_mousey
+commands(token_mousek)=@do_mousek
+commands(token_mousew)=@do_mousew
 end sub
 
 ''--------------------------------Error strings -------------------------------------
@@ -2965,6 +3212,7 @@ dim shared as ubyte keys(511)={
 asm shared
 atari_spl file "atari.spl"
 atari2_spl file "atari2.spl" '1758
+mouse  file "mouse.def"
 end asm
 
 '' ------------------------------- the loader cog for BRUN

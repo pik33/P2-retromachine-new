@@ -24,7 +24,7 @@ CON
 
     HAVE_MOUSE = true
 
-    HAVE_HIDPAD = false ' Set to false to disable HidPad inteface
+    HAVE_HIDPAD = true ' Set to false to disable HidPad inteface
     HIDPAD_REPORT_SIZE = 7*4 ' do not change!
     HIDPAD_DEVICES = 4 ' do not change!
 

@@ -200,7 +200,7 @@ dim sr as ushort
 channelvol(0)=1 : channelvol(1)=1 : channelvol(2)=1 : channelvol(3)=1    
 mainvolume=127 : mainpan=2048  ' vol: 1..128..(255)  pan 0 (mono)..8192 (full)
 rm.start()
-rm.mouse_set_limits(1023,767)
+rm.mouse_set_limits(1023,599)
 startpsram
 startvideo
 cls(154,147)
