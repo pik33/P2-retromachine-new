@@ -288,8 +288,9 @@ dim runheader as ulong(5)
 dim fortop as integer
 dim free$ as string
 dim keyclick as integer
-
-
+dim  housekeeper_cog as integer
+dim housekeeper_stack as integer(128)
+dim mousex,mousey,mousek, mousew as ulong
 '----------------------------------------------------------------------------
 '-----------------------------Program start ---------------------------------
 '----------------------------------------------------------------------------
@@ -306,6 +307,7 @@ v.spr17ptr=@mouse
 v.spr17h=32
 v.spr17w=32
 kbm.mouse_move(512,288)
+housekeeper_cog=cpu(housekeeper(),@housekeeper_stack(0))
 editor_spaces=2
 paper=147: ink=154 : font=4
 plot_color=ink : plot_x=0: plot_y=0
@@ -332,7 +334,8 @@ free$=decuns$(v.buf_ptr)+" BASIC bytes free" : print free$
 position 2*editor_spaces,4 : print "Ready"
 'hubset( %1_000001__00_0001_1010__1111_1011)
 
-do: for i=0 to 7: print kbm.hidpad_id(i), : next i : print : loop 
+'do: for i=0 to 7: print kbm.hidpad_id(i), : next i : print : loop 
+'do: print mousex, mousey, mousew, mousek  : loop
 'test
 /'
 10 for y=0 to 576
@@ -406,6 +409,19 @@ loop
 
 
 '----------------------------------- this is the end of the main loop ------------------------------------------------------------------
+
+sub housekeeper
+dim  dummy as ulong
+do
+
+  do: loop until v.vblank=0
+  waitus(100)
+  do: loop until v.vblank=1
+  mousex,mousey=kbm.mouse_xy()
+  dummy,mousew=kbm.mouse_scroll()
+  mousek=kbm.mouse_buttons()
+loop
+end sub
 
 '---------------------------------------------------------------------------------------------------------------------------------------
 '----------------------------------- The line interpreter/tokenizer --------------------------------------------------------------------
@@ -2430,40 +2446,40 @@ end sub
 sub do_mousex
 
 dim t1 as expr_result
-dim x,y,z as ulong
-x,y,z=kbm.mouse_xyz()
+'dim x,y as ulong
+'x,y=kbm.mouse_xy()
 t1.result_type=result_uint
-t1.result.uresult=x
+t1.result.uresult=mousex
 push t1
 end sub
 
 sub do_mousey
 
 dim t1 as expr_result
-dim x,y,z as ulong
-x,y,z=kbm.mouse_xyz()
+'dim x,y as ulong
+'x,y=kbm.mouse_xy()
 t1.result_type=result_uint
-t1.result.uresult=y
+t1.result.uresult=mousey
 push t1
 end sub
 
 sub do_mousew
 
 dim t1 as expr_result
-dim x,y,z as ulong
-x,y,z=kbm.mouse_xyz()
+'dim x,y,z as ulong
+'x,y=kbm.mouse_scroll()
 t1.result_type=result_int
-t1.result.iresult=z
+t1.result.iresult=mousew
 push t1
 end sub
 
 sub do_mousek
 
 dim t1 as expr_result
-dim k as ulong
-k=kbm.mouse_buttons()
+'dim k as ulong
+'k=kbm.mouse_buttons()
 t1.result_type=result_uint
-t1.result.uresult=k
+t1.result.uresult=mousek
 push t1
 end sub
 sub do_gettime
@@ -2776,6 +2792,7 @@ if t1.result_type=result_string then
     cpustop(audiocog)
     cpustop(videocog)
     cpustop(usbcog)
+    cpustop(housekeeper_cog)
 
 'start loading cog
 
@@ -2815,15 +2832,6 @@ dim t1 as expr_result
 t1=pop()
 
 if t1.result.uresult=0 then keyclick=0 else keyclick=1
-end sub
-
-sub do_cursor
-
-dim t1 as expr_result
-
-t1=pop()
-
-if t1.result.uresult=0 then v.spr18w=0 else v.spr18w=8
 end sub
 
 
