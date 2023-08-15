@@ -1,0 +1,228 @@
+The P2 Retromachine Basic
+
+Version 0.19 - Alpha
+-------------------------
+
+The P2 Retromachine Basic is a Basic interpreter for a Propeller2 platform with an external RAM. Currently tested/developed versions work on P2-EC32 
+The Eval board with 4-bit PSRAM attached, that was supported up to 0.17, is not supported at this moment due to video driver change. 4-bit drivers will be synchronized later.
+
+The goal is to make the Propeller2 platform a fully independent computer that can be programmed and used without any external PC, with a nostalgic feeling added
+The power of a retro style Basic interpreter is that you can make a powerful program in a very short code, in a short time. 
+
+Version 0.19 is an alpha stage. It has limited set of functions, there are bugs in it, and is in a rapid development process that means a lot can change in the future versions.
+
+The current version of the interpreter needs a digital video accessory board at P0, AV accessory board at P8 and a serial host accessory board at P16.
+
+Preparing the hardware
+----------------------
+
+Flash the compiled interpreter to P2-EC32 flash mmemory
+Prepare the SD card: format it as FAT32, and create 'bin' and 'bas' directories.
+Place your precompiled binary files that you want to use with a P2 in 'bin' directory. 
+The interpreter will load and save Basic programs from 'bas' directory
+
+Connect the DV accessory (with a HDMI type socket) to the Pin 0 bank. Connect a monitor to the DV accessory board with a HDMI cable. The generated digital video is 1024x576 at 8 bpp and 50 Hz.
+Connect the AV accessory (with a VGA socket) to Pin 8 bank, Connect an amplifier or headphones to the headphone output of the AV board.
+Connect the serial host accessory ( with 2 USB Type A sockets) to Pin 16 bank. Connect a hub to the upper USB port on a serial host accessory. Connect a keyboard, a mouse and a joystick to the hub.
+
+Using the interpreter:
+----------------------
+
+The interpreter starts in an interactive mode. You can enter commands that are executed immediately after.
+
+To switch to the programming mode, write a line starting from an unsigned integer number. The line will then be added to a program, and no "ready" prompt will be displayed.
+You can then write another line of program. All lines have to be started with a number and they are ordered using these line numbers.
+
+You can use more commands in one program line, separated by a colon (:). The line can not exceed 125 characters. 
+
+Writing a line without a number exits the programming mode. The line written will be executed and a "Ready" prompt will be displayed.
+
+The program can be listed with 'list' and saved on an SD card with 'save "filename"'. File name can be typed without "" string delimiters The working directory is /sd/bas
+
+To list a fragment of a program, list startnum, endnum can be used
+
+To run the program, use 'run' command in the immediate mode. The precompiled program to run is placed in, and executed from the external memory (PSRAM) 
+
+If the program doesn't end itself, ctr-c stops it.
+
+To delete the program from memory and start a new one, use 'new'.
+
+Any compiled P2 binary file saved on an SD card can be executed from within the interpreter using 'brun'. That allows to have a collection of P2 binary programs on the SD card and call them when needed.
+The default directory for binary files is /sd/bin
+
+Variables:
+----------
+
+There are 4 types of variables available. There are no instruction to declare a variable yet. The first use of the variable declares it
+
+- string. The name of the string variable has to end with "$". Example: test$="This is a test string"
+- single precision float. The name of a float variable has to end with "!". Example: test!=2.345
+- unsigned integer, ends with "#"
+- all other variable names will be treated as 32bit signed integer
+
+a,a!,a# and a$ are different variables. There can be up to 1024 variables of every type in 0.17. 
+
+Any type of variable can be assigned to anything other. They will be converted on the fly if possible. FLoats will be rounded while converting, the interpreter will also try to convert the strings to numbers. 
+If failed, zero will be assigned.
+
+Arrays are not yet implemented.
+
+Operators:
+----------
+
+Supported operators in 0.19 are:
+
+- assign: =
+
+- comparison: =, <,>,>=,<= Warning: a <> operator is still not implemented!
+
+- arithmetic: +,-,*,/,div, mod, ^
+
+- logic: and, or, shl, shr
+
+Priority: (highest) mul/div/mod -> add/sub/logic -> comparison (lowest)
+
+There are 2 divide operators: / is a float divide and the result is always float. 'div' is an integer divide.
+
+Program control:
+----------------
+
+Version 0.17 implements 'goto', 'if-then-else' and 'for-next' to control the program execution
+
+'goto' jumps to the line with the given number. In 0.17 that number has to be a constant unsigned integer, not a variable or expression
+
+'if-then-else' construction has a syntax like this
+
+20 if a=0 then b=1 : else c=2
+
+The syntax is different than FlexBasic: there has to be colon before else. Also, there can be more than one if, but only one else. Every if in the line that fails will jump to the 'else' section.
+
+'for-next' syntax is:
+
+10 for intvar=startvalue to endvalue step stepvalue
+(commands)
+90 next intvar
+
+When 'for' is executed, it assigns a start value to the variable. When 'next' is encountered, the step value is added to the variable.
+Then the variable is compared to the end value. If it is greater than the end value (or less then, if negative step), the program will continue
+If not, it will jump to the instruction, that is placed immediately after 'for.
+
+Start, end and step values can be expressions, They are evaluated only by 'for' line and then saved, so this program:
+
+10 a=1 : b=2 : c=10
+20 for i=a to c step b : c=c+5 : b=b*2 : print i,b,c : next i
+
+will print
+
+1	4	15
+3	8	20
+5	16	25
+7	32	30
+9	64	35
+
+Step value can be negative. Also, if there is no 'step', 1 will be assumed.
+
+The loop can be done in one line:
+
+10 for i=1 to 10 : print i: next i
+
+One line 'for' loops are much faster, as the line resides in the HUB RAM cache while running
+
+For loops can be nested:
+
+10 for i=1 to 10 : for j=1 to 10 : print i,j : next j : next i
+
+but not interleaved. This line will generate errors while executing
+
+10 for i=1 to 10 : for j=1 to 10 : print i,j : next i : next j
+
+In the 0.17 version only signed integer variables (without suffixes) are allowed as control variables for 'for' loops
+
+Sprites
+-------
+
+There are 16 sprites, each up to 512x576 pixel size. They reside in the HUB RAM, so its sise limits the amount and size of sprites that can be simultaneously used.
+You can make a sprite out of the rectangle fragment of the screen using defsprite sprite#,x,y,w,h, where spritenum is a number from 0 to 15 and x,y,w,h are screen cooordinates to get a sprite from
+The sprite can me moved by 'sprite spritenum,x,y' where x,y is a upper left point of the sprite
+The color #0 (black) is transparent.
+To hide the sprite, move it out of the screen.
+
+
+Mouse and joystick
+
+If connected, a mouse can be accessed via mousex, mousey, mousek and mousew. These function return x and y position of a mouse pointer, mouse key status and mouse wheel. 
+Not all mice reports the wheel in a so called "boot mode" used in the USB HID driver.
+Up to 4 USB joysticks can be connected. Version 0.19 supports digital type joystick that has 3 positions in both axes.
+
+A stick(joynum) function returns the joystick state as a 4-bit number. If 0 returned, the joystick is not present. If joystick present, its position is returned as shown below
+
+					5         6        7
+					9        10       11
+					13	 14       15
+
+strig(joynum) returns the joystick button(s) state. 0 if not pressed
+
+					
+Commands:
+----------
+
+Alphabetically sorted
+
+beep frequency, time   		generates the square vave at frequency in Hz for the time in ms
+brun "filename"  		loads and executes a binary file compiled for a P2 by anything
+cls 				clears the screen
+color 				sets a color for graphic operations. There are 256 colors, 16 hues (high nibble) and 16 brightnesses (low nibble) similar to the 8-bit Atari. 0 to 15 are greys
+cursor on/off or 1/0    	switches the text cursor on and off
+click on/off or 1/0     	switches the keyboard click on and off 
+csave				tries to save a program to an audio cassette. Experimental and there is no cload yet.
+defsprite spritenum,x,y,w,h	makes a sprite from a screen rectangle
+dir				lists the main directory of an SD card
+draw end_x, end_y		draws the line to point end_x, end_y. This will be the starting point for the new draw. The first starting point can be set with 'plot'
+font fontnum			sets the font family for characters to print. In 0.19 2 fonts are implemented, 0=Atari ST mono, 1=PC DOS
+for 				starts a loop (see program control)
+fcircle x,y,r			draws the filled circle with the center at x,y and radius r
+getpixel(x,y)			returns the color of the pixel at screen position x,y. The function returns the bacgkround pixel color even if there is a sprite drawn over this pixel.
+goto line			jumps to the line
+if				with then and else controls the program flow
+ink				sets the color of the characters to print
+list startline, endline		outputs the code on the screen form startline to endline. If no endline specified, the program will be listed to the end. 
+load "filename"         	loads a Basic program from the file May be used in format load filename - without ""
+mode				sets "look and feel" of the interpreter. 0 - Atari style, 1 - PC amber, 2 - PC green, 3 - PC white
+mouse on/off or 1/0		switches the mouse pointer on and off
+mousex				returns the x coordinate of a mouse pointer
+mousey				returns the y coordinate of a mouse pointer
+mousek				returns the mouse key state: 0 - not pressed, 1-left, 2-right, 4-middle
+mousew				returns the mousewheel position. It is unbounded 16-bit signed integer.
+new				clears the program memory and all variables
+next				closes a 'for' loop
+paper				sets the background of the characters to print
+pinwrite pin, value		if value=0, sets the pin output to low, else sets the pin output to high. Use to blink a led.
+plot x,y			sets a pixel color at x,y to the color determined by a previous "color" command and sets a new starting point for 'draw'
+print				outputs to the screen and moves the cursor to the new line if , or ; is not used. Use , after an argument to print the new one after a tab (8 characters), use ; to print the next argument directly after the previous. 
+run				starts the program. You can use "run" inside the program to restart it.
+rnd(value)			returns a random value. If no arguments, it is a 32-bit unsigned integer. If integer or float parameter is given, it returns integer or float that is less than,0 the parameter.
+save "filename"			saves the program to the file
+sin(x)				compute a sine of x. x can be float of integer and the unit is grad (1/360 of full circle), so sin(90)=1
+sprite spritenum,x,y		move the sprite number sprite# (from 0 to 15
+stick(joynum)			returns the position of a digital joystick
+strig(joynum)			returns the button state of a digital jystick
+waitms time			waits "time" miliseconds. Doesn't have any upper limits as it creates an internal loop when time>5000 ms
+waitvbl				waits for the screen vertical blank. Use to synchronize the program with the screen refresh
+
+
+Changelog:
+------------
+0.19:
+
+Commands and function added: mouse, cursor, click, defsprite, sprite, sin, mousex, mousey, mousew, mousek, stick, strig, getpixel
+List can have parameters that select the fragment of the program to list.
+rnd can now have a parameter. 
+
+0.17:
+
+- proper GOTO that can be written at any time
+- new commands: "paper", "ink", "font" and "mode"
+- "load", "save" and "brun" file names can be written without ""
+- only ctrl-c is now used to break the program
+
+0.16: for-next loop added
