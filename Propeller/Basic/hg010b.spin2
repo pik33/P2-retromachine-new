@@ -524,6 +524,18 @@ dl_ptr:=@displaylist[0] 						      ' tell the driver where to find the DL
 '                                                                        					*
 '****************************************************************************************************************
 
+pub setspriteptr(num,ptr)
+long[@spr1ptr+12*num]:=ptr
+
+pub setspritepos(num,x,y)
+word[@spr1ptr+12*num+4]:=x
+word[@spr1ptr+12*num+6]:=y
+
+pub setspritesize(num,w,h)
+word[@spr1ptr+12*num+8]:=w
+word[@spr1ptr+12*num+10]:=h
+
+
 ''---------- putpixel - put a pixel on the screen - a mother of all graphic functions ---------------------------
 
 
@@ -1420,7 +1432,7 @@ preload2      '  incmod  dlinum,#3
 
 sprite          mov t8,frames
 		and t8,#16 wz
-                mov     spritenum,#17			' 16 sprites. Todo: this should be a parameter
+                mov     spritenum,#17			' 16 +2 sprites. Todo: this should be a parameter
 	if_z    mov spritenum, #16	
 		
 

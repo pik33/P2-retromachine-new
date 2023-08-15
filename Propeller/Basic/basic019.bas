@@ -1,4 +1,4 @@
-const HEAPSIZE=65536
+const HEAPSIZE=256000
 '#define PSRAM4
 #define PSRAM16
 
@@ -23,8 +23,8 @@ dim paula as class using "audio093b-8-sc.spin2"
 ''---------------------------------- Constants --------------------------------------------
 ''-----------------------------------------------------------------------------------------
 
-const ver$="P2 Retromachine BASIC version 0.18"
-const ver=18
+const ver$="P2 Retromachine BASIC version 0.19"
+const ver=19
 '' ------------------------------- Keyboard constants
 
 const   key_enter=141    
@@ -145,6 +145,12 @@ const token_mousew=103
 const token_cursor=104
 const token_click=105
 const token_stick=106
+const token_sin=107
+const token_defsprite=108
+const token_sprite=109
+const token_strig=110
+const token_getpixel=111
+
 
 const token_error=255
 const token_end=510
@@ -291,6 +297,10 @@ dim keyclick as integer
 dim  housekeeper_cog as integer
 dim housekeeper_stack as integer(128)
 dim mousex,mousey,mousek, mousew as ulong
+dim stick(6) as ulong
+dim strig(6) as ulong
+dim sprite(15) as ubyte pointer
+
 '----------------------------------------------------------------------------
 '-----------------------------Program start ---------------------------------
 '----------------------------------------------------------------------------
@@ -333,18 +343,6 @@ position 2*editor_spaces,1 : print ver$
 free$=decuns$(v.buf_ptr)+" BASIC bytes free" : print free$
 position 2*editor_spaces,4 : print "Ready"
 'hubset( %1_000001__00_0001_1010__1111_1011)
-
-'do: for i=0 to 7: print kbm.hidpad_id(i), : next i : print : loop 
-'do: print mousex, mousey, mousew, mousek  : loop
-'test
-/'
-10 for y=0 to 576
-  for x=0 to 1024
-    v.putpixel(x,y,(x+y)  mod 256)
-  next x
-next y
-x=0: y=0 : v.cls(154,147): goto 10
-'/
 '-------------------------------------------------------------------------------------------------------- 
 '-------------------------------------- MAIN LOOP -------------------------------------------------------
 '--------------------------------------------------------------------------------------------------------
@@ -411,15 +409,35 @@ loop
 '----------------------------------- this is the end of the main loop ------------------------------------------------------------------
 
 sub housekeeper
-dim  dummy as ulong
+dim  dummy,i,j,x,y as ulong
 do
+  do: loop until v.vblank=1 
 
-  do: loop until v.vblank=0
-  waitus(100)
-  do: loop until v.vblank=1
+
+
+  waitms(5)
+  waitms(5)
+  waitms(5)
+  
   mousex,mousey=kbm.mouse_xy()
   dummy,mousew=kbm.mouse_scroll()
   mousek=kbm.mouse_buttons()
+  
+  i=0:
+  for j=0 to 6
+    if kbm.hidpad_id(j)>0 then
+      x=kbm.hidpad_axis(j,0) : y=kbm.hidpad_axis(j,1)
+      x=1+(x+49152) shr 15 : y=1+(y+49152) shr 15 : stick(i)=x+(y shl 2) 
+      strig(i)=kbm.hidpad_buttons(j) 
+      i=i+1
+    endif
+  next j  
+for j=i to 6 : stick(j)=0 : strig(j)=0 : next j 
+''' sticks:
+'''''                   5     6     7
+'''''			9    10    11
+'''''		       13    14    15
+
 loop
 end sub
 
@@ -728,6 +746,8 @@ select case s
   case "mouse"	     : return token_mouse
   case "cursor"	     : return token_cursor
   case "click"	     : return token_click
+  case "defsprite"   : return token_defsprite
+  case "sprite"	     : return token_sprite
   case else          : return 0  
 end select
 end function
@@ -741,6 +761,10 @@ select case s
   case "mousek"        	: return token_mousek
   case "mousew"        	: return token_mousew
   case "gettime"       	: return token_gettime
+  case "sin"       	: return token_sin
+  case "stick"       	: return token_stick
+  case "strig"       	: return token_strig
+  case "getpixel"     	: return token_getpixel
   case else		: return 0
 end select
 end function  
@@ -942,7 +966,7 @@ end sub
 
 function compile_immediate(linetype as ulong) as integer
 
-dim cmd,err as ulong
+dim cmd,err,vars as ulong
 dim t3 as expr_result
 
 ' linetype=cont+1, linetype=0 immediate
@@ -957,12 +981,12 @@ if linetype=0 then cmd=lparts(0).token : ct=1 : lineptr=0
 if linetype=2 orelse linetype=3 then cmd=lparts(0).token : ct=1 ' don't set lineptr
 if linetype=4 orelse linetype=1 then cmd=lparts(1).token : ct=2 : lineptr=2
 if linetype=5 then cmd=lparts(ct).token : ct+=1 ' continued after if/else
-
+vars=0
 'print cmd
 451 select case cmd
   case token_cls      : compile_nothing()   'no params, do nothing, only add a command to the line, but case needs something to do after 
   case token_new      : compile_nothing()   
-  case token_list     : compile_nothing()   
+  case token_list     : vars=compile_fun_varp()   
   case token_run      : compile_nothing()   
   case token_plot     : err=compile_fun_2p()   
   case token_draw     : err=compile_fun_2p()   
@@ -994,14 +1018,16 @@ if linetype=5 then cmd=lparts(ct).token : ct+=1 ' continued after if/else
   case token_mouse	:compile_fun_1p
   case token_cursor	:compile_fun_1p
   case token_click	:compile_fun_1p
+  case token_sprite	:compile_fun_3p
+  case token_defsprite	:compile_fun_5p
   case else	      : compile_unknown() : goto 450
 
 end select
 
-t3.result_type=cmd : compiledline(lineptr)=t3:  lineptr+=1
+t3.result_type=cmd : t3.result.uresult=vars : compiledline(lineptr)=t3:  lineptr+=1
 450 if linetype=0 orelse linetype=3 orelse linetype=4 then compiledline(lineptr).result_type=token_end ' end token if the last part or imm
 
-' for i=0 to lineptr: print compiledline(i).result_type;" ";compiledline(i).result.uresult : next i
+' print "In compile_immediate:" : for i=0 to lineptr: print compiledline(i).result_type;" ";compiledline(i).result.uresult : next i
 return err
 end function
 
@@ -1227,17 +1253,33 @@ expr()
 
 end function
 
+
+function compile_fun_5p() as ulong
+
+expr()
+if lparts(ct).token<> token_comma then return 21 else ct+=1 ' todo error
+expr()
+if lparts(ct).token<> token_comma then return 21 else ct+=1 ' todo error
+expr()
+if lparts(ct).token<> token_comma then return 21 else ct+=1 ' todo error
+expr()
+if lparts(ct).token<> token_comma then return 21 else ct+=1 ' todo error
+expr()
+end function
+
 function compile_fun_varp() as ulong ' parameter # on top of the stack
 
 dim t1 as expr_result
 dim i as integer
 i=0
-do
-expr()
- i+=1
- if lparts(ct).token<> token_comma then exit loop else ct+=1
-loop 
-t1.result_type=result_uint: t1.result.uresult=i : compiledline(lineptr)=t1 : lineptr+=1
+if lparts(ct).token<>token_end then
+  do
+  expr()
+   i+=1
+   if lparts(ct).token<> token_comma then exit loop else ct+=1
+  loop 
+endif
+return i
 end function
 
 
@@ -1266,11 +1308,11 @@ dim t1 as expr_result
 t1.result.uresult=0 : t1.result_type=result_uint
 if lparts(ct).token=token_end then t1.result_type=print_mod_empty: compiledline(lineptr)=t1:  lineptr+=1 : t1.result_type=token_print : compiledline(lineptr)=t1:  lineptr+=1 :return 0 	'print without parameters
 do
-  expr()
+  expr()  ': print "In compile_print token= "; lparts(ct).token; " part$= "; lparts(ct).part$ :
   if lparts(ct).token=token_comma then t1.result_type=print_mod_comma : compiledline(lineptr)=t1:  lineptr+=1 : t1.result_type=token_print : compiledline(lineptr)=t1:  lineptr+=1
   if lparts(ct).token=token_semicolon then  t1.result_type=print_mod_semicolon : compiledline(lineptr)=t1:  lineptr+=1 : t1.result_type=token_print : compiledline(lineptr)=t1:  lineptr+=1
   if lparts(ct).token=token_end then t1.result_type=token_print : compiledline(lineptr)=t1:  lineptr+=1
-  if lparts(ct).token <>token_comma andalso lparts(ct).token <>token_semicolon andalso lparts(ct).token <>token_end then return 22
+  if lparts(ct).token <>token_comma andalso lparts(ct).token <>token_semicolon andalso lparts(ct).token <>token_end then  return 22
   ct+=1  
 loop until lparts(ct).token=token_end orelse ct>=tokennum
 return 0
@@ -1558,11 +1600,31 @@ end select
 end sub
 
 sub getfun(m as integer) ' todo - functions return type, todo" fun can have expr list after it
-dim oldct as ulong
+dim oldct,numpar as ulong
 dim t2 as expr_result
  ' if lparts(ct+1).token=token_lpar then oldct=ct: ct+=1: expr()
-  t2.result_type=lparts(ct).token  ' todo here: expression lists..... 
-  compiledline(lineptr)=t2: lineptr+=1   ' if t2.result.uresult=-1, generate error
+oldct=ct
+numpar=0
+  
+if lparts(ct+1).token=token_lpar then
+  ct+=1 											' omit this lpar, this is for expr list
+  do
+    ct+=1  											': print "In getfun, ct=",ct,"lparts(ct).token=",lparts(ct).token, "part$=",lparts(ct).part$
+    if lparts(ct).token=token_lpar then ct+=1 : expr() : ct+=1 else expr()
+    numpar+=1
+   '' if lparts(ct).token=token_comma then print "in getfun, comma found"
+  loop until lparts(ct).token=token_rpar    orelse lparts(ct).token=token_end  ' generate error if end
+  
+ 'if lparts(ct).token=token_rpar then print "in getfun, rpar found, numpar=",numpar
+ 'if lparts(ct).token=token_end then print "in getfun, end found, numpar=",numpar
+endif  
+
+t2.result.uresult=numpar
+
+t2.result_type=lparts(oldct).token  ' todo here: expression lists..... 
+compiledline(lineptr)=t2: lineptr+=1   ' if t2.result.uresult=-1, generate error
+
+  
 if m=-1 then t2.result_type=fun_negative: compiledline(lineptr)=t2: lineptr+=1
  end sub
   
@@ -1894,11 +1956,19 @@ end sub
 ' ---------------  List the program. Todo: it should accept parameters and do "more"
 
 sub do_list
+dim numpar, startline,endline
 dim t1 as expr_result
 dim aend as integer
 dim newlist as integer
 dim header as ulong(5)
 dim linebuf(127) as ubyte
+
+startline=0 : endline=$7FFFFFFF
+numpar=compiledline(lineptr_e).result.uresult
+if numpar=1 then t1=pop() : startline=converttoint(t1)
+if numpar=2 then t1=pop() : endline=converttoint(t1) : t1=pop() : startline=converttoint(t1)
+
+
 print
 let listptr=programstart
 do 
@@ -1906,7 +1976,7 @@ do
   if header(0)<> $FFFFFFFF then
     longfill(linebuf,0,64)
     psram.read1(varptr(linebuf),header(2),header(3))
-    v.writeln(varptr(linebuf))  
+    if header(0)>=startline andalso header(0)<=endline then v.writeln(varptr(linebuf))  
     listptr=header(5)
     endif
 
@@ -2439,9 +2509,160 @@ end function
 sub do_rnd
 
 dim t1 as expr_result
+dim numpar as ulong
+
+numpar=compiledline(lineptr_e).result.uresult
+if numpar>1 then print "rnd: "; : printerror(39) : return
+if numpar=0 then
+  t1.result_type=result_uint
+  t1.result.uresult=getrnd()
+  push t1
+else
+  t1=pop()
+  if t1.result_type=result_int orelse t1.result_type=result_uint then
+'   print " In do_rnd got int  param"
+   t1.result.uresult=getrnd() mod t1.result.uresult
+   t1.result_type=result_uint   
+   push t1  
+ else if t1.result_type=result_float then
+'   print " In do_rnd got float  param"
+   t1.result.fresult=(t1.result.fresult/1048576.0)*(getrnd() mod 1048576)
+   t1.result_type=result_float   
+   push t1    
+  else 
+    print "rnd: "; : printerror(40) 
+    push t1
+  endif  
+endif  
+end sub
+
+sub do_sin
+
+dim t1 as expr_result
+dim numpar as ulong
+
+numpar=compiledline(lineptr_e).result.uresult
+if numpar>1 orelse numpar=0 then print "sin: "; : printerror(39) : return
+t1=pop()
+if t1.result_type=result_int orelse t1.result_type=result_uint then
+  t1.result.fresult=sin(3.141592654*((t1.result.iresult mod 360)/180.0))
+  t1.result_type=result_float   
+  push t1  
+else if t1.result_type=result_float then
+  t1.result.fresult=sin(3.141592654*(t1.result.fresult/180.0))
+  t1.result_type=result_float   
+  push t1    
+else 
+  print "sin: "; : printerror(40) 
+  push t1
+endif  
+
+end sub
+
+sub do_stick
+
+dim t1 as expr_result
+dim numpar as ulong
+
+numpar=compiledline(lineptr_e).result.uresult
+if numpar>1 then print "stick: "; : printerror(39) : return
+
+if numpar=0 then t1.result.uresult=stick(0) : t1.result_type=result_uint : push t1 : return
+
+t1=pop()
+if t1.result_type=result_int orelse t1.result_type=result_uint then  
+  q=t1.result.uresult
+  if q<7 then 
+    t1.result.uresult=stick(q) : t1.result_type=result_uint : push t1 : return 
+  else 
+     printerror(41) : return
+  endif
+  
+else
+  printerror(41) 
+endif    
+  
+end sub
+
+sub do_strig
+
+dim t1 as expr_result
+dim numpar as ulong
+
+numpar=compiledline(lineptr_e).result.uresult
+if numpar>1 then print "strig: "; : printerror(39) : return
+
+if numpar=0 then t1.result.uresult=strig(0) : t1.result_type=result_uint : push t1 : return
+
+t1=pop()
+if t1.result_type=result_int orelse t1.result_type=result_uint then  
+  q=t1.result.uresult
+  if q<7 then 
+    t1.result.uresult=strig(q) : t1.result_type=result_uint : push t1 : return 
+  else 
+     printerror(41) : return
+  endif
+  
+else
+  printerror(41) 
+endif    
+  
+end sub
+
+sub do_getpixel
+
+dim t1,t2 as expr_result
+dim numpar,a1,a2 as ulong
+
+numpar=compiledline(lineptr_e).result.uresult
+if numpar<>2 then print "getpixel: "; : printerror(39) : return
+
+t2=pop()
+t1=pop()
+a1=converttoint(t1) : a2=converttoint(t2)
+t1.result.uresult=pspeek(v.buf_ptr+a1+1024*a2)
 t1.result_type=result_uint
-t1.result.uresult=getrnd()
 push t1
+
+ 
+end sub
+
+
+
+sub do_defsprite
+dim t1,t2,t3,t4,t5 as expr_result 
+dim a1,a2,a3,a4,a5 as integer
+
+t5=pop()
+t4=pop()
+t3=pop()
+t2=pop()
+t1=pop()
+
+' do convert, defsprite is not a racing command
+a1=converttoint(t1) : a2=converttoint(t2) : a3=converttoint(t3) : a4=converttoint(t4) : a5=converttoint(t5)
+ 
+' todo: check parameters for linits
+if sprite(a1)<> nil then delete(sprite(a1))
+sprite(a1)=new ubyte(a4*a5-1)
+for y=a3 to a3+a5-1
+  for x=a2 to a4+a2-1
+    sprite(a1,(x-a2)+(y-a3)*(a4))=pspeek(v.buf_ptr+x+1024*y)
+  next x
+next y
+v.setspriteptr(a1,sprite(a1))
+v.setspritesize(a1,a4,a5)
+
+end sub
+
+sub do_sprite
+dim t1,t2,t3 as expr_result 
+dim a1,a2,a3 as integer
+t3=pop()
+t2=pop()
+t1=pop()
+a1=converttoint(t1) : a2=converttoint(t2) : a3=converttoint(t3)
+v.setspritepos(a1,a2,a3)
 end sub
 
 sub do_mousex
@@ -2528,22 +2749,49 @@ end sub
 
 sub do_plot
 dim t1,t2 as expr_result 
+dim x,y as integer
 t2=pop() 					 
-t1=pop()						 
-plot_x=t1.result.iresult			 
-plot_y=t2.result.iresult			 
-v.putpixel(plot_x,plot_y,plot_color) 		 
+t1=pop()
+
+x=t1.result.iresult
+y=t2.result.iresult	
+if (t1.result_type=result_int orelse t1.result_type=result_uint) andalso (t2.result_type=result_int orelse t2.result_type=result_uint) then 					  
+   plot_x=x			 
+   plot_y=y			 
+   v.putpixel(plot_x,plot_y,plot_color) 		 
+else
+  if t1.result_type=result_float then x=round(t1.result.fresult)
+  if t2.result_type=result_float then y=round(t2.result.fresult)
+  if t1.result_type=result_string then x=val(t1.result.sresult)
+  if t2.result_type=result_string then y=val(t2.result.sresult)
+  plot_x=x: plot_y=y
+  v.putpixel(plot_x,plot_y,plot_color)      
+endif
 end sub
 
 ' --------------------------- Draw a line to point set by plot or previous draw, set a new starting point
 
 sub do_draw
 dim t1,t2 as expr_result 
+dim x,y as integer
+
 t2=pop()
 t1=pop()
-v.draw(plot_x,plot_y,t1.result.iresult,t2.result.iresult,plot_color) 
-plot_x=t1.result.iresult
-plot_y=t2.result.iresult
+x=t1.result.iresult
+y=t2.result.iresult
+if (t1.result_type=result_int orelse t1.result_type=result_uint) andalso (t2.result_type=result_int orelse t2.result_type=result_uint) then 					  
+   v.draw(plot_x,plot_y,x,y,plot_color) 
+   plot_x=x
+   plot_y=y
+else
+  if t1.result_type=result_float then x=round(t1.result.fresult)
+  if t2.result_type=result_float then y=round(t2.result.fresult)
+  if t1.result_type=result_string then x=val(t1.result.fresult)
+  if t2.result_type=result_string then y=val(t2.result.fresult)    
+  v.draw(plot_x,plot_y,x,y,plot_color) 
+  plot_x=x
+  plot_y=y 
+endif   
 end sub
 
 ' -------------------------- Draw a filled circle at x,y and radius r
@@ -2957,6 +3205,12 @@ commands(token_mousex)=@do_mousex
 commands(token_mousey)=@do_mousey
 commands(token_mousek)=@do_mousek
 commands(token_mousew)=@do_mousew
+commands(token_sin)=@do_sin
+commands(token_stick)=@do_stick
+commands(token_strig)=@do_strig
+commands(token_sprite)=@do_sprite
+commands(token_defsprite)=@do_defsprite
+commands(token_getpixel)=@do_getpixel
 end sub
 
 ''--------------------------------Error strings -------------------------------------
@@ -3002,6 +3256,10 @@ errors$(35)="Uninitialized variable in 'next', use 'for' before."
 errors$(36)="No more slots for 'for'."
 errors$(37)="'Next' doesn't match 'for'."
 errors$(38)="'Goto' target line not found."
+errors$(39)="Bad number of parameters"
+errors$(40)="Function undefined for strings"
+
+errors$(41)="Bad parameter."
 
 end sub
         
