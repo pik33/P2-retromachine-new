@@ -23,8 +23,8 @@ dim paula as class using "audio093b-8-sc.spin2"
 ''---------------------------------- Constants --------------------------------------------
 ''-----------------------------------------------------------------------------------------
 
-const ver$="P2 Retromachine BASIC version 0.19"
-const ver=19
+const ver$="P2 Retromachine BASIC version 0.20"
+const ver=20
 '' ------------------------------- Keyboard constants
 
 const   key_enter=141    
@@ -73,12 +73,14 @@ const token_rpar=20
 const token_lpar=21
 const token_colon=22
 
+const fun_getvar=17  ' at runtime, reuse non-function tokens with functions that have no compile time tokens
 const fun_getivar=17  ' at runtime, reuse non-function tokens with functions that have no compile time tokens
 const fun_getuvar=18
 const fun_getfvar=19
 const fun_getsvar=20
 const fun_negative=21
 const fun_converttoint=22
+const fun_assign=23
 const fun_assign_i=23
 const fun_assign_u=24
 const fun_assign_f=25
@@ -192,10 +194,17 @@ union aresult			' one long for all result types (until I implement double and in
   dim twowords(1) as ulong	 ' and allow single word access to it
 end union
   
+  
 class expr_result		' general variable, not only expression result :) 
   dim result as aresult
   dim result_type as ulong  
 end class
+
+class variable
+  dim name as string
+  dim value as aresult
+  dim vartype as ulong
+end class  
 
 class integer_variable		' integer variable class for a variable table
   dim name as string
@@ -237,11 +246,14 @@ type asub as sub()		' sub type to make a sub table
 ''---------------------------------- Global variables ------------------------------------
 ''-----------------------------------------------------------------------------------------
 
+
+dim variables as variable(maxvars)
 dim ivariables as integer_variable(maxvars) ' int vars table 
 dim uvariables as uint_variable(maxvars)    ' uint vars table   
 dim fvariables as float_variable(maxvars)   ' single vars table   
 dim svariables as string_variable(maxvars)  ' string vars table   
 
+dim varnum as integer
 dim ivarnum as integer			
 dim uvarnum as integer
 dim fvarnum as integer
@@ -1053,6 +1065,19 @@ suffix2$=right$(varname2$,1)
 expr()
 
 
+if varnum>0 then
+  for i=0 to varnum-1
+    if variables(i).name=varname2$ then j=i : exit
+  next i
+endif
+if  j=-1 andalso varnum<maxvars then   
+  variables(varnum).name=varname2$
+  j=varnum
+  varnum+=1
+endif
+t1.result.uresult=j: t1.result_type=fun_assign  
+
+/'
 if suffix2$="$"  then
   if svarnum>0 then
     for i=0 to svarnum-1
@@ -1105,7 +1130,7 @@ else '  if suffix$<>"$" andalso suffix$<>"!" andalso suffix$<>"%"  then
   endif
   t1.result.uresult=j: t1.result_type=fun_assign_i  
 endif  
-
+'/
 compiledline(lineptr)=t1:  lineptr+=1 
  if linetype=0 orelse linetype=3 orelse linetype=4 then compiledline(lineptr).result_type=token_end
 
@@ -1358,7 +1383,7 @@ dim cmd,varnum as ulong
 
 if isassign(lparts(ct+1).part$) then compile_immediate_assign(5) else compile_error(32) : return 32
 '' after this we should have fun_assign_i or fun_assign_u with var# as uresult.
-t1=compiledline(lineptr-1): if t1.result_type<>fun_assign_i then compile_error(34) : return 34
+t1=compiledline(lineptr-1): if t1.result_type<>fun_assign  then compile_error(34) : return 34
 varnum=t1.result.uresult
 if lparts(ct).part$<>"to" then  compile_error(33) : return 33
 ct+=1
@@ -1408,11 +1433,11 @@ dim varnum as integer
 
 t1=pop() :varnum=t1.result.uresult
 if fortable(fortop).varnum<>t1.result.uresult then printerror(37) : return
-ivariables(varnum).value+=fortable(fortop).stepval 
+variables(varnum).value.iresult+=fortable(fortop).stepval 
 if fortable(fortop).stepval>0 then
-  if ivariables(varnum).value>fortable(fortop).endval then fortop-=1 : return ' do nothing 
+  if variables(varnum).value.iresult>fortable(fortop).endval then fortop-=1 : return ' do nothing 
 else
-  if ivariables(varnum).value<fortable(fortop).endval then fortop -=1 : return ' do nothing 
+  if variables(varnum).value.iresult<fortable(fortop).endval then fortop -=1 : return ' do nothing 
 endif
 ' if not returned, goto pointer
 runptr=fortable(fortop).lineptr
@@ -1426,17 +1451,17 @@ end sub
 function compile_next() as ulong
 
 dim t1 as expr_result
-dim cmd,varnum,i,j as ulong
+dim cmd,i,j as ulong
 dim varname$ as string
 dim suffix$ as string
 
 varname$=lparts(ct).part$ 
-suffix$=right$(varname$,1)
-if varname$="" orelse suffix$="$" orelse suffix$="!" orelse suffix$="#" then  compile_error(34) : printerror(34) : return 34
-if ivarnum=0 then compile_error(35)  : return 35
+'suffix$=right$(varname$,1)
+'if varname$="" orelse suffix$="$" orelse suffix$="!" orelse suffix$="#" then  compile_error(34) : printerror(34) : return 34
+if varnum=0 then compile_error(35)  : return 35
 j=-1
-for i=0 to ivarnum-1
-  if ivariables(i).name=varname$ then j=i : exit
+for i=0 to varnum-1
+  if variables(i).name=varname$ then j=i : exit
 next i
 if j=-1 then compile_error(35) : return 35
 compiledline(lineptr).result_type=result_int : compiledline(lineptr).result.iresult=j :lineptr+=1
@@ -1639,6 +1664,21 @@ varname$=lparts(ct).part$
 suffix$=right$(varname$,1)
 j=-1
 
+for i=0 to varnum-1
+  if variables(i).name=varname$ then j=i : exit
+next i
+if  j=-1 andalso varnum<maxvars then   
+  variables(varnum).name=varname$
+  variables(varnum).value.iresult=0
+  variables(varnum).vartype=result_int
+  j=varnum
+  varnum+=1 
+endif     
+t2.result_type=fun_getvar:t2.result.uresult=j
+
+/'
+
+
 if suffix$="$" then
   for i=0 to svarnum-1
       if svariables(i).name=varname$ then j=i : exit
@@ -1696,7 +1736,7 @@ next i
   endif   
  
 t2.result_type=fun_getivar:t2.result.uresult=j
-
+'/
 701 
 compiledline(lineptr)=t2: lineptr+=1   ' if t2.result.uresult=-1, generate error
 if m=-1 then t2.result_type=fun_negative: compiledline(lineptr)=t2: lineptr+=1
@@ -2057,6 +2097,18 @@ end sub
 
 '------------------ Assigning to a variable  
 
+
+sub do_assign
+
+dim t1 as expr_result
+dim varnum as ulong
+
+varnum=compiledline(lineptr_e).result.uresult
+t1=pop() 
+variables(varnum).value=t1.result : variables(varnum).vartype=t1.result_type
+end sub
+
+/'
 sub do_assign_i
 
 dim t1 as expr_result
@@ -2132,9 +2184,19 @@ else
   return
 endif    
 end sub
+'/
+
 
 ' --------------------- Read a variable and push to the stack
 
+sub do_getvar
+dim t1 as expr_result
+t1.result=variables(compiledline(lineptr_e).result.uresult).value
+t1.result_type=variables(compiledline(lineptr_e).result.uresult).vartype
+push t1
+end sub
+
+/'
 sub do_getivar
 dim t1 as expr_result
 dim r as integer
@@ -2176,7 +2238,7 @@ t1.result_type=result_string
 
 push t1
 end sub
-
+'/
 '------------------------ Operators 
 
 sub do_plus 
@@ -3140,18 +3202,18 @@ commands(token_shr)=@do_shr
 commands(token_power)=@do_power
 'commands(token_at)=@do_at
 'commands(token_inc)=@do_inc
-commands(fun_getivar)=@do_getivar
-commands(fun_getuvar)=@do_getuvar
-commands(fun_getfvar)=@do_getfvar
-commands(fun_getsvar)=@do_getsvar
+commands(fun_getvar)=@do_getvar
+'commands(fun_getuvar)=@do_getuvar
+'commands(fun_getfvar)=@do_getfvar
+'commands(fun_getsvar)=@do_getsvar
 commands(fun_pushu)=@do_push 
 commands(fun_pushi)=@do_push  
 commands(fun_pushf)=@do_push  
 commands(fun_pushs)=@do_push  
-commands(fun_assign_u)=@do_assign_u
-commands(fun_assign_i)=@do_assign_i
-commands(fun_assign_f)=@do_assign_f
-commands(fun_assign_s)=@do_assign_s  
+commands(fun_assign)=@do_assign
+'.commands(fun_assign_i)=@do_assign_i
+'.commands(fun_assign_f)=@do_assign_f
+'.commands(fun_assign_s)=@do_assign_s  
 commands(print_mod_empty)=@do_push
 commands(print_mod_comma)=@do_push
 commands(print_mod_semicolon)=@do_push
