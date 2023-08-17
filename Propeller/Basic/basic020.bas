@@ -154,6 +154,7 @@ const token_sprite=109
 const token_strig=110
 const token_getpixel=111
 const token_waitclock=112
+const token_fill=113
 
 
 const token_error=255
@@ -326,6 +327,9 @@ position 2*editor_spaces,1 : print ver$
 free$=decuns$(v.buf_ptr)+" BASIC bytes free" : print free$
 position 2*editor_spaces,4 : print "Ready"
 'hubset( %1_000001__00_0001_1010__1111_1011)
+
+
+
 '-------------------------------------------------------------------------------------------------------- 
 '-------------------------------------- MAIN LOOP -------------------------------------------------------
 '--------------------------------------------------------------------------------------------------------
@@ -723,6 +727,7 @@ select case s
   case "defsprite"   : return token_defsprite
   case "sprite"	     : return token_sprite
   case "waitclock"   : return token_waitclock
+  case "fill"        : return token_fill
   case else          : return 0  
 end select
 end function
@@ -996,6 +1001,7 @@ vars=0
   case token_click	:compile_fun_1p
   case token_sprite	:compile_fun_3p
   case token_defsprite	:compile_fun_5p
+  case token_fill	:compile_fun_4p
   case else	      : compile_unknown() : goto 450
 
 end select
@@ -2771,6 +2777,20 @@ else
 endif   
 end sub
 
+sub do_fill
+dim t1,t2,t3,t4 as expr_result 
+
+t4=pop()
+t3=pop()
+t2=pop()
+t1=pop()
+if (t1.result_type=result_int orelse t1.result_type=result_uint) andalso (t2.result_type=result_int orelse t2.result_type=result_uint) andalso (t3.result_type=result_int orelse t3.result_type=result_uint) andalso (t4.result_type=result_int orelse t4.result_type=result_uint) then
+   v.fill(t1.result.iresult,t2.result.iresult,t3.result.iresult,t4.result.iresult) : return
+else
+   v.fill(converttoint(t1), converttoint(t2), converttoint(t3), converttoint(t4))
+endif   
+end sub
+
 ' -------------------------- Draw a frane
 
 sub do_frame
@@ -3165,6 +3185,7 @@ commands(token_defsprite)=@do_defsprite
 commands(token_getpixel)=@do_getpixel
 commands(token_waitclock)=@do_waitclock
 commands(fun_negative)=@do_negative
+commands(token_fill)=@do_fill
 end sub
 
 ''--------------------------------Error strings -------------------------------------
