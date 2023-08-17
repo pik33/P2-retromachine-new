@@ -103,6 +103,7 @@ const token_le=38
 const token_ge=39
 const token_inc=40
 const token_dec=41
+const token_ne=42
 
 const token_cls=64
 const token_new=65
@@ -152,6 +153,7 @@ const token_defsprite=108
 const token_sprite=109
 const token_strig=110
 const token_getpixel=111
+const token_waitclock=112
 
 
 const token_error=255
@@ -194,7 +196,6 @@ union aresult			' one long for all result types (until I implement double and in
   dim twowords(1) as ulong	 ' and allow single word access to it
 end union
   
-  
 class expr_result		' general variable, not only expression result :) 
   dim result as aresult
   dim result_type as ulong  
@@ -205,26 +206,6 @@ class variable
   dim value as aresult
   dim vartype as ulong
 end class  
-
-class integer_variable		' integer variable class for a variable table
-  dim name as string
-  dim value as integer
-end class
-
-class uint_variable		' unsigned integer variable class for a variable table
-  dim name as string
-  dim value as ulong
-end class
- 
-class float_variable            ' single precision float variable class for a variable table
-  dim name as string
-  dim value as single
-end class
-
-class string_variable           ' string variable class for a variable table
-  dim name as string
-  dim value as string
-end class
 
 class goto_entry
   dim source as ulong
@@ -246,19 +227,8 @@ type asub as sub()		' sub type to make a sub table
 ''---------------------------------- Global variables ------------------------------------
 ''-----------------------------------------------------------------------------------------
 
-
 dim variables as variable(maxvars)
-dim ivariables as integer_variable(maxvars) ' int vars table 
-dim uvariables as uint_variable(maxvars)    ' uint vars table   
-dim fvariables as float_variable(maxvars)   ' single vars table   
-dim svariables as string_variable(maxvars)  ' string vars table   
-
 dim varnum as integer
-dim ivarnum as integer			
-dim uvarnum as integer
-dim fvarnum as integer
-dim svarnum as integer
- 
 dim lparts as parts
 
 dim audiocog,videocog,usbcog,pscog,pslock as integer
@@ -306,12 +276,13 @@ dim runheader as ulong(5)
 dim fortop as integer
 dim free$ as string
 dim keyclick as integer
-dim  housekeeper_cog as integer
+dim housekeeper_cog as integer
 dim housekeeper_stack as integer(128)
 dim mousex,mousey,mousek, mousew as ulong
 dim stick(6) as ulong
 dim strig(6) as ulong
 dim sprite(15) as ubyte pointer
+dim hkcnt as ulong
 
 '----------------------------------------------------------------------------
 '-----------------------------Program start ---------------------------------
@@ -329,7 +300,7 @@ v.spr17ptr=@mouse
 v.spr17h=32
 v.spr17w=32
 kbm.mouse_move(512,288)
-housekeeper_cog=cpu(housekeeper(),@housekeeper_stack(0))
+housekeeper_cog=cpu(housekeeper(),@housekeeper_stack(0)) : hkcnt=0
 editor_spaces=2
 paper=147: ink=154 : font=4
 plot_color=ink : plot_x=0: plot_y=0
@@ -421,16 +392,19 @@ loop
 '----------------------------------- this is the end of the main loop ------------------------------------------------------------------
 
 sub housekeeper
-dim  dummy,i,j,x,y as ulong
+
 do
-  do: loop until v.vblank=1 
+  do: loop until v.vblank=1 : hkcnt+=1 :gethdi
+  waitms(5) : hkcnt+=1 : gethdi
+  waitms(5) : hkcnt+=1 : gethdi
+  waitms(5) : hkcnt+=1 : gethdi
+loop
+end sub
 
 
+sub gethdi
+dim  dummy,i,j,x,y as ulong
 
-  waitms(5)
-  waitms(5)
-  waitms(5)
-  
   mousex,mousey=kbm.mouse_xy()
   dummy,mousew=kbm.mouse_scroll()
   mousek=kbm.mouse_buttons()
@@ -449,8 +423,13 @@ for j=i to 6 : stick(j)=0 : strig(j)=0 : next j
 '''''                   5     6     7
 '''''			9    10    11
 '''''		       13    14    15
+end sub
 
-loop
+sub waitclock
+
+dim c as ulong
+c=hkcnt
+do: loop until hkcnt<>c
 end sub
 
 '---------------------------------------------------------------------------------------------------------------------------------------
@@ -468,12 +447,11 @@ dim linenum as ulong
 dim err as integer
 
 ' ---------------------------------------------------  Pass 1: Split the line to parts, detect and concatenate strings
+
 fullline$=line$: cont=-1  : linenum=0 : lineptr=0 : err=0
 
 108 for i=0 to 125: separators(i)=0 :next i
 for i=0 to 125: lparts(i).part$="": next i
-
-
 
 ' 1a : extract the first command, split the line to first command and the rest
 
@@ -481,24 +459,13 @@ line$=trim$(line$):let d$="" : let l=len(line$)
 if l=0 then goto 101
 let d=instr(1,line$,":"): if d>0 andalso d<len(line$)  then let rest$=trim$(right$(line$,len(line$)-d)):line$=trim$(left$(line$,d-1)) else rest$="" 
 
-						'print "before cont=",cont, "rest=";rest$, len(rest$), asc(rest$)
-
-if cont=-1 andalso rest$<>"" then cont=0 : goto 107       ' this is the first and not last part
-if cont=-1 andalso rest$="" then cont=3 : goto 107
-if cont=4 andalso rest$<>"" then cont=1 : goto 107
-if cont=4 andalso rest$="" then cont=2 :goto 107
-
-
-'print "in interpret: line$= ";line$," rest$= ";rest$; " cont= "; cont
-
-' cont: 0: this is the first part of the line that will continue
-' 1 - this is the continuation of the line
-' 2 - this is the last continued line
-' 3 - this is the ome and only part
+if cont=-1 andalso rest$<>"" then cont=0 : goto 107       	' this is the first and not last part
+if cont=-1 andalso rest$="" then cont=3 : goto 107		' this is the first AND last part
+if cont=4 andalso rest$<>"" then cont=1 : goto 107		' this is not the first and not the last part
+if cont=4 andalso rest$="" then cont=2 :goto 107		' this is the last, and not the first, part
 
 ' 1b: find separators
 
-						'print "after cont=",cont, "rest=";rest$, len(rest$), asc(rest$)
 107
 separators(0)=0
 i=0: j=1 : do: i+=1 : let c$=mid$(line$,i,1) 
@@ -523,7 +490,6 @@ do
   if p$<>"""" then k+=1:i+=1
 109 loop until i>=k
 
-
 ' 1e : concatenate strings if "" detected between
  
 i=0 : do
@@ -534,22 +500,20 @@ i=0 : do
  endif
  i+=1 : loop until i>=k 
  
-' 1e2: concatenate >=, <=, ++, --, +=, *=, -=, /=, ^=
+' 1e2: concatenate >=, <=, ++, --, +=, *=, -=, /=, ^=, <>
  
 i=0 : do
   let s1$=lparts(i).part$ : let s2$=lparts(i+1).part$
-  if ((s1$=">" orelse s1$=">" orelse s1$="+" orelse s1$="-" orelse s1$="*" orelse s1$="/" orelse s1$="^") andalso s2$="=") orelse (s1$="+" andalso s2$="+") orelse (s1$="-" andalso s2$="-") then
+  if ((s1$=">" orelse s1$=">" orelse s1$="+" orelse s1$="-" orelse s1$="*" orelse s1$="/" orelse s1$="^") andalso s2$="=") orelse (s1$="+" andalso s2$="+") orelse (s1$="-" andalso s2$="-") orelse (s1$="<" andalso s2$=">") then
     lparts(i).part$=s1$+s2$
     for j=i+1 to k : lparts(j)=lparts(j+1) : next j
    i-=1 : k-=1 ' do not move i if concatenated
  endif
  i+=1 : loop until i>=k  
  
-
 ' 1f : now remove parts that are spaces
 
 for i=0 to k: lparts(i).part$=trim$(lparts(i).part$): next i
-
 
 i=0
 do 
@@ -562,7 +526,6 @@ do
   endif
  i+=1: loop until i>k-1
 
-
 ' 1g: lowercase all that is not a string
 
 for j=0 to k-1
@@ -572,6 +535,7 @@ next j
 '                                                         for i=0 to k-1 : print lparts(i).part$,: next i : print
 
 for i=0 to k: lparts(i).token=-1: next i
+
 '-------------------------------------------------------- Pass 2: Tokenize the line
 
 if len(lparts(0).part$)=0 then goto 101				' empty line, nothing to do
@@ -595,11 +559,8 @@ if isstring(lparts(i).part$) then
     stringtable(stringptr)=lparts(i).part$ : stringptr+=1							' and protect it from disappearing
 endif
 if isname(lparts(i).part$) then lparts(i).token=token_name : goto 102						' name
-'print i,k,lparts(i).token, lparts(i).part$: lparts(i).token=-1
 102 next i 
 
-' remove empty tokens from the end, todo: also remove empty tokens from inside
-'do while lparts(k).token<1 : k=k-1: loop : k=k+1
 lparts(k).token=token_end : lparts(k).part$="": tokennum=k
 
  '                                      					 	for i=0 to k: print lparts(i).token,lparts(i).part$ : next i
@@ -645,7 +606,7 @@ if lparts(0).token=token_name andalso lparts(1).token=token_rpar then print " Us
 ' if we are here, this is not a program line to add, so try to execute this
 
 err=compile(0) : '' execute(0) ' print "  this is a command to execute"  ''' param=line to compile
-103 ' for i=0 to lineptr: print compiledline(i).result_type;" ";compiledline(i).result.uresult, : next i
+103  'for i=0 to lineptr: print compiledline(i).result_type;" ";compiledline(i).result.uresult, : next i
 if err=0 then execute_line() else printerror(err)
 if rest$<>"" then line$=rest$:  goto 108 
 
@@ -677,6 +638,7 @@ select case s
   case "<="  : return token_le  
   case "<"   : return token_lt   
   case ">"   : return token_gt 
+  case "<>"   : return token_ne 
   case "++"   : return token_inc 
   case "--"   : return token_dec 
 
@@ -760,6 +722,7 @@ select case s
   case "click"	     : return token_click
   case "defsprite"   : return token_defsprite
   case "sprite"	     : return token_sprite
+  case "waitclock"   : return token_waitclock
   case else          : return 0  
 end select
 end function
@@ -1016,6 +979,7 @@ vars=0
   case token_pinwrite    : compile_int_fun_2p()
   case token_waitms    : compile_int_fun_1p()
   case token_waitvbl    : compile_nothing()
+  case token_waitclock    : compile_nothing()
   case token_if      :   compile_if() :goto 450
   case token_for     :   compile_for() :goto 450
   case token_next     :   compile_next() :goto 450
@@ -1540,7 +1504,7 @@ op=lparts(ct).token : if op=token_end then t3.result.uresult=29 : t3.result_type
 t3.result.uresult=0
 rt=addsub()             			' call higher priority operator check. It will itself call getval/getvar if no multiplies or divides
 op = lparts(ct).token				' that idea is from github adamdunkels/ubasic
-do while (op = token_eq orelse op = token_gt orelse op = token_lt orelse op=token_ge orelse op=token_le)
+do while (op = token_eq orelse op = token_gt orelse op = token_lt orelse op=token_ge orelse op=token_le orelse op=token_ne)
   ct+=1
   rt=addsub() 
   t3.result_type=op: compiledline(lineptr)=t3: lineptr+=1
@@ -2028,13 +1992,15 @@ end sub
 sub do_new
 
 pslpoke(0,$FFFFFFFF)
-ivarnum=0 : uvarnum=0 : fvarnum=0 : svarnum=0
+varnum=0
 programstart=0 :runptr=0 : runptr2=0
 stackpointer=0
 lineptr=0 
 programptr=0 : stringptr=0
 lastline=0 : lastlineptr=-1 :fortop=0
 for i=0 to maxfor: fortable(i).varnum=-1 : next i
+for i=0 to 15: if sprite(i)<> nil then v.setspritesize(i,0,0) : delete(sprite(i))
+next i
 end sub
 
 '----------------------- goto
@@ -2108,84 +2074,6 @@ t1=pop()
 variables(varnum).value=t1.result : variables(varnum).vartype=t1.result_type
 end sub
 
-/'
-sub do_assign_i
-
-dim t1 as expr_result
-dim varnum as ulong
-
-varnum=compiledline(lineptr_e).result.uresult
-t1=pop() 
-if t1.result_type=result_int orelse t1.result_type=result_uint then 
-  ivariables(varnum).value=t1.result.iresult 
-else if t1.result_type=result_float then 
-  ivariables(varnum).value=round(t1.result.fresult) 
-else if t1.result_type=result_string then 
-  ivariables(varnum).value=val(t1.result.sresult) 
-else 
-  return ' make function, return error
-endif
-end sub
-
-sub do_assign_u
-
-dim t1 as expr_result
-dim varnum as ulong
-
-varnum=compiledline(lineptr_e).result.uresult
-t1=pop()
-if t1.result_type=result_uint orelse t1.result_type=result_int then 
-  uvariables(varnum).value=t1.result.iresult 
-else if t1.result_type=result_float then 
-  uvariables(varnum).value=round(t1.result.fresult) 
-else if t1.result_type=result_string then 
-  uvariables(varnum).value=val(t1.result.sresult) 
-else 
-  return ' make function, return error
-endif
-end sub
-
-sub do_assign_f
-
-dim t1 as expr_result
-dim varnum as ulong
-
-varnum=compiledline(lineptr_e).result.uresult
-t1=pop()
-if t1.result_type=result_float then 
-  fvariables(varnum).value=t1.result.fresult 
-else if t1.result_type=result_int then 
-  fvariables(varnum).value=t1.result.iresult 
-else if t1.result_type=result_uint then 
-  fvariables(varnum).value=t1.result.uresult 
-else if t1.result_type=result_string then 
-  fvariables(varnum).value=val(t1.result.sresult) 
-else 
-  return ' make function, return error
-endif
-end sub
-
-sub do_assign_s
-
-dim t1 as expr_result
-dim varnum as ulong
-
-varnum=compiledline(lineptr_e).result.uresult
-t1=pop()
-if t1.result_type=result_string then 
-  svariables(varnum).value=t1.result.sresult 
-else if t1.result_type=result_int then 
-  svariables(varnum).value=strint$(t1.result.iresult) 
-else if t1.result_type=result_uint then 
-  svariables(varnum).value=decuns$(t1.result.uresult) 
-else if t1.result_type=result_float then 
-  svariables(varnum).value=str$(t1.result.fresult) : print "assigned float to string"
-else
-  return
-endif    
-end sub
-'/
-
 
 ' --------------------- Read a variable and push to the stack
 
@@ -2196,49 +2084,6 @@ t1.result_type=variables(compiledline(lineptr_e).result.uresult).vartype
 push t1
 end sub
 
-/'
-sub do_getivar
-dim t1 as expr_result
-dim r as integer
- 
-r=ivariables(compiledline(lineptr_e).result.uresult).value
-t1.result.iresult=r
-t1.result_type=result_int
-push t1
-end sub
-
-sub do_getuvar
-dim t1 as expr_result
-dim r as ulong
- 
-r=uvariables(compiledline(lineptr_e).result.uresult).value
-t1.result.uresult=r
-t1.result_type=result_uint
-push t1
-end sub
-
-sub do_getfvar
-dim t1 as expr_result
-dim r as single
- 
-r=fvariables(compiledline(lineptr_e).result.uresult).value
-t1.result.fresult=r
-t1.result_type=result_float
-push t1
-end sub
-
-sub do_getsvar
-
-dim t1 as expr_result
-dim r as string
-  
-r=svariables(compiledline(lineptr_e).result.uresult).value
-t1.result.sresult=r
-t1.result_type=result_string
-
-push t1
-end sub
-'/
 '------------------------ Operators 
 
 sub do_plus 
@@ -2536,6 +2381,30 @@ t1.result.uresult=0
 1190 t1.result_type=result_int 
 push t1
 end sub
+
+
+sub do_ne
+
+dim t1,t2 as expr_result 
+t2=pop()
+t1=pop()
+
+if t1.result_type=result_string andalso t2.result_type=result_string then t1.result.uresult=(t1.result.sresult<>t2.result.sresult) : goto 1192
+if t1.result_type=result_float andalso t2.result_type=result_float then t1.result.uresult=(t1.result.fresult<>t2.result.fresult) : goto 1192
+if t1.result_type=result_float andalso t2.result_type=result_int then t1.result.uresult=(t1.result.fresult<>t2.result.iresult) : goto 1192
+if t1.result_type=result_float andalso t2.result_type=result_uint then t1.result.uresult=(t1.result.fresult<>t2.result.uresult) : goto 1192
+if t1.result_type=result_int andalso t2.result_type=result_float then t1.result.uresult=(t1.result.iresult<>t2.result.fresult) : goto 1192
+if t1.result_type=result_int andalso t2.result_type=result_int then t1.result.uresult=(t1.result.iresult<>t2.result.iresult) : goto 1192
+if t1.result_type=result_int andalso t2.result_type=result_uint then t1.result.uresult=(t1.result.iresult<>t2.result.uresult) : goto 1192
+if t1.result_type=result_uint andalso t2.result_type=result_float then t1.result.uresult=(t1.result.uresult<>t2.result.fresult) : goto 1192
+if t1.result_type=result_uint andalso t2.result_type=result_int then t1.result.uresult=(t1.result.uresult<>t2.result.iresult) : goto 1192
+if t1.result_type=result_uint andalso t2.result_type=result_uint then t1.result.uresult=(t1.result.uresult<>t2.result.uresult) : goto 1192
+t1.result.uresult=0
+1192 t1.result_type=result_int 
+push t1
+end sub
+
+
 
 ' -------------------   convert a variable on the top of stack to integer
 
@@ -3026,6 +2895,10 @@ sub do_waitvbl
 waitvbl
 end sub
 
+sub do_waitclock
+waitclock
+end sub
+
 sub do_dir
 dim filename as string
 chdir("/sd/bas")       ' set working directory
@@ -3177,6 +3050,22 @@ sub do_no_command
 printerror(23)
 end sub
 
+sub do_negative
+
+dim t1 as expr_result
+t1=pop()
+if t1.result_type=result_int then 
+  t1.result.iresult=-t1.result.iresult
+else if t1.result_type=result_uint then 
+  t1.result.iresult=-t1.result.uresult : t1.result_type=result_int
+else if t1.result_type=result_float then 
+  t1.result.fresult=-t1.result.fresult
+else 
+  t1.result_type=result_error : t1.result.uresult=40
+endif
+push t1
+end sub
+
 '--------------------------- THE END OF THE MAIN PROGRAM ------------------------------------------------------
 
 ''----------------------------------------------------------------------------------------------------
@@ -3250,6 +3139,7 @@ commands(token_ge)=@do_ge
 commands(token_le)=@do_le
 commands(token_gt)=@do_gt
 commands(token_lt)=@do_lt
+commands(token_ne)=@do_ne
 commands(token_rnd)=@do_rnd
 commands(token_brun)=@do_brun
 commands(token_beep)=@do_beep
@@ -3273,6 +3163,8 @@ commands(token_strig)=@do_strig
 commands(token_sprite)=@do_sprite
 commands(token_defsprite)=@do_defsprite
 commands(token_getpixel)=@do_getpixel
+commands(token_waitclock)=@do_waitclock
+commands(fun_negative)=@do_negative
 end sub
 
 ''--------------------------------Error strings -------------------------------------
