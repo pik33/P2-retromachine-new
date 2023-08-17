@@ -184,113 +184,7 @@ long t_lines
 long st_lines
 long xzoom, yzoom, azoom
 
-long spr1ptr
-word spr1x
-word spr1y
-word spr1w
-word spr1h
-
-long spr2ptr
-word spr2x
-word spr2y
-word spr2w
-word spr2h
-
-long spr3ptr
-word spr3x
-word spr3y
-word spr3w
-word spr3h
-
-long spr4ptr
-word spr4x
-word spr4y
-word spr4w
-word spr4h
-
-long spr5ptr
-word spr5x
-word spr5y
-word spr5w
-word spr5h
-
-long spr6ptr
-word spr6x
-word spr6y
-word spr6w
-word spr6h
-
-long spr7ptr
-word spr7x
-word spr7y
-word spr7w
-word spr7h
-
-long spr8ptr
-word spr8x
-word spr8y
-word spr8w
-word spr8h
-
-long spr9ptr
-word spr9x
-word spr9y
-word spr9w
-word spr9h
-
-long spr10ptr
-word spr10x
-word spr10y
-word spr10w
-word spr10h
-
-long spr11ptr
-word spr11x
-word spr11y
-word spr11w
-word spr11h
-
-long spr12ptr
-word spr12x
-word spr12y
-word spr12w
-word spr12h
-
-long spr13ptr
-word spr13x
-word spr13y
-word spr13w
-word spr13h
-
-long spr14ptr
-word spr14x
-word spr14y
-word spr14w
-word spr14h
-
-long spr15ptr
-word spr15x
-word spr15y
-word spr15w
-word spr15h
-
-long spr16ptr
-word spr16x
-word spr16y
-word spr16w
-word spr16h
-
-long spr17ptr
-word spr17x
-word spr17y
-word spr17w
-word spr17h
-
-long spr18ptr
-word spr18x
-word spr18y
-word spr18w
-word spr18h
+long spr1ptr[54]
 
 long mailbox0
 
@@ -347,61 +241,9 @@ mailbox_ptr:=mb
 mailbox0:=mb				' PSRAM mailbox pointer
 sprite_ptr:=@spr1ptr
 
-spr1y:=600				'
-spr2y:=600				'
-spr3y:=600				'
-spr4y:=600				'
-spr5y:=600				'
-spr6y:=600				'
-spr7y:=600				'
-spr8y:=600				'
-spr9y:=600				'
-spr10y:=600				'
-spr11y:=600				'
-spr12y:=600				'
-spr13y:=600				'
-spr14y:=600				'
-spr15y:=600				'
-spr16y:=600
-spr17y:=600
-spr18y:=600
-spr1w:=32				'
-spr2w:=32				'
-spr3w:=32				'
-spr4w:=32				'
-spr5w:=32				'
-spr6w:=32				'
-spr7w:=32				'
-spr8w:=32				'
-spr9w:=32				'
-spr10w:=32				'
-spr11w:=32				'
-spr12w:=32				'
-spr13w:=32				'
-spr14w:=32				'
-spr15w:=32				'
-spr16w:=32				'
-spr17w:=32				'
-spr18w:=8				'
-
-spr1h:=32				'
-spr2h:=32				'
-spr3h:=32				'
-spr4h:=32				'
-spr5h:=32				'
-spr6h:=32				'
-spr7h:=32				'
-spr8h:=32				'
-spr9h:=32				'
-spr10h:=32				'
-spr11h:=32				'
-spr12h:=32				'
-spr13h:=32				'
-spr14h:=32				'
-spr15h:=32				'
-spr16h:=32				'
-spr17h:=32				' for a mouse pointer
-spr18h:=16				' for a blinking cursor
+		'
+word[spr1ptr+17*12+4]:=8				' spr18w
+word[spr1ptr+17*12+6]:=16				' for a blinking cursor
 leading_spaces:=0				'
 
 emptydl[0]:=%0100_0000_0000_0000_0000_0000_0000_0111
@@ -452,11 +294,10 @@ repeat i from 112 to 127
 '    cursor[i]:=0
 '  if i>=120    
 '    cursor[i]:=40
-spr18ptr:=@cursor
-spr18x:=0
-spr18y:=0
-spr18w:=8
-spr18h:=16
+setspriteptr(17,@cursor)
+setspritesize(17,8,16)
+setspritepos(17,0,0)
+
  
 pub setcursorcolor(color) |i
 
@@ -628,8 +469,7 @@ long [fillstack+4*fillptr]:=val
 fillptr+=1   
 if fillptr>fillmax
   fillmax:=fillptr   
-if fillptr>=128
-  fillptr:=128
+if fillptr>=120
   return -23456
 else
   return 0
@@ -951,8 +791,7 @@ pub setcursorpos(x,y)
 
 cursor_x:=x
 cursor_y:=y
-spr18x:=4*x
-spr18y:=16*y
+setspritepos(17,4*cursor_x,16*cursor_y )
 
 pub getcursorx():x
 return cursor_x
@@ -1054,8 +893,7 @@ ram.fill(s_buf_ptr,c,4*buflen,0,1)
 setwritecolors(fc,bc)
 cursor_x:=0
 cursor_y:=0
-spr18x:=4*cursor_x
-spr18y:=16*cursor_y   
+setspritepos(17,4*cursor_x,16*cursor_y )
 setcursorcolor(fc)
 
 ''---------- Output a char at the cursor position, move the cursor 
@@ -1077,8 +915,7 @@ if cursor_x>=256
   if cursor_y>st_lines-1
     scrollup()
     cursor_y:=st_lines-1
-spr18x:=4*cursor_x
-spr18y:=16*cursor_y    
+setspritepos(17,4*cursor_x,16*cursor_y )
     
 ''---------- Output a char at the cursor position, move the cursor, don't react for tab or lf 
 
@@ -1092,8 +929,7 @@ if cursor_x>=256
   if cursor_y>st_lines-1
     scrollup()
     cursor_y:=st_lines-1
-spr18x:=4*cursor_x
-spr18y:=16*cursor_y   
+setspritepos(17,4*cursor_x,16*cursor_y ) 
 ''--------- Output a string at the cursor position, move the cursor  
 
 pub write(text) | iii,c,ncx,ncy
@@ -1139,8 +975,7 @@ cursor_y+=1
 if cursor_y>st_lines-1
   scrollup()
   cursor_y:=st_lines-1
-spr18x:=4*cursor_x
-spr18y:=16*cursor_y   
+setspritepos(17,4*cursor_x,16*cursor_y )  
 ''---------- Backspace. Move the cursor back, clear a character
 
 pub bksp()
@@ -1152,8 +987,7 @@ if cursor_x==255
   if cursor_y==255
     cursor_y:=0
     scrollup()
-spr18x:=4*cursor_x
-spr18y:=16*cursor_y   
+setspritepos(17,4*cursor_x,16*cursor_y )  
 
 outtextxycg(cursor_x,cursor_y,string(" "),write_color,write_background)
 

@@ -296,10 +296,9 @@ waitms(50)
 dpoke base+20,16384
 usbcog=kbm.start()
 kbm.mouse_set_limits(1023,575)
-kbm.mouse_set_outptr(varptr(v.spr17x))
-v.spr17ptr=@mouse 
-v.spr17h=32
-v.spr17w=32
+kbm.mouse_set_outptr(varptr(v.spr1ptr)+16*12+4)
+v.setspriteptr(16,@mouse)
+v.setspritesize(16,32,32) 
 kbm.mouse_move(512,288)
 housekeeper_cog=cpu(housekeeper(),@housekeeper_stack(0)) : hkcnt=0
 editor_spaces=2
@@ -317,7 +316,6 @@ cls(ink, paper)
 'v.setfontfamily(4) 				' use ST Mono font
 v.setfontfamily(font) 				' use ST Mono font
 v.setleadingspaces(2)
-v.spr16ptr=@mouse
 mount "/sd", _vfs_open_sdcard()
 chdir "/sd/bas"
 
@@ -3023,7 +3021,7 @@ dim t1 as expr_result
 
 t1=pop()
 
-if t1.result.uresult=0 then v.spr17w=0 else v.spr17w=32
+if t1.result.uresult=0 then v.setspritesize(16,0,0) else v.setspritesize(16,32,32)
 end sub
 
 sub do_cursor
@@ -3032,7 +3030,7 @@ dim t1 as expr_result
 
 t1=pop()
 
-if t1.result.uresult=0 then v.spr18w=0 else v.spr18w=8
+if t1.result.uresult=0 then  v.setspritesize(18,0,0) else v.setspritesize(18,8,16) 
 end sub
 
 
