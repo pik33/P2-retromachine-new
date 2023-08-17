@@ -155,6 +155,7 @@ const token_strig=110
 const token_getpixel=111
 const token_waitclock=112
 const token_fill=113
+const token_dim=114
 
 
 const token_error=255
@@ -172,6 +173,7 @@ const result_int=fun_pushi      ' variable type encodes its own push function in
 const result_uint=fun_pushu
 const result_float=fun_pushf
 const result_string=fun_pushs
+const result_array=token_dim
 const result_error=token_error
 
 ' -----------------------------max number of variables and stack depth
@@ -284,6 +286,7 @@ dim stick(6) as ulong
 dim strig(6) as ulong
 dim sprite(15) as ubyte pointer
 dim hkcnt as ulong
+dim memtop as ulong
 
 '----------------------------------------------------------------------------
 '-----------------------------Program start ---------------------------------
@@ -726,6 +729,7 @@ select case s
   case "sprite"	     : return token_sprite
   case "waitclock"   : return token_waitclock
   case "fill"        : return token_fill
+  case "dim"	     : return token_dim
   case else          : return 0  
 end select
 end function
@@ -1000,6 +1004,7 @@ vars=0
   case token_sprite	:compile_fun_3p
   case token_defsprite	:compile_fun_5p
   case token_fill	:compile_fun_4p
+  case token_dim	:compile_dim: goto 450
   case else	      : compile_unknown() : goto 450
 
 end select
@@ -1045,60 +1050,7 @@ if  j=-1 andalso varnum<maxvars then
 endif
 t1.result.uresult=j: t1.result_type=fun_assign  
 
-/'
-if suffix2$="$"  then
-  if svarnum>0 then
-    for i=0 to svarnum-1
-      if svariables(i).name=varname2$ then j=i : exit
-    next i
-  endif
-  if  j=-1 andalso svarnum<maxvars then   
-    svariables(svarnum).name=varname2$
-    j=svarnum
-    svarnum+=1
-  endif
-  t1.result.uresult=j: t1.result_type=fun_assign_s  
 
-else if suffix2$="%" then
-  if uvarnum>0 then
-    for i=0 to uvarnum-1
-      if uvariables(i).name=varname2$ then j=i : exit
-    next i
-  endif
-  if  j=-1 andalso uvarnum<maxvars then   
-    uvariables(uvarnum).name=varname2$
-    j=uvarnum
-    uvarnum+=1
-  endif
-  t1.result.uresult=j: t1.result_type=fun_assign_u  
-   
-else if suffix2$="!" then
-  if fvarnum>0 then
-    for i=0 to fvarnum-1
-      if fvariables(i).name=varname2$ then j=i : exit
-    next i
-  endif
-  if  j=-1 andalso fvarnum<maxvars then   
-    fvariables(fvarnum).name=varname2$
-    j=fvarnum
-    fvarnum+=1
-  endif
-  t1.result.uresult=j: t1.result_type=fun_assign_f  
-
-else '  if suffix$<>"$" andalso suffix$<>"!" andalso suffix$<>"%"  then
-  if ivarnum>0 then
-    for i=0 to ivarnum-1
-      if ivariables(i).name=varname2$ then j=i : exit
-    next i
-  endif
-  if  j=-1 andalso ivarnum<maxvars then   
-    ivariables(ivarnum).name=varname2$
-    j=ivarnum
-    ivarnum+=1  
-  endif
-  t1.result.uresult=j: t1.result_type=fun_assign_i  
-endif  
-'/
 compiledline(lineptr)=t1:  lineptr+=1 
  if linetype=0 orelse linetype=3 orelse linetype=4 then compiledline(lineptr).result_type=token_end
 
@@ -1339,6 +1291,90 @@ if isassign(lparts(ct+1).part$) then compile_immediate_assign(5) else compile_im
 return 0
 end function
 
+
+function compile_dim() as ulong  
+
+ 
+dim t1 as expr_result
+dim cmd as ulong
+dim dims(2) as ulong
+dim i,j,l,m as integer
+dim varname2$ as string
+
+dims(0)=1: dims(1)=1: dims(2)=1
+
+if isname(lparts(ct).part$) then 
+  varname2$=lparts(ct).part$ 
+  j=-1
+  if varnum>0 then
+    print varnum
+    for i=0 to varnum-1
+      if variables(i).name=varname2$ then j=i : exit
+    next i
+
+  endif 
+  if j<>-1 then printerror (42) : return 42
+  if lparts(ct+1).part$ <>"(" then printerror(43) : return 43
+  l=ct+2 : m=0 : do
+    print lparts(l).part$, isdec(lparts(l).part$)
+    if isdec(lparts(l).part$) then 
+      dims(m)=val%(lparts(l).part$) : m+=1  
+    else 
+      printerror (17)  : return(17)
+    endif  
+    if (lparts(l+1).part$<>"," andalso lparts(l+1).part$<>")" ) then printerror (44)  : return(44)
+  l+=2
+  loop until lparts(l-1).part$=")" orelse m>2
+  if m>3 then printerror(45): return(45)
+else
+  printerror(46): return 46
+endif
+print dims(0),dims(1),dims(2)
+
+' to do
+
+'- allocate a new variable
+'- type: result_arraay
+'- compute size: dim*dim*dim*12 (sizeof expr_result) + header ( size,size, size)
+' - lower memtop, var uresult=memtop - pointer to an array
+
+' getvar - ??? 
+
+
+
+
+ ' if  j=-1 andalso varnum<maxvars then   
+  '  variables(varnum).name=varname2$
+  '  variables(varnum).type=result_array
+' allocate space on memtop. Todo: check if the space exists
+    
+  '  j=varnum
+ '   varnum+=1
+'endif
+
+'
+ '  j=-1 
+ '  do: j=j+1 : loop until variables(j).name=lparts(ct).part$ orelse j>=varnum
+   
+
+
+'compile_immediate_assign(5) else compile_error(32) : return 32
+'' after this we should have fun_assign_i or fun_assign_u with var# as uresult.
+'t1=compiledline(lineptr-1): if t1.result_type<>fun_assign  then compile_error(34) : return 34
+'varnum=t1.result.uresult
+'if lparts(ct).part$<>"to" then  compile_error(33) : return 33
+'ct+=1
+'expr()  ' there is "to" value pushed on the stack
+'if lparts(ct).part$="step" then 
+'ct+=1
+'expr()
+'else
+'compiledline(lineptr).result_type=result_int : compiledline(lineptr).result.iresult=1 : lineptr+=1
+'endif
+'compiledline(lineptr).result_type=result_int : compiledline(lineptr).result.iresult=varnum :lineptr+=1
+'compiledline(lineptr).result_type=token_for : compiledline(lineptr).result.iresult=0 :lineptr+=1
+return 0
+end function
 
 
 function compile_for() as ulong  
@@ -2004,6 +2040,8 @@ programptr=0 : stringptr=0
 lastline=0 : lastlineptr=-1 :fortop=0
 for i=0 to maxfor: fortable(i).varnum=-1 : next i
 for i=0 to 15: if sprite(i)<> nil then v.setspritesize(i,0,0) : delete(sprite(i))
+memtop=v.buf_ptr
+v.setspritesize(17,8,16)
 next i
 end sub
 
@@ -3030,7 +3068,7 @@ dim t1 as expr_result
 
 t1=pop()
 
-if t1.result.uresult=0 then  v.setspritesize(18,0,0) else v.setspritesize(18,8,16) 
+if t1.result.uresult=0 then  v.setspritesize(17,0,0) else v.setspritesize(17,8,16) 
 end sub
 
 
@@ -3221,7 +3259,7 @@ errors$(27)="The program is empty."
 errors$(28)="If after if."
 errors$(29)="Empty expression."
 errors$(30)="String expected."
-errors$(31)="Interpreter innternal error."
+errors$(31)="Interpreter internal error."
 errors$(32)="Expected assign."
 errors$(33)="Expected 'to'."
 errors$(34)="Expected integer variable."
@@ -3233,6 +3271,11 @@ errors$(39)="Bad number of parameters"
 errors$(40)="Function undefined for strings"
 
 errors$(41)="Bad parameter."
+errors$(42)="Cannot declare an array: the variable exists."
+errors$(43)="Expected '('."
+errors$(44)="Expected ')' or ','."
+errors$(45)="No more than 3 dimensions supported"
+errors$(46)="Variable name expected"
 
 end sub
         
