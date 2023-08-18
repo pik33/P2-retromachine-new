@@ -493,6 +493,9 @@ return val
       
 pub fill(x,y,newcolor,oldcolor) | x1, spanabove, spanbelow, ov
 
+newcolor:=newcolor & 255
+oldcolor:=oldcolor & 255
+
 if (oldcolor == newcolor) 
   return
 
@@ -502,33 +505,33 @@ fillpush(x)
 fillpush(y)
 y:=fillpop()
 x:=fillpop()
-if (x >-1) 
-  repeat while (x<>-12345)       
-  
-    x1 := x
-    repeat while((x1 >= 0) && (getpixel2(x1,y) == oldColor))
-      x1--
+pinhigh(38)
+repeat while (x>-1)       
+  pintoggle(39)
+  x1 := x
+  repeat while((x1 >= 0) && (getpixel2(x1,y) == oldColor))
+    x1--
+  x1++
+  spanabove := 0
+  spanbelow := 0
+  repeat while ((x1 < 1024) && getpixel2(x1,y) == oldColor)
+    putpixel2 (x1,y, newcolor & 255)
+    if ((spanabove == 0) && (y > 0) && (getpixel2(x1,y-1)== oldColor))
+      fillpush(x1)
+      fillpush(y-1)
+      spanAbove := 1 
+    elseif ((spanabove<>0) && (y > 0) && (getpixel2(x1,y-1)<> oldColor))
+      spanAbove := 0 
+    if((spanbelow == 0 ) && (y < 575) && getpixel2(x1,y+1) == oldColor)
+      fillpush(x1)
+      fillpush(y + 1)
+      spanBelow := 1
+    elseif((spanBelow<>0) && (y < 575) && (getpixel2(x1,y + 1)<> oldColor))
+      spanBelow := 0
     x1++
-    spanabove := 0
-    spanbelow := 0
-    repeat while ((x1 < 1024) && getpixel2(x1,y) == oldColor)
-      putpixel2 (x1,y, newcolor & 255)
-      if ((spanabove == 0) && (y > 0) && (getpixel2(x1,y-1)== oldColor))
-        fillpush(x1)
-        fillpush(y-1)
-        spanAbove := 1 
-      elseif ((spanabove<>0) && (y > 0) && (getpixel2(x1,y-1)<> oldColor))
-        spanAbove := 0 
-      if((spanbelow == 0 ) && (y < 575) && getpixel2(x1,y+1) == oldColor)
-        fillpush(x1)
-        fillpush(y + 1)
-        spanBelow := 1
-      elseif((spanBelow<>0) && (y < 575) && (getpixel2(x1,y + 1)<> oldColor))
-        spanBelow := 0
-      x1++
-    y:=fillpop()
-    x:=fillpop()
-    
+  y:=fillpop()
+  x:=fillpop()
+pinlow(38)    
 
 '-- A filled circle -----------------------------------------------------
 
