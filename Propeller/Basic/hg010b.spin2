@@ -196,7 +196,7 @@ long ccc[2]
 byte cursor[128]
 long leading_spaces
 
-long fillstack[128]
+long fillstack[1280]
 long fillptr
 long fillmax
 obj
@@ -392,7 +392,18 @@ if ((x>=0) & (x<4*s_cpl) & (y>=0) & (y<s_lines))
 pub getpixel(x,y): c 
 
 if ((x>=0) & (x<4*s_cpl) & (y>=0) & (y<s_lines))
-  ram.read1(@c,s_buf_ptr+(4*s_cpl1*y+x),1)
+  ram.read1(@c,s_buf_ptr+(4*s_cpl1*y+x),4)
+else
+  c:=0
+c:=c&255  
+return c
+
+pub putpixel2(x,y,c)
+ram.fill(s_buf_ptr+(4*s_cpl1*y+x),c,1,0,1)
+
+pub getpixel2(x,y): c 
+
+ram.read1(@c,s_buf_ptr+(4*s_cpl1*y+x),1)
 return c
   
 '----------- A line drawing family. BASIC doesn't like the name, so it is named "draw" and aliased  -----------------------------
@@ -464,16 +475,11 @@ else
         y+=yi
       putpixel(x, y,c)
  
-pub fillpush(val) :overflow
-long [fillstack+4*fillptr]:=val
+pub fillpush(val) 
+fillstack[fillptr]:=val
 fillptr+=1   
-if fillptr>fillmax
-  fillmax:=fillptr   
-if fillptr>=120
-  return -23456
-else
-  return 0
-      
+
+    
 pub fillpop() : val
 
 fillptr-=1
@@ -481,7 +487,7 @@ if fillptr<0
   fillptr:=0
   val:=-12345
 else 
-  val:=long[fillstack+4*fillptr]
+  val:=fillstack[fillptr]
 return val
 
       
@@ -494,39 +500,35 @@ fillptr:=0
 fillmax:=0
 fillpush(x)
 fillpush(y)
-ov:=0
 y:=fillpop()
 x:=fillpop()
 if (x >-1) 
-  repeat while (( x<>-12345) && (ov==0))      
+  repeat while (x<>-12345)       
   
     x1 := x
-    repeat while((x1 >= 0) && (getpixel(x1,y) == oldColor))
+    repeat while((x1 >= 0) && (getpixel2(x1,y) == oldColor))
       x1--
     x1++
     spanabove := 0
     spanbelow := 0
-    repeat while ((x1 < 1024) && getpixel(x1,y) == oldColor)
-      putpixel (x1,y, newcolor)
-      if ((spanabove == 0) && (y > 0) && (getpixel(x1,y-1)== oldColor))
-        ov:=fillpush(x1)
-        ov:=fillpush(y-1)
+    repeat while ((x1 < 1024) && getpixel2(x1,y) == oldColor)
+      putpixel2 (x1,y, newcolor & 255)
+      if ((spanabove == 0) && (y > 0) && (getpixel2(x1,y-1)== oldColor))
+        fillpush(x1)
+        fillpush(y-1)
         spanAbove := 1 
-      elseif ((spanAbove<>0) && (y > 0) && (getpixel(x1,y-1)<> oldColor))
+      elseif ((spanabove<>0) && (y > 0) && (getpixel2(x1,y-1)<> oldColor))
         spanAbove := 0 
-      if((spanBelow == 0 ) && (y < 575) && getpixel(x1,y+1) == oldColor)
-        ov:=fillpush(x1)
-        ov:=fillpush(y + 1)
+      if((spanbelow == 0 ) && (y < 575) && getpixel2(x1,y+1) == oldColor)
+        fillpush(x1)
+        fillpush(y + 1)
         spanBelow := 1
-      elseif((spanBelow<>0) && (y < 575) && (getpixel(x1,y + 1)<> oldColor))
+      elseif((spanBelow<>0) && (y < 575) && (getpixel2(x1,y + 1)<> oldColor))
         spanBelow := 0
       x1++
     y:=fillpop()
     x:=fillpop()
     
-     
-      
-      
 
 '-- A filled circle -----------------------------------------------------
 
