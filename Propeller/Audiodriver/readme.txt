@@ -1,3 +1,24 @@
+20230825: 0.95
+
+Envelopes  and noise generator added
+That's forced extending the channel's mailbox to 16 longs (power of 2 has to be used)
+
+long #8  envelope phase accumulator / read only as long #0
+long #9  envelope pointer. Points to the start of the envelope definition 0=envelope generator off
+long #10 envelope speed. Number of Paula's periods between 2 envelope values. 
+long #11 envelope length
+
+In future versions, speed and length may be packed in one long 
+
+The envelope is a multipoint definition that can have up to 1024 points. Use the last index (1023 for 1024 point envelope) as a length in long #1. The envelope is linear interpolated in the driver between these points.
+After every sample, the speed value in long #10 is multiplied by the number of Paula's clock between samples. This value is added to the phase accumulator at #8. 10 high bits of this accumulator are compared to the length at #11. If more than, the envelope stops advancing.
+At speed=1 and envelope length=1024, it will play for about 1211 seconds. If the speed equals the length, the envelope will play for 1.18 seconds - unless the sample rate was left at the default.
+
+
+A sample based audio generator is not good at noise, particularly if the samples used are short, so I added a noise generator to the driver. If bit #27 of the sample pointer is set, tie driver will not sample anything, instead it will get a random number and output it. The sample period decides how fast new noise samples are generated, so big values generates low rumbling (brown noise), the less value in word #11, the more white is the noise.
+
+------------------------------------------------------- 
+
 20220423: 0.93  
 Word 12 - #skip - is now 8.8 fixed point instead of 16bit integer. This means you have to use 256 instead of 1 
 This allows finer tuning for synthesis and mind machine purpose, where Amiga Paula's period is much too coarse.
