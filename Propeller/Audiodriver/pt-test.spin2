@@ -2,7 +2,7 @@ con
 _clkfreq=336000000
 
 obj
-audio:"audio093b-8-sc-pt.spin2"
+audio:"audio2-002.spin2"
 
 
 pub drivertest()   : cog,base,i
@@ -49,4 +49,3 @@ word[base+24]:=500              ' frequency (in reality, a period, the lower num
 word[base+26]:=256
 long[base+28]:=$40000000
 long[base+8]:=$40040000 'sample pointer
-
