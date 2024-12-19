@@ -306,19 +306,20 @@ p410        	testb   sstart0, #27 wz
                 
 p411	      	getword oldspl,rawspl0,#1		' then separate them		
 		getword	envlo,pointer0h,#1
-		     debug(udec(spl))
+'		     debug(udec(spl))
 		bitnot 	spl,#15
 		bitnot 	oldspl,#15
 		
-		     debug(udec(spl))
+		    
 		
             	mul     spl,envlo                     	' and do linear interpolation
             	not     envlo
             	mul     oldspl,envlo
             	add     spl,oldspl
             	shr     spl,#16	
-
-         
+ debug(udec(spl))
+         		bitnot 	spl,#15
+		 
 p406        	scas    spl, envs1
             	mov     spl,0-0
             	scas    spl,avol0                 	' apply volume
@@ -330,6 +331,8 @@ p406        	scas    spl, envs1
             	sub     qq,apan0
             	scas    spl,qq
             	mov     rs0, 0-0
+            	
+            	
      
                 setword sample0,rs0,#1           ' pack samples into long
                 setword sample0,ls0,#0
@@ -357,7 +360,7 @@ p403        setq #4                          ' write new pointer, sample values 
             
             waitse1
             waitx ##33800000        
-            wypin   lsample,#left        '2     The sample has to be outputted every 100 cycles     
+            wypin   lsample,#left        '2      
             wypin   rsample,#right       '4
             mov rsample,#0
             mov lsample, #0
