@@ -1,6 +1,12 @@
 con
-_clkfreq=336000000
-
+_clkfreq=338688000
+c4=262
+d4=294
+e4=330
+f4=349
+g4=392
+a4=440
+h4=494
 obj
 audio:"audio2-002.spin2"
 
@@ -44,6 +50,32 @@ long[base+24]:=0                ' loop start point
 long[base+28]:=$20              '
 word[base+32]:=16384            ' max volume
 long[base+20]:=$40040000        'sample pointer
-long[base+36]:=$200000
+long[base+36]:=$1000001
 repeat
+   i:=12174*c4
+   long[base+36]:=i
+   waitms (1000)
+   i:=12174*d4
+   long[base+36]:=i
+   waitms (1000)
+   i:=12174*e4
+   long[base+36]:=i
+   waitms (1000)
+   i:=12174*f4
+   long[base+36]:=i
+   waitms (1000)
+   i:=12174*g4
+   long[base+36]:=i
+   waitms (1000)
+   i:=12174*a4
+   long[base+36]:=i
+   waitms (1000)
+   i:=12174*h4
+   long[base+36]:=i
+   waitms (1000)
+   i:=12174*2*c4
+   long[base+36]:=i
+   waitms (2000)
+
+   
   'debug(udec(long[base]))

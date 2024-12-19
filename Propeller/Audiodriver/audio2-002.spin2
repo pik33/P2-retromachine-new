@@ -185,7 +185,7 @@ audio       	org     0
 '----------------- The main loop -------------------------------------------------
 '---------------------------------------------------------------------------------
 
-loop       	mov 	    cn,#7
+loop       	mov 	    cn,#0 '7
 
 '----------------------------------------------------------------------------------
 '------------- Get parameters and execute commands if any -------------------------
@@ -271,9 +271,9 @@ p410        	testb   sstart0, #27 wz
            	getbyte	afreq0,freqskip0,#3         	' the frequency is in 8:24 format, so get integer in afreq0
            	shl	freqskip0,#8                	' and keep the fractional in freqskip0
            	add     pointer0,freqskip0 wcz      	' compute the pointer to the next sample   
-           	'debug(udec(afreq0))  
+           	                                                                                                     'debug(udec(afreq0))  
            	addx	pointer0h,afreq0  
-           	'debug(udec(pointer0h))
+                                                                                                          '       	debug(udec(pointer0h, pointer0))
 		cmp	pointer0h,oldptrh wcz
 
 	if_e 	jmp 	#p411				' if the pointer didn't change, no sample has to be read
@@ -285,7 +285,8 @@ p410        	testb   sstart0, #27 wz
         
             	cmp     pointer0h,lend0 wcz		' check if end of the loop reached
    	if_ge   mov     pointer0h,lstart0       
-            
+
+                       	
             	mov     qq,pointer0h              	' compute place in the memory from where the sample will be loaded
            	add     qq,sstart0            
 
