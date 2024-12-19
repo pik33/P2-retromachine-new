@@ -13,39 +13,37 @@ repeat i from $40000 to $4001F
 ' start the driver. It will generate scope data at $60000. It will not use any PSRAM
 
 cog, base:=audio.start(0,$60000,$61000)
-
+debug(udec(cog,base))
 {{
 Channel registers:
 long #0: the sample phase accumulator: use it as read only although you -can- change this while playing (not recommended, the driver cog writes there at every sample)
-long #1: the current sample generated, 2 words, right:left
-long #2: the sample pointer.
+long #1: the sample phase accumulator high word: 
+long #2: the current sample generated, 2 words, right:left
+long #3: 2 last raw samples
+long #4: Envelope PA
+long #5: the sample pointer.
          Set bit #31 to 0 if the sample is 8 bit, 1 for 16 bit.
          Set bit #30 to 1 to start playing the sample from the beginning
          Set bit #29 to 1 to synchronize channels 0 and 1 for playing stereo without the phase error
          Set bit #28 to 1 to use interleaved samples (as in .wav file) with fractional skip enabled
-long #3: sample loop start point
-long #4: sample loop end point.
+long #6: sample loop start point
+long #7: sample loop end point.
          If the sample has to no loop and stop at the end, set loop start=end of sample, loop end=loop start +1 or 2 (for 16 bit)
-long #5: volume and pan
+long #8: volume and pan
          word #10: volume, 0..16384(=1). Values more than 16384 could cause clipping if sample is normalized
          word #11: pan. 16384: full left, 8192: center, 0: full right
-long #6  period and skip
-         word #12: period. This is the number of Paula cycles between two samples.
-         word #13: skip
-         From version 0.93 it is 8.8 fixed point, so set it to 256 for 8 bit or 512 for 16-bit samples. (was: 1 and 2)
-         Setting higher skip value skips the samples while playing, allows for higher frequencies for the same period
-long #7  was: (reserved, unused. The planned usage is ADSR stuff.)
-         Command, bit 31=set sample rate, bit 30 - set sample source (1=hub,0=psram)
+long #9  frequency, 8:24, $01000000=sample rate (44100)
+        
+long #10  bit 31=set sample rate, bit 30 - set sample source (1=hub,0=psram)
 }}
 
 ' tell it to play
 
 
-long[base+12]:=0                ' loop start point
-long[base+16]:=$20              '
-word[base+20]:=16384            ' max volume
-word[base+22]:=8192             ' pan at the center
-word[base+24]:=500              ' frequency (in reality, a period, the lower number, the higher frequency)
-word[base+26]:=256
-long[base+28]:=$40000000
-long[base+8]:=$40040000 'sample pointer
+long[base+24]:=0                ' loop start point
+long[base+28]:=$20              '
+word[base+32]:=16384            ' max volume
+long[base+20]:=$40040000        'sample pointer
+long[base+36]:=$200000
+repeat
+  'debug(udec(long[base]))
