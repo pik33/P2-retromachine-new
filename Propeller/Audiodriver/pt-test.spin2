@@ -11,15 +11,16 @@ obj
 audio:"audio2-002.spin2"
 
 
-pub drivertest()   : cog,base,i
+pub drivertest()   : cog,base,i,j
 ' prepare 8-bit saw wave
-repeat i from $40000 to $4001F
-  byte[i]:=i*8
-
+repeat i from $40000 to $407FF step 2
+  j:=@waveform+i-$40000+16
+  word[i]:=word[j]
+ ' debug(sdec(word[i]))
 ' start the driver. It will generate scope data at $60000. It will not use any PSRAM
 
 cog, base:=audio.start(0,$60000,$61000)
-debug(udec(cog,base))
+'debug(udec(cog,base))
 {{
 Channel registers:
 long #0: the sample phase accumulator: use it as read only although you -can- change this while playing (not recommended, the driver cog writes there at every sample)
@@ -47,35 +48,41 @@ long #10  bit 31=set sample rate, bit 30 - set sample source (1=hub,0=psram)
 
 
 long[base+24]:=0                ' loop start point
-long[base+28]:=$20              '
+long[base+28]:=$7FF              '
 word[base+32]:=16384            ' max volume
-long[base+20]:=$40040000        'sample pointer
-long[base+36]:=$1000001
+long[base+20]:=$C0040000        'sample pointer
+long[base+36]:=$1000000
+
+{{
 repeat
-   i:=12174*c4
+   i:=389566*c4
    long[base+36]:=i
    waitms (1000)
-   i:=12174*d4
+   i:=389566*d4
    long[base+36]:=i
    waitms (1000)
-   i:=12174*e4
+   i:=389566*e4
    long[base+36]:=i
    waitms (1000)
-   i:=12174*f4
+   i:=389566*f4
    long[base+36]:=i
    waitms (1000)
-   i:=12174*g4
+   i:=389566*g4
    long[base+36]:=i
    waitms (1000)
-   i:=12174*a4
+   i:=389566*a4
    long[base+36]:=i
    waitms (1000)
-   i:=12174*h4
+   i:=389566*h4
    long[base+36]:=i
    waitms (1000)
-   i:=12174*2*c4
+   i:=389566*2*c4
    long[base+36]:=i
    waitms (2000)
 
-   
+}}   
   'debug(udec(long[base]))
+
+dat
+waveform file "sinus.s2"
+envelope file "percus.h2"
