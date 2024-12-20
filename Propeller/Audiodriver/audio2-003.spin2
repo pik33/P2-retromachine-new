@@ -1,5 +1,5 @@
 ' A GUS inspirewd interpolating audio driver for a P2
-' v. 0.02 - 20241218
+' v. 0.03 - 20241218
 ' MIT license
 ' Piotr Kardasz pik33@o2.pl with the help from P2 forum community :) 
 ' 8 channel version
@@ -64,13 +64,13 @@ long channel5[16]
 long channel6[16]
 long channel7[16]
 long channel8[16]
-'long channel9[16]
-'long channela[16]
-'long channelb[16]
-'long channelc[16]
-'long channeld[16]
-'long channele[16]
-'long channelf[16]
+long channel9[16]
+long channela[16]
+long channelb[16]
+long channelc[16]
+long channeld[16]
+long channele[16]
+long channelf[16]
 
 
 
@@ -161,7 +161,7 @@ audio       	org     0
 '----------------- The main loop -------------------------------------------------
 '---------------------------------------------------------------------------------
 
-loop       	mov 	    cn,#7 '7
+loop       	mov 	    cn,#15 '7
 
 '----------------------------------------------------------------------------------
 '------------- Get parameters and execute commands if any -------------------------

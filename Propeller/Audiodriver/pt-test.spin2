@@ -8,7 +8,7 @@ g4=392
 a4=440
 h4=494
 obj
-audio:"audio2-002.spin2"
+audio:"audio2-003.spin2"
 
 
 pub drivertest()   : cog,base,i,j
@@ -18,71 +18,66 @@ repeat i from $40000 to $407FF step 2
   word[i]:=word[j]
  ' debug(sdec(word[i]))
 ' start the driver. It will generate scope data at $60000. It will not use any PSRAM
-
+repeat i from $41000 to $411FF step 2
+  j:=@envelope+((i-$41000)>>1)+16
+  word[i]:=byte[j]<<8
+  
 cog, base:=audio.start(0,$60000,$61000)
 'debug(udec(cog,base))
-{{
-Channel registers:
-long #0: the sample phase accumulator: use it as read only although you -can- change this while playing (not recommended, the driver cog writes there at every sample)
-long #1: the sample phase accumulator high word: 
+
+{{Channel registers:
+long #0: the sample phase accumulator fractional part
+long #1: the sample phase accumulator integer part
 long #2: the current sample generated, 2 words, right:left
-long #3: 2 last raw samples
-long #4: Envelope PA
+long #3: the raw sample value, 2 words: previous:current
+long #4: envelope phase accumulator
 long #5: the sample pointer.
-         Set bit #31 to 0 if the sample is 8 bit, 1 for 16 bit.
+         Set bit #31 to 0 if the sample is 8 bit, 1 for 16 bit. 
          Set bit #30 to 1 to start playing the sample from the beginning
          Set bit #29 to 1 to synchronize channels 0 and 1 for playing stereo without the phase error
-         Set bit #28 to 1 to use interleaved samples (as in .wav file) with fractional skip enabled
+         Set bit #28 to 1 to use interleaved samples (as in .wav file) with fractional skip enabled 
+         Set bit #27 to 1 to generate noise instead of audio
 long #6: sample loop start point
-long #7: sample loop end point.
+long #7: sample loop end point. 
          If the sample has to no loop and stop at the end, set loop start=end of sample, loop end=loop start +1 or 2 (for 16 bit)
 long #8: volume and pan
          word #10: volume, 0..16384(=1). Values more than 16384 could cause clipping if sample is normalized
          word #11: pan. 16384: full left, 8192: center, 0: full right
-long #9  frequency, 8:24, $01000000=sample rate (44100)
-        
-long #10  bit 31=set sample rate, bit 30 - set sample source (1=hub,0=psram)
+long #9  frequency in 8:24 format; $01000000 = sample rate * 1.0
+         word #11: period. This is the number of Paula cycles between two samples. 
+         word #12: skip 
+         From version 0.93 it is 8.8 fixed point, so set it to 256 for 8 bit or 512 for 16-bit samples. (was: 1 and 2) 
+         Setting higher skip value skips the samples while playing, allows for higher frequencies for the same period
+long #10 sample rate (the divider for clkfreq; for 338688000 7680 gives 44100 Hz) - bit 31 not set=no change
+long #11 envelope pointer. Points to the start of the envelope definition
+long #12 envelope speed. Number of Paula's periods between 2 envelope values. 
+long #13 envelope length
+long #14..15 reserved, unused
 }}
 
 ' tell it to play
 
 
 long[base+24]:=0                ' loop start point
-long[base+28]:=$7FF              '
+long[base+28]:=$800              '
 word[base+32]:=16384            ' max volume
-long[base+20]:=$C0040000        'sample pointer
-long[base+36]:=$1000000
+long[base+20]:=$C0040000        ' sample pointer
+long[base+36]:=$100000
+long[base+44]:=$41000
+long[base+48]:=$8000
+long[base+52]:=256
 
-{{
+
+
 repeat
-   i:=389566*c4
-   long[base+36]:=i
-   waitms (1000)
-   i:=389566*d4
-   long[base+36]:=i
-   waitms (1000)
-   i:=389566*e4
-   long[base+36]:=i
-   waitms (1000)
-   i:=389566*f4
-   long[base+36]:=i
-   waitms (1000)
-   i:=389566*g4
-   long[base+36]:=i
-   waitms (1000)
-   i:=389566*a4
-   long[base+36]:=i
-   waitms (1000)
-   i:=389566*h4
-   long[base+36]:=i
-   waitms (1000)
-   i:=389566*2*c4
-   long[base+36]:=i
-   waitms (2000)
+   audio.play16(0,$40000,c4,4096,2048,0,500) '16(channel,sample,splfreq,vol,len,loop,delay) 
+   audio.play16(1,$40000,d4,4096,2048,0,500) '16(channel,sample,splfreq,vol,len,loop,delay) 
+   audio.play16(2,$40000,e4,4096,2048,0,500) '16(channel,sample,splfreq,vol,len,loop,delay) 
+   audio.play16(3,$40000,f4,4096,2048,0,500) '16(channel,sample,splfreq,vol,len,loop,delay) 
+   audio.play16(4,$40000,g4,4096,2048,0,500) '16(channel,sample,splfreq,vol,len,loop,delay) 
 
-}}   
   'debug(udec(long[base]))
 
 dat
-waveform file "sinus.s2"
+waveform file "geige.s2"
 envelope file "percus.h2"
