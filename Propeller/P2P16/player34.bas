@@ -1398,8 +1398,8 @@ end function
 
 sub setchannel(channel,byref trigger as ulong)
 
-if tracker.trigger(channel)<>trigger then                                                           ' tracker wants to trigger a note
-  trigger=tracker.trigger(channel)                                                                  ' remember trigger count
+if tracker.trigger1(channel)<>trigger then                                                           ' tracker wants to trigger a note
+  trigger=tracker.trigger1(channel)                                                                  ' remember trigger count
   lpoke base+8+32*channel,tracker.currSamplePtr(channel) or $40000000                               ' set new sample ptr and request sample restart 
   lpoke base+12+32*channel,tracker.currsamplelength(channel)-tracker.currrepeatLength(channel)      ' set new loop start   
   lpoke base+16+32*channel,tracker.currsamplelength(channel)                                        ' set new loop and

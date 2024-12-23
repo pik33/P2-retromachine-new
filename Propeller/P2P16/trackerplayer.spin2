@@ -22,6 +22,96 @@
 }
 
 
+CON
+
+MAXIMUM_PERIOD          = 856
+MINIMUM_PERIOD          = 113
+VALUES_IN_PERIOD_TABLE  = MAXIMUM_PERIOD - MINIMUM_PERIOD + 1
+MAXIMUM_VOLUME          = 64
+MINIMUM_VOLUME          = 0
+BYTES_IN_PERIOD_TABLE   = 72
+LAST_POS_IN_PERIOD_TBL  = 35
+VIBRATO_WAVEFORM_LENGTH = 64
+VIBRATO_WAVEFORM_MASK   = VIBRATO_WAVEFORM_LENGTH - 1
+PATTERN_LENGTH          = 64
+NR_CHANNELS             = 4
+LAST_CHANNEL            = NR_CHANNELS - 1
+NR_SAMPLES              = 32
+LAST_SAMPLE_NUMBER      = NR_SAMPLES - 1
+
+VAR
+
+long systemClock
+word mainVolume
+long nameStr
+long samplesInfoLut
+long sampleDataPtr
+long samplesPtrLut[NR_SAMPLES]
+long patternsData
+long songPositionsLut
+byte songLength
+byte numberOfPatterns
+byte unknown1
+long magicFour
+byte tickCounter
+byte patternRow
+byte songPosition
+byte currentSongSpeed
+byte patternDelay
+byte numberOfInstruments
+long currSamplePtr[NR_CHANNELS]
+byte currSampleNr[NR_CHANNELS]
+word currSampleLength[NR_CHANNELS]
+long currRepeatLength[NR_CHANNELS]
+byte currFineTune[NR_CHANNELS]
+word currRepeatPoint[NR_CHANNELS]
+long currPeriod[NR_CHANNELS]
+long deltaPeriod[NR_CHANNELS]
+long currVolume[NR_CHANNELS]
+long deltaVolume[NR_CHANNELS]
+word currPanning[NR_CHANNELS]
+long lastSetPeriod[NR_CHANNELS]
+long lastSetSamplePtr[NR_CHANNELS]
+long lastSetSampleNr[NR_CHANNELS]
+long lastSetSampleLength[NR_CHANNELS]
+long lastSetRepeatLength[NR_CHANNELS]
+long lastSetRepeatPoint[NR_CHANNELS]
+byte vibratoPos[NR_CHANNELS]
+byte tremoloPos[NR_CHANNELS]
+byte resetTremolo[NR_CHANNELS]
+byte resetVibrato[NR_CHANNELS]
+long portamentoPeriodMemory[NR_CHANNELS]
+long ticksPerMinute
+long cyclesToWait
+long fineTune
+long sampleOffset
+byte x
+byte y
+byte z
+byte cmd
+byte lpFilter
+byte portaGlissando[NR_CHANNELS]
+byte vibratoType[NR_CHANNELS]
+byte tremoloType[NR_CHANNELS]
+byte cmd3_memoryZ[NR_CHANNELS]
+byte cmd4_memoryY[NR_CHANNELS]
+byte cmd4_memoryX[NR_CHANNELS]
+byte cmd7_memoryY[NR_CHANNELS]
+byte cmd7_memoryX[NR_CHANNELS]
+byte cmd9_memoryZ[NR_CHANNELS]
+byte sampleNumber_memory[NR_CHANNELS]
+byte cmdD_memoryX
+byte cmdD_memoryY
+byte cmdD_updatePosition
+byte cmdB_memoryZ
+byte cmdB_updatePosition
+byte cmdE6_memory[NR_CHANNELS]
+byte cmdE6_counter[NR_CHANNELS]
+byte cmdE6_updatePosition[NR_CHANNELS]
+byte cmdE6_updatePositionCommon
+byte trigger1[NR_CHANNELS]
+
+
 PUB initModule(hubPtr, startPattern) | i, tmpPtr, samLength, d1, d2, d3, d4, d5
 
   ' Set some data pointers
@@ -228,97 +318,12 @@ PUB getCyclesToWait() : r
   return cyclesToWait
 
 
-CON
 
-  MAXIMUM_PERIOD          = 856
-  MINIMUM_PERIOD          = 113
-  VALUES_IN_PERIOD_TABLE  = MAXIMUM_PERIOD - MINIMUM_PERIOD + 1
-  MAXIMUM_VOLUME          = 64
-  MINIMUM_VOLUME          = 0
-  BYTES_IN_PERIOD_TABLE   = 72
-  LAST_POS_IN_PERIOD_TBL  = 35
-  VIBRATO_WAVEFORM_LENGTH = 64
-  VIBRATO_WAVEFORM_MASK   = VIBRATO_WAVEFORM_LENGTH - 1
-  PATTERN_LENGTH          = 64
-  NR_CHANNELS             = 4
-  LAST_CHANNEL            = NR_CHANNELS - 1
-  NR_SAMPLES              = 32
-  LAST_SAMPLE_NUMBER      = NR_SAMPLES - 1
 
 
 ' Below this point are all private methods, data and variables
 '
-VAR
 
-  long systemClock
-  word mainVolume
-  long nameStr
-  long samplesInfoLut
-  long sampleDataPtr
-  long samplesPtrLut[NR_SAMPLES]
-  long patternsData
-  long songPositionsLut
-  byte songLength
-  byte numberOfPatterns
-  byte unknown1
-  long magicFour
-  byte tickCounter
-  byte patternRow
-  byte songPosition
-  byte currentSongSpeed
-  byte patternDelay
-  byte numberOfInstruments
-  long currSamplePtr[NR_CHANNELS]
-  byte currSampleNr[NR_CHANNELS]
-  word currSampleLength[NR_CHANNELS]
-  long currRepeatLength[NR_CHANNELS]
-  byte currFineTune[NR_CHANNELS]
-  word currRepeatPoint[NR_CHANNELS]
-  long currPeriod[NR_CHANNELS]
-  long deltaPeriod[NR_CHANNELS]
-  long currVolume[NR_CHANNELS]
-  long deltaVolume[NR_CHANNELS]
-  word currPanning[NR_CHANNELS]
-  long lastSetPeriod[NR_CHANNELS]
-  long lastSetSamplePtr[NR_CHANNELS]
-  long lastSetSampleNr[NR_CHANNELS]
-  long lastSetSampleLength[NR_CHANNELS]
-  long lastSetRepeatLength[NR_CHANNELS]
-  long lastSetRepeatPoint[NR_CHANNELS]
-  byte vibratoPos[NR_CHANNELS]
-  byte tremoloPos[NR_CHANNELS]
-  byte resetTremolo[NR_CHANNELS]
-  byte resetVibrato[NR_CHANNELS]
-  long portamentoPeriodMemory[NR_CHANNELS]
-  long ticksPerMinute
-  long cyclesToWait
-  long fineTune
-  long sampleOffset
-  byte x
-  byte y
-  byte z
-  byte cmd
-  byte lpFilter
-  byte portaGlissando[NR_CHANNELS]
-  byte vibratoType[NR_CHANNELS]
-  byte tremoloType[NR_CHANNELS]
-  byte cmd3_memoryZ[NR_CHANNELS]
-  byte cmd4_memoryY[NR_CHANNELS]
-  byte cmd4_memoryX[NR_CHANNELS]
-  byte cmd7_memoryY[NR_CHANNELS]
-  byte cmd7_memoryX[NR_CHANNELS]
-  byte cmd9_memoryZ[NR_CHANNELS]
-  byte sampleNumber_memory[NR_CHANNELS]
-  byte cmdD_memoryX
-  byte cmdD_memoryY
-  byte cmdD_updatePosition
-  byte cmdB_memoryZ
-  byte cmdB_updatePosition
-  byte cmdE6_memory[NR_CHANNELS]
-  byte cmdE6_counter[NR_CHANNELS]
-  byte cmdE6_updatePosition[NR_CHANNELS]
-  byte cmdE6_updatePositionCommon
-  byte trigger[NR_CHANNELS]
 
 PRI noteToFreq(noteNumber) : r | index
 
@@ -395,7 +400,7 @@ PRI triggerNote(channel)
   currSampleLength[channel] := lastSetSampleLength[channel]
   currRepeatLength[channel] := lastSetRepeatLength[channel]
   currRepeatPoint[channel]  := lastSetRepeatPoint[channel]
-  trigger[channel]+=1                                                 ' @pik33 _ I have to know when the note is started
+  trigger1[channel]+=1                                                 ' @pik33 _ I have to know when the note is started
 
 PRI processChannel(channel, sampleNumber, period, effect) | sampleLength, volume, repeatPoint, repeatLength, samplePtr
 

@@ -184,7 +184,7 @@ dim q as integer
 dim prawdata,prawdata2 as ubyte pointer
 dim err as integer
 
-dim speed, r as ulong
+dim speed as ulong
 dim version,offset,load,startsong,flags, init, play, songs, song  as ushort
 dim dump as ushort
 dim b as ubyte
@@ -1398,8 +1398,10 @@ end function
 
 sub setchannel(channel,byref trigger as ulong)
 
-if tracker.trigger(channel)<>trigger then                                                           ' tracker wants to trigger a note
-  trigger=tracker.trigger(channel)                                                                  ' remember trigger count
+let qqqq=tracker.trigger1(0)
+
+if tracker.trigger1(channel)<>trigger then                                                           ' tracker wants to trigger a note
+  trigger=tracker.trigger1(channel)                                                                  ' remember trigger count
   lpoke base+8+32*channel,tracker.currSamplePtr(channel) or $40000000                               ' set new sample ptr and request sample restart 
   lpoke base+12+32*channel,tracker.currsamplelength(channel)-tracker.currrepeatLength(channel)      ' set new loop start   
   lpoke base+16+32*channel,tracker.currsamplelength(channel)                                        ' set new loop and
@@ -1614,19 +1616,19 @@ sub decoderegs(regaddr,outaddr)
               getnib    selectedWaveform1, sidRegs1, #1
               getbyte   controlRegister1, sidRegs1,#0
 '-----------------------------------------------------------
-              getnib    r1, sidRegs1, #2
-              alts      r1, #ADSRTable
+              getnib    pr1, sidRegs1, #2
+              alts      pr1, #ADSRTable
               mov       decay1, 0-0
-              getnib    r1, sidRegs1, #3
-              alts      r1, #ADSRTable                      '|  Convert 4bit ADSR "presets" to their corresponding
+              getnib    pr1, sidRegs1, #3
+              alts      pr1, #ADSRTable                      '|  Convert 4bit ADSR "presets" to their corresponding
               mov       attack1, 0-0                        '|  32bit values using the attack/decay table.
-              getnib    r1, sidRegs1, #4
-              alts      r1, #ADSRTable
+              getnib    pr1, sidRegs1, #4
+              alts      pr1, #ADSRTable
               mov       release1, 0-0
-              getnib    r1, sidRegs1, #5
+              getnib    pr1, sidRegs1, #5
               mov        sustain1,#0
-              setnib    sustain1, r1, #7
-              setnib    sustain1, r1, #6
+              setnib    sustain1, pr1, #7
+              setnib    sustain1, pr1, #6
 
 '===========================================================
 '              Extract channel 2 register data
@@ -1642,19 +1644,19 @@ sub decoderegs(regaddr,outaddr)
               getnib    selectedWaveform2, sidRegs2, #7
               getbyte   controlRegister2,  sidRegs2, #3
 '----------------------------------------------------------- 
-              getnib    r1, sidRegs3, #0
-              alts      r1, #ADSRTable
+              getnib    pr1, sidRegs3, #0
+              alts      pr1, #ADSRTable
               mov       decay2, 0-0
-              getnib    r1, sidRegs3, #1
-              alts      r1, #ADSRTable                      '|  Convert 4bit ADSR "presets" to their corresponding
+              getnib    pr1, sidRegs3, #1
+              alts      pr1, #ADSRTable                      '|  Convert 4bit ADSR "presets" to their corresponding
               mov       attack2, 0-0                        '|  32bit values using attack/decay tables. 
-              getnib    r1, sidRegs3, #2           
-              alts      r1, #ADSRTable
+              getnib    pr1, sidRegs3, #2           
+              alts      pr1, #ADSRTable
               mov       release2, 0-0
-              getnib    r1, sidRegs3, #3
+              getnib    pr1, sidRegs3, #3
               mov       sustain2,#0
-              setnib    sustain2, r1, #7
-              setnib    sustain2, r1, #6
+              setnib    sustain2, pr1, #7
+              setnib    sustain2, pr1, #6
 
       
 '===========================================================
@@ -1668,34 +1670,34 @@ sub decoderegs(regaddr,outaddr)
               getnib    selectedWaveform3, sidRegs4, #5
               getbyte   controlRegister3,  sidRegs4, #2
 '-----------------------------------------------------------
-              getnib    r1, sidRegs4, #6
-              alts      r1, #ADSRTable
+              getnib    pr1, sidRegs4, #6
+              alts      pr1, #ADSRTable
               mov       decay3, 0-0
-              getnib    r1, sidRegs4, #7
-              alts      r1, #ADSRTable                      '|  Convert 4bit ADSR "presets" to their corresponding
+              getnib    pr1, sidRegs4, #7
+              alts      pr1, #ADSRTable                      '|  Convert 4bit ADSR "presets" to their corresponding
               mov       attack3, 0-0                        '|  32bit values using attack/decay tables.    
-              getnib    r1, sidRegs5, #0
-              alts      r1, #ADSRTable
+              getnib    pr1, sidRegs5, #0
+              alts      pr1, #ADSRTable
               mov       release3, 0-0
-              getnib    r1, sidRegs5, #1
+              getnib    pr1, sidRegs5, #1
               mov       sustain3,#0
-              setnib    sustain3, r1, #7
-              setnib    sustain3, r1, #6
+              setnib    sustain3, pr1, #7
+              setnib    sustain3, pr1, #6
 
 '===========================================================
 '            Extract filter/volume register data
 '===========================================================
-              getbyte   filterCutoff, sidRegs5, #2
-              shl       filterCutoff, #2 ' was 3
-              add       filterCutoff, #16
-              getnib    filterControl, sidRegs5, #6
-              getnib    filterResonance, sidRegs5, #7
-              getnib    volume1, sidRegs6, #0 
-              mov       volume2,volume1
-              mov       volume3,volume1
+             getbyte   filterCutoff, sidRegs5, #2
+             shl       filterCutoff, #2 ' was 3
+             add       filterCutoff, #16
+             getnib    filterControl, sidRegs5, #6
+             getnib    filterResonance, sidRegs5, #7
+             getnib    volume1,sidRegs6, #0 
+             mov       volume2,volume1
+             mov       volume3,volume1
               
-              getnib    filterMode, sidRegs6, #1
-              jmp 	#p999				   '| Jump over the variable block
+             getnib    filterMode, sidRegs6, #1
+             jmp 	#p999				   '| Jump over the variable block
               
 '===========================================================
 '            The variables
@@ -1744,8 +1746,6 @@ filterCutoff 		long 0
 filterControl 		long 0
 filterResonance 	long 0
 filterMode 		long 0
-
-r1 long 0
 
 ADSRTable         	long 3784819
                     	long 1064480    
