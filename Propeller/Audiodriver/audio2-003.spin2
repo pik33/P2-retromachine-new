@@ -1,8 +1,8 @@
-' A GUS inspirewd interpolating audio driver for a P2
+' A GUS inspired interpolating audio driver for a P2
 ' v. 0.03 - 20241218
 ' MIT license
 ' Piotr Kardasz pik33@o2.pl with the help from P2 forum community :) 
-' 8 channel version
+' 16 channel version
 '-------------------------------------------------------------------
 con
 

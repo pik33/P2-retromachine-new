@@ -57,27 +57,38 @@ long #14..15 reserved, unused
 
 ' tell it to play
 
-
-long[base+24]:=0                ' loop start point
-long[base+28]:=$800              '
-word[base+32]:=16384            ' max volume
-long[base+20]:=$C0040000        ' sample pointer
-long[base+36]:=$100000
-long[base+44]:=$41000
-long[base+48]:=$8000
-long[base+52]:=256
+repeat i from 0 to 15 
+  long[base+24+64*i]:=0                ' loop start point
+  long[base+28+64*i]:=$800              '
+  word[base+32+64*i]:=0                ' max volume
+  long[base+20+64*i]:=$C0040000        ' sample pointer
+  long[base+36+64*i]:=$100000
+  long[base+44+64*i]:=$41000
+  long[base+48+64*i]:=$8000
+  long[base+52+64*i]:=256
 
 
 
 repeat
-   audio.play16(0,$40000,c4,4096,2048,0,500) '16(channel,sample,splfreq,vol,len,loop,delay) 
-   audio.play16(1,$40000,d4,4096,2048,0,500) '16(channel,sample,splfreq,vol,len,loop,delay) 
-   audio.play16(2,$40000,e4,4096,2048,0,500) '16(channel,sample,splfreq,vol,len,loop,delay) 
-   audio.play16(3,$40000,f4,4096,2048,0,500) '16(channel,sample,splfreq,vol,len,loop,delay) 
-   audio.play16(4,$40000,g4,4096,2048,0,500) '16(channel,sample,splfreq,vol,len,loop,delay) 
-
+   audio.play16(0,$40000,c4,4096,2048,0,200) '16(channel,sample,splfreq,vol,len,loop,delay) 
+   audio.play16(1,$40000,d4,4096,2048,0,200) '16(channel,sample,splfreq,vol,len,loop,delay) 
+   audio.play16(2,$40000,e4,4096,2048,0,200) '16(channel,sample,splfreq,vol,len,loop,delay) 
+   audio.play16(3,$40000,f4,4096,2048,0,200) '16(channel,sample,splfreq,vol,len,loop,delay) 
+   audio.play16(4,$40000,g4,4096,2048,0,200) '16(channel,sample,splfreq,vol,len,loop,delay) 
+   audio.play16(5,$40000,a4,4096,2048,0,200) '16(channel,sample,splfreq,vol,len,loop,delay) 
+   audio.play16(6,$40000,h4,4096,2048,0,200) '16(channel,sample,splfreq,vol,len,loop,delay) 
+   audio.play16(7,$40000,2*c4,4096,2048,0,400) '16(channel,sample,splfreq,vol,len,loop,delay) 
+   audio.play16(8,$40000,2*c4,4096,2048,0,200) '16(channel,sample,splfreq,vol,len,loop,delay) 
+   audio.play16(9,$40000,h4,4096,2048,0,200) '16(channel,sample,splfreq,vol,len,loop,delay) 
+   audio.play16(10,$40000,a4,4096,2048,0,200) '16(channel,sample,splfreq,vol,len,loop,delay) 
+   audio.play16(11,$40000,g4,4096,2048,0,200) '16(channel,sample,splfreq,vol,len,loop,delay) 
+   audio.play16(12,$40000,f4,4096,2048,0,200) '16(channel,sample,splfreq,vol,len,loop,delay) 
+   audio.play16(13,$40000,e4,4096,2048,0,200) '16(channel,sample,splfreq,vol,len,loop,delay) 
+   audio.play16(14,$40000,d4,4096,2048,0,200) '16(channel,sample,splfreq,vol,len,loop,delay) 
+   audio.play16(15,$40000, c4,4096,2048,0,400) '16(channel,sample,splfreq,vol,len,loop,delay)    
+   
   'debug(udec(long[base]))
 
 dat
-waveform file "geige.s2"
+waveform file "glocke.s2"
 envelope file "percus.h2"
