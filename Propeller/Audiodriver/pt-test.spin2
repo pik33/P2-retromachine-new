@@ -70,7 +70,7 @@ repeat i from 0 to 15
 
 
 repeat
-   audio.play16(0,$40000,c4,4096,2048,0,200) '16(channel,sample,splfreq,vol,len,loop,delay) 
+   audio.play16(0,$40000,c4,4096,2048,2048,200) '16(channel,sample,splfreq,vol,len,loop,delay) 
    audio.play16(1,$40000,d4,4096,2048,0,200) '16(channel,sample,splfreq,vol,len,loop,delay) 
    audio.play16(2,$40000,e4,4096,2048,0,200) '16(channel,sample,splfreq,vol,len,loop,delay) 
    audio.play16(3,$40000,f4,4096,2048,0,200) '16(channel,sample,splfreq,vol,len,loop,delay) 
