@@ -1,1 +1,60 @@
+con
+_clkfreq=338688000
 
+
+'--------------------------------------------------------------
+'------ PASM driver code --------------------------------------
+'-------------------------------------------------------------- 
+
+dat
+
+audio       org     0
+
+            rdlong  regs, ptra++     ' get start address of all mailboxes
+            wrpin   dac,#left            ' Noise dither DACs at clk/95
+            wxpin   #190,#left       	 ' Set initial DACs sample rate. It is now controlled via a register by the main program
+            wrpin   dac,#right
+            wxpin   #190,#right    
+            dirh    #left addpins 1
+            setse1  #%001<<6 + left      ' Set the event - DAC empty
+            
+'---------------------------------------------------------------------------------        
+'----------------- The main loop -------------------------------------------------
+'---------------------------------------------------------------------------------
+
+
+loop		pollatn wc			'if atn set, the cpu wants to acces regs
+	if_nc	jmp #p101
+		' process the registers here
+
+p101		sub	c64,#1	wcz
+	if_z	mov 	c64,#28
+		sub	c15,#1	wcz
+	if_z	mov 	c15,#114			
+		
+
+void0		long 	0
+audc1		long 	0   	'normal/5bit|4bit/17bit|sqr/noise|volume only/normal|4bit volume
+void1		long 	0
+audc2		long	0
+void2		long 	0
+audc3		long 	0
+void3		long	0
+audc4		long 	0
+audctl		long 	0  	'9bit/17bit|chn1fast|chn3fast|link12|link34|15/64kHz
+stimer 		long 	0	'resets timers
+d20a		long 	0
+d20b		long	0
+d20c		long	0
+d20d		long	0
+d20e		long 	0
+d20f		long 	0
+
+
+
+channel1	long 	0
+channel2	long 	0		
+channel3	long 	0
+channel4 	long 	0
+c4bit		long 	%000011101100101
+c5bit		long 	%0000011100100010101111011010011
