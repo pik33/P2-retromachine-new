@@ -8,15 +8,15 @@ _clkfreq=338688000
 
 dat
 
-audio       org     0
+audio       	org     0
 
-            rdlong  regs, ptra++     ' get start address of all mailboxes
-            wrpin   dac,#left            ' Noise dither DACs at clk/95
-            wxpin   #190,#left       	 ' Set initial DACs sample rate. It is now controlled via a register by the main program
-            wrpin   dac,#right
-            wxpin   #190,#right    
-            dirh    #left addpins 1
-            setse1  #%001<<6 + left      ' Set the event - DAC empty
+            	rdlong  regs, ptra++     	' get start address of all mailboxes
+            	wrpin   dac,#left            	' Noise dither DACs at clk/190
+            	wxpin   #190,#left       	' Set initial DACs sample rate. It is now controlled via a register by the main program
+            	wrpin   dac,#right
+            	wxpin   #190,#right    
+            	dirh    #left addpins 1
+            	setse1  #%001<<6 + left      	' Set the event - DAC empty
             
 '---------------------------------------------------------------------------------        
 '----------------- The main loop -------------------------------------------------
@@ -27,11 +27,15 @@ loop		pollatn wc			'if atn set, the cpu wants to acces regs
 	if_nc	jmp #p101
 		' process the registers here
 
-p101		sub	c64,#1	wcz
+p101		sub	c64,#1 wz		' process main 64/15 kHz clock
+		testb 	audctl,#0 wc
 	if_z	mov 	c64,#28
-		sub	c15,#1	wcz
-	if_z	mov 	c15,#114			
+	if_z_and_c mov  c64,#114
+	if_nz	jmp	#p102			' go process 1.77 MHz stuff		
 		
+
+p102		
+
 
 void0		long 	0
 audc1		long 	0   	'normal/5bit|4bit/17bit|sqr/noise|volume only/normal|4bit volume
