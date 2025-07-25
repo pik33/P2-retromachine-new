@@ -36,6 +36,19 @@ p101		sub	c64,#1 wz		' process main 64/15 kHz clock
 
 p102		
 
+'----------------------------------------
+' Counters
+'----
+
+' ----  #1
+
+p201		testb counters,#0	wc
+	if_nc	jmp #p202
+		
+
+
+
+
 
 void0		long 	0
 audc1		long 	0   	'normal/5bit|4bit/17bit|sqr/noise|volume only/normal|4bit volume
